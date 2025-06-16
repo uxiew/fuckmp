@@ -388,13 +388,25 @@ export class VueTemplateTransformer {
   }
 
   /**
-   * 提取表达式内容
+   * 提取表达式内容并移除 _ctx 前缀
    */
   private extractExpression(exp: any): string {
-    if (typeof exp === 'string') return exp
-    if (exp && exp.content) return exp.content
-    if (exp && exp.loc && exp.loc.source) return exp.loc.source
-    return ''
+    let expression = ''
+
+    if (typeof exp === 'string') {
+      expression = exp
+    } else if (exp && exp.content) {
+      expression = exp.content
+    } else if (exp && exp.loc && exp.loc.source) {
+      expression = exp.loc.source
+    }
+
+    // 移除 _ctx. 前缀
+    if (expression.startsWith('_ctx.')) {
+      expression = expression.substring(5)
+    }
+
+    return expression
   }
 
   /**
