@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Vue3 微信小程序编译器 CLI
+ * FuckMP - Vue3 微信小程序编译器 CLI
  */
 
 import { Command } from 'commander'
@@ -17,8 +17,8 @@ async function main(): Promise<void> {
 
   // 设置程序信息
   program
-    .name('vue3-mp')
-    .description('Vue3 微信小程序编译器')
+    .name('fuckmp')
+    .description('FuckMP - 强大的 Vue3 微信小程序编译器，支持完整的 Vue3 语法和 SCSS 导入')
     .version('1.0.0')
 
   // 添加全局选项
@@ -28,7 +28,7 @@ async function main(): Promise<void> {
     .hook('preAction', (thisCommand) => {
       // 处理全局选项
       const options = thisCommand.opts()
-      
+
       if (options.silent) {
         logger.setLevel('error')
       }
@@ -49,10 +49,10 @@ async function main(): Promise<void> {
     .action(async (options) => {
       const { createBuildCommand } = await import('./commands/build.js')
       const buildCommand = createBuildCommand()
-      
+
       // 添加 --watch 选项
       const buildOptions = { ...options, watch: true }
-      
+
       // 执行构建命令
       await buildCommand.parseAsync(['build', '--watch', ...process.argv.slice(3)], { from: 'user' })
     })
@@ -132,7 +132,7 @@ async function handleAnalyzeCommand(options: { input: string; outputFormat: stri
       logger.info(`📁 总文件数: ${analysis.totalFiles}`)
       logger.info(`📄 页面数: ${analysis.pages}`)
       logger.info(`🧩 组件数: ${analysis.components}`)
-      
+
       if (analysis.files.length > 0) {
         logger.info('\n文件列表:')
         analysis.files.forEach(file => {
@@ -156,7 +156,7 @@ async function handleCleanCommand(options: { output: string }): Promise<void> {
     logger.info(`清理输出目录: ${options.output}`)
 
     const { remove, exists } = await import('@/utils/index.js')
-    
+
     if (await exists(options.output)) {
       await remove(options.output)
       logger.success('输出目录清理完成')
@@ -216,10 +216,17 @@ async function handleConfigCommand(options: { init?: boolean; show?: boolean; va
  */
 function showHelp(): void {
   console.log(`
-Vue3 微信小程序编译器
+FuckMP - 强大的 Vue3 微信小程序编译器
+
+特性:
+  ✅ 完整的 Vue3 语法支持 (Composition API, script setup)
+  ✅ TypeScript 支持
+  ✅ SCSS/Sass 支持和导入功能
+  ✅ 智能路径解析和组件引用
+  ✅ 作用域样式 (scoped)
 
 用法:
-  vue3-mp <command> [options]
+  fuckmp <command> [options]
 
 命令:
   create <name>     创建新项目
@@ -236,12 +243,19 @@ Vue3 微信小程序编译器
   --silent          静默模式
 
 示例:
-  vue3-mp create my-app
-  vue3-mp build --input src --output dist
-  vue3-mp dev --watch
-  vue3-mp analyze --output-format json
+  fuckmp create my-app
+  fuckmp build --input src --output dist
+  fuckmp dev --watch
+  fuckmp analyze --output-format json
 
-更多信息请访问: https://github.com/vue3-miniprogram/compiler
+SCSS 导入示例:
+  // JavaScript 中导入样式
+  import './assets/css/global.scss'
+
+  // Style 标签中导入样式
+  <style lang="scss">
+    @import './assets/css/mixins.scss';
+  </style>
 `)
 }
 

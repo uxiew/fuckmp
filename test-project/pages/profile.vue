@@ -5,7 +5,7 @@
       <text class="name">{{ userInfo.name }}</text>
       <text class="email">{{ userInfo.email }}</text>
     </view>
-    
+
     <view class="info-section">
       <view class="section-title">
         <text>个人信息</text>
@@ -25,7 +25,7 @@
         </view>
       </view>
     </view>
-    
+
     <view class="menu-section">
       <view class="section-title">
         <text>功能菜单</text>
@@ -68,7 +68,7 @@ const userInfo = reactive<UserInfo>({
   id: 1001,
   name: '张三',
   email: 'zhangsan@example.com',
-  avatar: '/images/avatar.png',
+  avatar: '/assets/images/avatar.png',
   registerTime: new Date('2023-01-15'),
   lastLogin: new Date()
 })
@@ -83,7 +83,7 @@ const formatDate = (date: Date): string => {
 
 const handleMenuClick = (action: string) => {
   console.log('菜单点击:', action)
-  
+
   switch (action) {
     case 'settings':
       wx.showToast({
@@ -135,21 +135,21 @@ const handleMenuClick = (action: string) => {
   padding: 20rpx;
   background: #f5f5f5;
   min-height: 100vh;
-  
+
   .header {
     background: white;
     border-radius: 16rpx;
     padding: 40rpx;
     text-align: center;
     margin-bottom: 20rpx;
-    
+
     .avatar {
       width: 120rpx;
       height: 120rpx;
       border-radius: 50%;
       margin-bottom: 20rpx;
     }
-    
+
     .name {
       display: block;
       font-size: 36rpx;
@@ -157,19 +157,20 @@ const handleMenuClick = (action: string) => {
       color: #333;
       margin-bottom: 10rpx;
     }
-    
+
     .email {
       font-size: 28rpx;
       color: #666;
     }
   }
-  
-  .info-section, .menu-section {
+
+  .info-section,
+  .menu-section {
     margin-bottom: 20rpx;
-    
+
     .section-title {
       padding: 20rpx 0;
-      
+
       text {
         font-size: 32rpx;
         font-weight: 500;
@@ -177,60 +178,60 @@ const handleMenuClick = (action: string) => {
       }
     }
   }
-  
+
   .info-list {
     background: white;
     border-radius: 12rpx;
     overflow: hidden;
-    
+
     .info-item {
       display: flex;
       justify-content: space-between;
       align-items: center;
       padding: 30rpx 20rpx;
       border-bottom: 1rpx solid #eee;
-      
+
       &:last-child {
         border-bottom: none;
       }
-      
+
       .label {
         font-size: 30rpx;
         color: #333;
       }
-      
+
       .value {
         font-size: 30rpx;
         color: #666;
       }
     }
   }
-  
+
   .menu {
     background: white;
     border-radius: 12rpx;
     overflow: hidden;
-    
+
     .menu-item {
       display: flex;
       justify-content: space-between;
       align-items: center;
       padding: 30rpx 20rpx;
       border-bottom: 1rpx solid #eee;
-      
+
       &:last-child {
         border-bottom: none;
       }
-      
+
       &.danger .menu-text {
         color: #dc3545;
       }
-      
+
       .menu-text {
         font-size: 32rpx;
         color: #333;
       }
-      
+
       .menu-arrow {
         font-size: 28rpx;
         color: #999;

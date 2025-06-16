@@ -17,7 +17,7 @@
           "text": "主页"
         },
         {
-          "pagePath": "pages/profile/index",
+          "pagePath": "pages/profile",
           "text": "个人"
         }
       ]

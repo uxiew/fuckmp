@@ -87,6 +87,7 @@ export class ScriptTransformer {
       const context: TransformContext = {
         filename,
         isPage,
+        hasScoped: false, // 默认为 false，稍后会根据样式信息更新
         props: {},
         emits: [],
         expose: {},
@@ -140,6 +141,13 @@ export class ScriptTransformer {
             context.components.set(spec.local, source)
           }
         })
+      } else if (importInfo.isStyle) {
+        // 样式导入 - 记录到上下文中，稍后在编译器中处理
+        if (!context.styleImports) {
+          context.styleImports = []
+        }
+        context.styleImports.push(source)
+        logger.debug(`发现样式导入: ${source}`)
       }
     })
   }

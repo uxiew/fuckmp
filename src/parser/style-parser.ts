@@ -56,6 +56,7 @@ export class StyleParser {
     options: {
       scoped?: boolean
       sourcemap?: boolean
+      baseDir?: string
     } = {}
   ): Promise<StyleParseResult> {
     try {
@@ -64,9 +65,12 @@ export class StyleParser {
       let css = content
       let map: string | undefined
 
+      // 处理 @import 语句
+      css = await this.processImports(css, filename, options.baseDir)
+
       // 预处理器编译
       if (lang === 'scss' || lang === 'sass') {
-        const result = await this.compileSCSS(content, filename, options.sourcemap)
+        const result = await this.compileSCSS(css, filename, options.sourcemap)
         css = result.css
         map = result.map
       }
@@ -93,10 +97,7 @@ export class StyleParser {
         warnings: []
       }
 
-      // 作用域处理
-      if (options.scoped) {
-        result.css = this.addScopedStyles(result.css, filename)
-      }
+      // 作用域处理在样式转换器中进行，这里不处理
 
       logger.debug(`样式解析完成: ${filename}`)
       return result
@@ -105,6 +106,72 @@ export class StyleParser {
       logger.error(`样式解析失败: ${filename}`, error as Error)
       throw error
     }
+  }
+
+  /**
+   * 处理 @import 语句
+   */
+  private async processImports(
+    content: string,
+    filename: string,
+    baseDir?: string
+  ): Promise<string> {
+    const { readFile } = await import('@/utils/index.js')
+    const path = await import('path')
+
+    // 匹配 @import 语句
+    const importRegex = /@import\s+['"]([^'"]+)['"];?/g
+    let processedContent = content
+    let match
+
+    while ((match = importRegex.exec(content)) !== null) {
+      const importPath = match[1]
+      const fullMatch = match[0]
+
+      // 检查导入路径是否有效
+      if (!importPath || typeof importPath !== 'string') {
+        continue
+      }
+
+      try {
+        // 解析导入文件路径
+        let resolvedPath: string
+
+        if (baseDir && typeof baseDir === 'string') {
+          // 如果提供了基础目录，相对于基础目录解析
+          resolvedPath = path.resolve(baseDir, importPath)
+        } else if (filename && typeof filename === 'string') {
+          // 相对于当前文件解析
+          const currentDir = path.dirname(filename)
+          resolvedPath = path.join(currentDir, importPath)
+        } else {
+          // 如果都没有，使用当前工作目录
+          resolvedPath = path.resolve(process.cwd(), importPath)
+        }
+
+        // 读取导入的文件内容
+        const importedContent = await readFile(resolvedPath)
+
+        // 递归处理导入文件中的 @import 语句
+        // 使用导入文件的目录作为新的 baseDir
+        const importedFileDir = path.dirname(resolvedPath)
+        const processedImportedContent = await this.processImports(
+          importedContent,
+          resolvedPath,
+          importedFileDir
+        )
+
+        // 替换 @import 语句为文件内容
+        processedContent = processedContent.replace(fullMatch, processedImportedContent)
+
+        logger.debug(`处理样式导入: ${importPath} -> ${resolvedPath}`)
+      } catch (error) {
+        logger.error(`处理样式导入失败: ${importPath}`, error as Error)
+        // 保留原始 @import 语句，让 SCSS 编译器处理
+      }
+    }
+
+    return processedContent
   }
 
   /**
@@ -219,18 +286,18 @@ export class StyleParser {
       postcssPlugin: 'unit-transformer',
       Declaration(decl: any) {
         // px 转 rpx (1px = 2rpx)
-        decl.value = decl.value.replace(/(\d+(?:\.\d+)?)px/g, (match: string, num: string) => {
+        decl.value = decl.value.replace(/(\d+(?:\.\d+)?)px/g, (_: string, num: string) => {
           const value = parseFloat(num)
           return `${value * 2}rpx`
         })
 
         // vh/vw 转换 (假设设计稿为 375*667)
-        decl.value = decl.value.replace(/(\d+(?:\.\d+)?)vh/g, (match: string, num: string) => {
+        decl.value = decl.value.replace(/(\d+(?:\.\d+)?)vh/g, (_: string, num: string) => {
           const value = parseFloat(num)
           return `${(value * 667 / 100) * 2}rpx`
         })
 
-        decl.value = decl.value.replace(/(\d+(?:\.\d+)?)vw/g, (match: string, num: string) => {
+        decl.value = decl.value.replace(/(\d+(?:\.\d+)?)vw/g, (_: string, num: string) => {
           const value = parseFloat(num)
           return `${(value * 375 / 100) * 2}rpx`
         })

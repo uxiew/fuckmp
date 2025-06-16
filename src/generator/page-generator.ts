@@ -16,7 +16,7 @@ export class PageGenerator {
   async generatePage(
     scriptResult: ScriptTransformResult,
     templateResult: TemplateTransformResult,
-    styleResult: StyleTransformResult,
+    styleResults: StyleTransformResult | StyleTransformResult[],
     context: TransformContext
   ): Promise<GenerateResult> {
     try {
@@ -26,7 +26,7 @@ export class PageGenerator {
         js: this.generateJS(scriptResult, context),
         json: this.generateJSON(scriptResult, templateResult, context),
         wxml: this.generateWXML(templateResult, context),
-        wxss: this.generateWXSS(styleResult, context)
+        wxss: this.generateWXSS(styleResults, context)
       }
 
       logger.debug(`页面代码生成完成: ${context.filename}`)
@@ -91,22 +91,20 @@ ${this.generateReactivitySetup(context)}
 ${this.generateComputedUpdate(computed)}
   }`)
 
-    // 页面分享
-    parts.push(`  // 页面分享
+    // 只有在用户定义了分享相关生命周期时才添加
+    if (lifecycle.onShareAppMessage) {
+      parts.push(`  // 页面分享
   onShareAppMessage() {
-    return {
-      title: '${this.getPageTitle(context)}',
-      path: '${this.getPagePath(context)}'
-    }
+    ${lifecycle.onShareAppMessage}
   }`)
+    }
 
-    // 页面分享到朋友圈
-    parts.push(`  // 页面分享到朋友圈
+    if (lifecycle.onShareTimeline) {
+      parts.push(`  // 页面分享到朋友圈
   onShareTimeline() {
-    return {
-      title: '${this.getPageTitle(context)}'
-    }
+    ${lifecycle.onShareTimeline}
   }`)
+    }
 
     // 生成页面定义
     const pageCode = `Page({
@@ -146,20 +144,13 @@ ${parts.join(',\n\n')}
   private generateWXML(templateResult: TemplateTransformResult, context: TransformContext): string {
     let wxml = templateResult.wxml
 
-    // 添加页面容器
-    wxml = `<view class="page-container">
-  ${wxml}
-</view>`
+    // 移除所有的 _ctx. 前缀（后处理步骤）
+    wxml = this.removeCtxPrefixes(wxml)
 
-    // 添加加载状态
-    if (this.hasLoadingState(context)) {
-      wxml = `<view wx:if="{{loading}}" class="loading-container">
-  <view class="loading-spinner"></view>
-  <text class="loading-text">加载中...</text>
-</view>
-<view wx:else>
-  ${wxml}
-</view>`
+    // 只有在使用了 scoped 样式时才添加作用域属性
+    if (context.hasScoped && context.filename) {
+      const scopeId = this.generateScopeId(context.filename)
+      wxml = this.addScopeAttributes(wxml, scopeId)
     }
 
     return wxml
@@ -168,49 +159,23 @@ ${parts.join(',\n\n')}
   /**
    * 生成 WXSS 样式
    */
-  private generateWXSS(styleResult: StyleTransformResult, context: TransformContext): string {
-    let wxss = styleResult.wxss
+  private generateWXSS(styleResults: StyleTransformResult | StyleTransformResult[], context: TransformContext): string {
+    if (!styleResults) {
+      return ''
+    }
 
-    // 添加页面基础样式
-    const baseStyles = `/* 页面基础样式 */
-.page-container {
-  min-height: 100vh;
-  background-color: #f5f5f5;
-}
+    // 如果是单个样式结果，直接返回
+    if (!Array.isArray(styleResults)) {
+      return styleResults.wxss
+    }
 
-/* 加载状态样式 */
-.loading-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-}
+    // 如果是多个样式结果，合并它们
+    const allStyles = styleResults
+      .filter(result => result && result.wxss)
+      .map(result => result.wxss)
+      .join('\n\n')
 
-.loading-spinner {
-  width: 60rpx;
-  height: 60rpx;
-  border: 4rpx solid #e0e0e0;
-  border-top: 4rpx solid #1976d2;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-.loading-text {
-  margin-top: 20rpx;
-  color: #666;
-  font-size: 28rpx;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* 用户自定义样式 */
-${wxss}`
-
-    return baseStyles
+    return allStyles
   }
 
   /**
@@ -446,6 +411,58 @@ ${updates.join(',\n')}
    */
   private hasLoadingState(context: TransformContext): boolean {
     return 'loading' in context.data
+  }
+
+  /**
+   * 移除所有的 _ctx. 前缀
+   */
+  private removeCtxPrefixes(wxml: string): string {
+    // 移除事件绑定中的 _ctx. 前缀
+    wxml = wxml.replace(/bind:(\w+)="_ctx\.([^"]+)"/g, 'bind:$1="$2"')
+
+    // 移除条件渲染中的 _ctx. 前缀
+    wxml = wxml.replace(/wx:(if|elif)="{{_ctx\.([^}]+)}}"/g, 'wx:$1="{{$2}}"')
+
+    // 移除属性绑定中的 _ctx. 前缀
+    wxml = wxml.replace(/(\w+)="{{_ctx\.([^}]+)}}"/g, '$1="{{$2}}"')
+
+    // 移除其他可能的 _ctx. 前缀
+    wxml = wxml.replace(/_ctx\./g, '')
+
+    return wxml
+  }
+
+  /**
+   * 添加作用域属性
+   */
+  private addScopeAttributes(wxml: string, scopeId: string): string {
+    return wxml.replace(/<(\w+)([^>]*?)(\s*\/?)>/g, (match, tag, attrs, selfClosing) => {
+      if (attrs.includes('data-v-')) {
+        return match
+      }
+
+      // 修复：只有当 selfClosing 包含 '/' 时才是真正的自闭合标签
+      const isSelfClosing = selfClosing.includes('/')
+
+      if (isSelfClosing) {
+        return `<${tag}${attrs} data-v-${scopeId} />`
+      } else {
+        return `<${tag}${attrs} data-v-${scopeId}>`
+      }
+    })
+  }
+
+  /**
+   * 生成作用域 ID
+   */
+  private generateScopeId(filename: string): string {
+    let hash = 0
+    for (let i = 0; i < filename.length; i++) {
+      const char = filename.charCodeAt(i)
+      hash = ((hash << 5) - hash) + char
+      hash = hash & hash
+    }
+    return Math.abs(hash).toString(36).substring(0, 8)
   }
 
   /**

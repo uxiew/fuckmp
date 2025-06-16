@@ -124,9 +124,23 @@ export async function glob(pattern: string | string[], options?: fg.Options): Pr
  * 扫描 Vue 文件
  */
 export async function scanVueFiles(dir: string): Promise<string[]> {
-  return glob('**/*.vue', {
+  const allVueFiles = await glob('**/*.vue', {
     cwd: dir,
     absolute: true
+  })
+
+  // 过滤掉以 _ 开头的文件或目录（不需要编译的文件）
+  return allVueFiles.filter(filePath => {
+    const fileName = basename(filePath)
+    const pathParts = filePath.split(/[/\\]/)
+
+    // 检查文件名是否以 _ 开头
+    if (fileName.startsWith('_')) {
+      return false
+    }
+
+    // 检查路径中是否有以 _ 开头的目录
+    return !pathParts.some(part => part.startsWith('_'))
   })
 }
 

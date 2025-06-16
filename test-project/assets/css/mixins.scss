@@ -1,0 +1,38 @@
+// 导入变量
+@import './variables.scss';
+
+// 混合宏
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@mixin flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@mixin button-style($bg-color: $primary-color, $text-color: white) {
+  background: $bg-color;
+  color: $text-color;
+  border: none;
+  border-radius: $border-radius;
+  padding: $padding-base;
+  font-size: $font-size-base;
+  box-shadow: $box-shadow;
+  
+  &:active {
+    opacity: 0.8;
+    transform: scale(0.98);
+  }
+}
+
+@mixin card-style {
+  background: white;
+  border-radius: $border-radius;
+  padding: $padding-base;
+  margin: $margin-base;
+  box-shadow: $box-shadow;
+}

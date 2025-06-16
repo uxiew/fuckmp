@@ -16,7 +16,7 @@ export class ComponentGenerator {
   async generateComponent(
     scriptResult: ScriptTransformResult,
     templateResult: TemplateTransformResult,
-    styleResult: StyleTransformResult,
+    styleResults: StyleTransformResult | StyleTransformResult[],
     context: TransformContext
   ): Promise<GenerateResult> {
     try {
@@ -26,7 +26,7 @@ export class ComponentGenerator {
         js: this.generateJS(scriptResult, context),
         json: this.generateJSON(scriptResult, templateResult, context),
         wxml: this.generateWXML(templateResult, context),
-        wxss: this.generateWXSS(styleResult, context)
+        wxss: this.generateWXSS(styleResults, context)
       }
 
       logger.debug(`组件代码生成完成: ${context.filename}`)
@@ -112,8 +112,11 @@ ${this.generateAllMethods(methods, computed, emits, transformContext)}
   private generateWXML(templateResult: TemplateTransformResult, context: TransformContext): string {
     let wxml = templateResult.wxml
 
-    // 添加作用域属性
-    if (context.filename) {
+    // 移除所有的 _ctx. 前缀（后处理步骤）
+    wxml = this.removeCtxPrefixes(wxml)
+
+    // 只有在使用了 scoped 样式时才添加作用域属性
+    if (context.hasScoped && context.filename) {
       const scopeId = this.generateScopeId(context.filename)
       wxml = this.addScopeAttributes(wxml, scopeId)
     }
@@ -124,8 +127,23 @@ ${this.generateAllMethods(methods, computed, emits, transformContext)}
   /**
    * 生成 WXSS 样式
    */
-  private generateWXSS(styleResult: StyleTransformResult, context: TransformContext): string {
-    return styleResult.wxss
+  private generateWXSS(styleResults: StyleTransformResult | StyleTransformResult[], context: TransformContext): string {
+    if (!styleResults) {
+      return ''
+    }
+
+    // 如果是单个样式结果，直接返回
+    if (!Array.isArray(styleResults)) {
+      return styleResults.wxss
+    }
+
+    // 如果是多个样式结果，合并它们
+    const allStyles = styleResults
+      .filter(result => result && result.wxss)
+      .map(result => result.wxss)
+      .join('\n\n')
+
+    return allStyles
   }
 
   /**
@@ -408,6 +426,25 @@ ${updates.join(',\n')}
    */
   private hasSlots(templateResult: TemplateTransformResult): boolean {
     return templateResult.wxml.includes('<slot')
+  }
+
+  /**
+   * 移除所有的 _ctx. 前缀
+   */
+  private removeCtxPrefixes(wxml: string): string {
+    // 移除事件绑定中的 _ctx. 前缀
+    wxml = wxml.replace(/bind:(\w+)="_ctx\.([^"]+)"/g, 'bind:$1="$2"')
+
+    // 移除条件渲染中的 _ctx. 前缀
+    wxml = wxml.replace(/wx:(if|elif)="{{_ctx\.([^}]+)}}"/g, 'wx:$1="{{$2}}"')
+
+    // 移除属性绑定中的 _ctx. 前缀
+    wxml = wxml.replace(/(\w+)="{{_ctx\.([^}]+)}}"/g, '$1="{{$2}}"')
+
+    // 移除其他可能的 _ctx. 前缀
+    wxml = wxml.replace(/_ctx\./g, '')
+
+    return wxml
   }
 
   /**

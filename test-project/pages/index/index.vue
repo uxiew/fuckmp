@@ -4,13 +4,10 @@
       <text class="title">{{ title }}</text>
       <text class="subtitle">{{ subtitle }}</text>
     </view>
-    
+
     <view class="content">
-      <UserCard 
-        :user="currentUser" 
-        @user-click="handleUserClick"
-      />
-      
+      <UserCard :user="currentUser" @user-click="handleUserClick" />
+
       <view class="stats">
         <view class="stat-item">
           <text class="stat-label">访问次数</text>
@@ -21,7 +18,7 @@
           <text class="stat-value">{{ onlineTime }}分钟</text>
         </view>
       </view>
-      
+
       <view class="actions">
         <button @tap="incrementVisit" class="btn primary">
           增加访问
@@ -88,17 +85,17 @@ onMounted(() => {
 })
 </script>
 
-<style lang="scss" scoped>
+<style lang="scss">
 .index-page {
   padding: 20rpx;
   min-height: 100vh;
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  
+
   .header {
     text-align: center;
     padding: 40rpx 0;
     margin-bottom: 40rpx;
-    
+
     .title {
       display: block;
       font-size: 48rpx;
@@ -106,29 +103,29 @@ onMounted(() => {
       color: #333;
       margin-bottom: 10rpx;
     }
-    
+
     .subtitle {
       font-size: 28rpx;
       color: #666;
     }
   }
-  
+
   .content {
     .stats {
       display: flex;
       justify-content: space-around;
       margin: 40rpx 0;
-      
+
       .stat-item {
         text-align: center;
-        
+
         .stat-label {
           display: block;
           font-size: 24rpx;
           color: #999;
           margin-bottom: 10rpx;
         }
-        
+
         .stat-value {
           font-size: 36rpx;
           font-weight: bold;
@@ -136,12 +133,12 @@ onMounted(() => {
         }
       }
     }
-    
+
     .actions {
       display: flex;
       gap: 20rpx;
       margin-top: 40rpx;
-      
+
       .btn {
         flex: 1;
         padding: 25rpx;
@@ -149,12 +146,12 @@ onMounted(() => {
         border: none;
         font-size: 32rpx;
         font-weight: 500;
-        
+
         &.primary {
           background: #007bff;
           color: white;
         }
-        
+
         &.secondary {
           background: #6c757d;
           color: white;

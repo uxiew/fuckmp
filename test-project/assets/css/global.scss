@@ -1,0 +1,39 @@
+// 导入变量和混合宏
+@import './variables.scss';
+@import './mixins.scss';
+
+// 全局样式
+.global-container {
+  @include flex-center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, $primary-color, $secondary-color);
+}
+
+.global-button {
+  @include button-style($success-color, white);
+}
+
+.global-card {
+  @include card-style;
+}
+
+// 工具类
+.text-center {
+  text-align: center;
+}
+
+.text-primary {
+  color: $primary-color;
+}
+
+.text-success {
+  color: $success-color;
+}
+
+.text-warning {
+  color: $warning-color;
+}
+
+.text-error {
+  color: $error-color;
+}

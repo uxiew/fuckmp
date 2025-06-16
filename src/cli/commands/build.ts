@@ -32,8 +32,8 @@ export function createBuildCommand(): Command {
     .option('-o, --output <dir>', '输出目录', 'dist')
     .option('--app-id <id>', '小程序 AppID')
     .option('-c, --config <file>', '配置文件路径')
-    .option('--minify', '压缩代码')
-    .option('--no-sourcemap', '禁用 source map')
+    .option('--no-minify', '禁用代码压缩 (默认启用)')
+    .option('--sourcemap', '启用 source map (默认禁用)')
     .option('--clean', '构建前清理输出目录')
     .option('-w, --watch', '监听模式')
     .option('-v, --verbose', '详细输出')
@@ -72,10 +72,10 @@ async function handleBuildCommand(options: BuildOptions): Promise<void> {
       await compiler.watch()
     } else {
       const result = await compiler.compile()
-      
+
       // 输出构建结果
       printBuildResult(result)
-      
+
       // 如果有错误，退出进程
       if (result.errors.length > 0) {
         process.exit(1)
@@ -119,19 +119,11 @@ async function buildCompilerOptions(options: BuildOptions): Promise<Partial<Comp
     compilerOptions.appId = options.appId
   }
 
-  // 优化选项
-  if (options.minify !== undefined) {
-    compilerOptions.optimization = {
-      ...compilerOptions.optimization,
-      minify: options.minify
-    }
-  }
-
-  if (options.sourcemap !== undefined) {
-    compilerOptions.optimization = {
-      ...compilerOptions.optimization,
-      sourcemap: options.sourcemap
-    }
+  // 优化选项 - build 模式默认启用压缩并禁用 sourcemap
+  compilerOptions.optimization = {
+    ...compilerOptions.optimization,
+    minify: options.minify !== false,  // 默认启用压缩，除非明确设置 --no-minify
+    sourcemap: options.sourcemap === true  // 默认禁用 sourcemap，除非明确设置 --sourcemap
   }
 
   return compilerOptions
@@ -145,11 +137,11 @@ function printBuildResult(result: any): void {
 
   logger.info('\n构建完成!')
   logger.info(`✅ 成功: ${stats.success} 个文件`)
-  
+
   if (stats.failed > 0) {
     logger.warn(`❌ 失败: ${stats.failed} 个文件`)
   }
-  
+
   logger.info(`⏱️  耗时: ${formatTime(stats.duration)}`)
 
   // 输出错误详情
@@ -237,9 +229,9 @@ export class BuildProgress {
     const eta = this.current > 0 ? (elapsed / this.current) * (this.total - this.current) : 0
 
     const progressBar = this.createProgressBar(percentage)
-    
+
     process.stdout.write(`\r${progressBar} ${percentage}% (${this.current}/${this.total}) ETA: ${formatTime(eta)}`)
-    
+
     if (this.current === this.total) {
       process.stdout.write('\n')
     }
@@ -249,7 +241,7 @@ export class BuildProgress {
     const width = 20
     const filled = Math.round((percentage / 100) * width)
     const empty = width - filled
-    
+
     return `[${'█'.repeat(filled)}${' '.repeat(empty)}]`
   }
 }
@@ -279,14 +271,14 @@ export class BuildStats {
   } {
     const totalTime = Date.now() - this.startTime
     const files = Array.from(this.files.entries())
-    
+
     const totalSize = files.reduce((sum, [, stat]) => sum + stat.size, 0)
     const averageTime = files.length > 0 ? totalTime / files.length : 0
-    
+
     const largestFile = files.reduce((largest, [path, stat]) => {
       return !largest || stat.size > largest.size ? { path, size: stat.size } : largest
     }, null as { path: string; size: number } | null)
-    
+
     const slowestFile = files.reduce((slowest, [path, stat]) => {
       return !slowest || stat.time > slowest.time ? { path, time: stat.time } : slowest
     }, null as { path: string; time: number } | null)
@@ -303,17 +295,17 @@ export class BuildStats {
 
   printSummary(): void {
     const stats = this.getStats()
-    
+
     logger.info('\n构建统计:')
     logger.info(`📁 文件数量: ${stats.totalFiles}`)
     logger.info(`📦 总大小: ${formatFileSize(stats.totalSize)}`)
     logger.info(`⏱️  总耗时: ${formatTime(stats.totalTime)}`)
     logger.info(`⚡ 平均耗时: ${formatTime(stats.averageTime)}`)
-    
+
     if (stats.largestFile) {
       logger.info(`📈 最大文件: ${stats.largestFile.path} (${formatFileSize(stats.largestFile.size)})`)
     }
-    
+
     if (stats.slowestFile) {
       logger.info(`🐌 最慢文件: ${stats.slowestFile.path} (${formatTime(stats.slowestFile.time)})`)
     }

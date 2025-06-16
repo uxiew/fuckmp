@@ -90,6 +90,8 @@ export interface TransformContext {
   filename: string
   /** 是否为页面组件 */
   isPage: boolean
+  /** 是否使用了 scoped 样式 */
+  hasScoped: boolean
   /** Props 定义 */
   props: Record<string, any>
   /** Emits 定义 */
@@ -110,6 +112,8 @@ export interface TransformContext {
   imports: Set<string>
   /** 使用的组件 */
   components: Map<string, string>
+  /** 导入的样式文件 */
+  styleImports?: string[]
 }
 
 /**

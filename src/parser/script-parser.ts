@@ -38,6 +38,7 @@ export interface ImportInfo {
   }>
   isVue: boolean
   isComponent: boolean
+  isStyle: boolean
 }
 
 /**
@@ -142,12 +143,14 @@ export class ScriptParser {
     const source = node.source.value
     const isVue = source === 'vue'
     const isComponent = source.endsWith('.vue')
+    const isStyle = source.endsWith('.scss') || source.endsWith('.sass') || source.endsWith('.css')
 
     const importInfo: ImportInfo = {
       source,
       specifiers: [],
       isVue,
-      isComponent
+      isComponent,
+      isStyle
     }
 
     // 处理导入说明符

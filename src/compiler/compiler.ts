@@ -9,7 +9,8 @@ import { ConfigManager } from './options.js'
 import { PluginManager, createDefaultPluginManager } from '@/plugins/index.js'
 import { UserConfigManager } from '@/config/user-config.js'
 import type { CompilerOptions, CompileResult, ParseResult, TransformContext } from '@/types/index.js'
-import { logger, scanVueFiles, getOutputPath, isPageComponent, writeFile, ensureDir, getRelativePath, normalizePath, PathResolver, createPathResolver } from '@/utils/index.js'
+import { logger, scanVueFiles, getOutputPath, isPageComponent, writeFile, ensureDir, getRelativePath, normalizePath, PathResolver, createPathResolver, readFile } from '@/utils/index.js'
+import path from 'path'
 
 /**
  * 主编译器类
@@ -68,7 +69,6 @@ export class Vue3MiniprogramCompiler {
       logger.info(`编译文件: ${filePath}`)
 
       // 读取文件内容
-      const { readFile } = await import('@/utils/index.js')
       const content = await readFile(filePath)
 
       // 解析 SFC
@@ -80,10 +80,14 @@ export class Vue3MiniprogramCompiler {
         throw new Error(`SFC 验证失败: ${validation.errors.join(', ')}`)
       }
 
+      // 检查是否使用了 scoped 样式
+      const hasScoped = parseResult.styles.some(style => style.scoped)
+
       // 创建转换上下文
       const context: TransformContext = {
         filename: filePath,
         isPage: isPageComponent(filePath),
+        hasScoped,
         props: {},
         emits: [],
         expose: {},
@@ -205,6 +209,11 @@ export class Vue3MiniprogramCompiler {
         context.filename,
         context.isPage
       )
+
+      // 将脚本转换结果中的样式导入合并到上下文中
+      if (results.script.context && results.script.context.styleImports) {
+        context.styleImports = results.script.context.styleImports
+      }
     }
 
     // 解析和转换模板
@@ -220,11 +229,14 @@ export class Vue3MiniprogramCompiler {
     }
 
     // 解析和转换样式
+    results.styles = []
+
+    // 处理 Vue 文件中的样式
     if (parseResult.styles.length > 0) {
-      results.styles = []
       for (const style of parseResult.styles) {
         const parseOptions: any = {
-          sourcemap: this.configManager.getOptimization('sourcemap')
+          sourcemap: this.configManager.getOptimization('sourcemap'),
+          baseDir: path.dirname(context.filename)
         }
 
         if (style.scoped !== undefined) {
@@ -254,6 +266,52 @@ export class Vue3MiniprogramCompiler {
       }
     }
 
+    // 处理从 JavaScript 导入的样式文件
+    if (context.styleImports && context.styleImports.length > 0) {
+      for (const styleImportPath of context.styleImports) {
+        try {
+          // 解析样式文件路径
+          const resolvedStylePath = path.resolve(path.dirname(context.filename), styleImportPath)
+
+          // 读取样式文件内容
+          const styleContent = await readFile(resolvedStylePath)
+
+          // 确定样式语言
+          const styleLang = styleImportPath.endsWith('.scss') ? 'scss' :
+            styleImportPath.endsWith('.sass') ? 'sass' : 'css'
+
+          // 解析样式
+          const parseOptions = {
+            scoped: false, // 导入的样式文件默认不使用 scoped
+            sourcemap: this.configManager.getOptimization('sourcemap'),
+            baseDir: path.dirname(resolvedStylePath)
+          }
+          const styleParseResult = await this.styleParser.parseStyle(
+            styleContent,
+            styleLang,
+            resolvedStylePath,
+            parseOptions
+          )
+
+          // 转换样式
+          const transformOptions = {
+            scoped: false,
+            minify: this.configManager.getOptimization('minify'),
+            sourcemap: this.configManager.getOptimization('sourcemap')
+          }
+          const styleTransformResult = await this.styleTransformer.transformStyle(
+            styleParseResult,
+            context,
+            transformOptions
+          )
+
+          results.styles.push(styleTransformResult)
+        } catch (error) {
+          logger.error(`处理导入的样式文件失败: ${styleImportPath}`, error as Error)
+        }
+      }
+    }
+
     return results
   }
 
@@ -265,14 +323,14 @@ export class Vue3MiniprogramCompiler {
       return await this.pageGenerator.generatePage(
         results.script,
         results.template,
-        results.styles?.[0],
+        results.styles || [],
         context
       )
     } else {
       return await this.componentGenerator.generateComponent(
         results.script,
         results.template,
-        results.styles?.[0],
+        results.styles || [],
         context
       )
     }
