@@ -1,0 +1,36 @@
+{
+  "appId": "wxa55571d45b1bdf02",
+  "app": {
+    "window": {
+      "navigationBarBackgroundColor": "#ff6b6b",
+      "navigationBarTextStyle": "white",
+      "navigationBarTitleText": "自定义小程序"
+    },
+    "tabBar": {
+      "color": "#999999",
+      "selectedColor": "#ff6b6b",
+      "backgroundColor": "#f8f9fa",
+      "borderStyle": "black",
+      "list": [
+        {
+          "pagePath": "pages/index/index",
+          "text": "主页"
+        },
+        {
+          "pagePath": "pages/profile/index",
+          "text": "个人"
+        }
+      ]
+    }
+  },
+  "project": {
+    "description": "自定义的 Vue3 微信小程序项目",
+    "projectname": "custom-miniprogram"
+  },
+  "pageTitles": {
+    "index": "主页",
+    "profile": "个人",
+    "settings": "设置",
+    "about": "关于我们"
+  }
+}
