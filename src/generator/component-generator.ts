@@ -75,23 +75,7 @@ ${this.generatePageLifetimes(lifecycle)}
 
   // 组件方法
   methods: {
-${this.generateMethods(methods)},
-
-${this.generateComputedMethods(computed)},
-
-${this.generateEmitMethods(emits)},
-
-${this.generateEventHandlers(transformContext)},
-
-    // 响应式系统设置
-    _setupReactivity() {
-${this.generateReactivitySetup(transformContext)}
-    },
-
-    // 更新计算属性
-    _updateComputed() {
-${this.generateComputedUpdate(computed)}
-    }
+${this.generateAllMethods(methods, computed, emits, transformContext)}
   }
 })`
 
@@ -207,6 +191,56 @@ ${entries.join(',\n')}
   }
 
   /**
+   * 生成所有方法（智能组合，过滤空内容）
+   */
+  private generateAllMethods(
+    methods: Record<string, any>,
+    computed: Record<string, any>,
+    emits: string[],
+    context: TransformContext
+  ): string {
+    const methodParts: string[] = []
+
+    // 用户定义的方法
+    const userMethods = this.generateMethods(methods)
+    if (userMethods.trim()) {
+      methodParts.push(userMethods)
+    }
+
+    // 计算属性方法
+    const computedMethods = this.generateComputedMethods(computed)
+    if (computedMethods.trim()) {
+      methodParts.push(computedMethods)
+    }
+
+    // 事件发射方法
+    const emitMethods = this.generateEmitMethods(emits)
+    if (emitMethods.trim()) {
+      methodParts.push(emitMethods)
+    }
+
+    // 事件处理器
+    const eventHandlers = this.generateEventHandlers(context)
+    if (eventHandlers.trim()) {
+      methodParts.push(eventHandlers)
+    }
+
+    // 响应式系统设置（总是包含）
+    methodParts.push(`    // 响应式系统设置
+    _setupReactivity() {
+${this.generateReactivitySetup(context)}
+    }`)
+
+    // 更新计算属性（总是包含）
+    methodParts.push(`    // 更新计算属性
+    _updateComputed() {
+${this.generateComputedUpdate(computed)}
+    }`)
+
+    return methodParts.join(',\n\n')
+  }
+
+  /**
    * 生成方法
    */
   private generateMethods(methods: Record<string, any>): string {
@@ -227,6 +261,10 @@ ${entries.join(',\n')}
       }
     })
 
+    if (entries.length === 0) {
+      return ''
+    }
+
     return entries.join(',\n\n')
   }
 
@@ -239,6 +277,10 @@ ${entries.join(',\n')}
       ${config.getter || 'return null'}
     }`
     })
+
+    if (entries.length === 0) {
+      return ''
+    }
 
     return entries.join(',\n\n')
   }
@@ -254,6 +296,10 @@ ${entries.join(',\n')}
     }`
     })
 
+    if (methods.length === 0) {
+      return ''
+    }
+
     return methods.join(',\n\n')
   }
 
@@ -265,12 +311,15 @@ ${entries.join(',\n')}
 
     // v-model 输入处理器
     Object.keys(context.data).forEach(key => {
+      const eventName = `update:${key}`
+      const methodName = `_emit${this.capitalize(eventName.replace(':', ''))}`
+
       handlers.push(`    _handleInput_${key.replace(/\./g, '_')}(event) {
       const value = event.detail.value
       this.setData({
         ${key}: value
       })
-      this._emit${this.capitalize(`update:${key}`)}(value)
+      this.${methodName}(value)
     }`)
 
       handlers.push(`    _handleNumberInput_${key.replace(/\./g, '_')}(event) {
@@ -278,7 +327,7 @@ ${entries.join(',\n')}
       this.setData({
         ${key}: value
       })
-      this._emit${this.capitalize(`update:${key}`)}(value)
+      this.${methodName}(value)
     }`)
 
       handlers.push(`    _handleTrimInput_${key.replace(/\./g, '_')}(event) {
@@ -286,9 +335,13 @@ ${entries.join(',\n')}
       this.setData({
         ${key}: value
       })
-      this._emit${this.capitalize(`update:${key}`)}(value)
+      this.${methodName}(value)
     }`)
     })
+
+    if (handlers.length === 0) {
+      return ''
+    }
 
     return handlers.join(',\n\n')
   }
