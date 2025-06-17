@@ -786,7 +786,7 @@ Component(createComponent(componentOptions));
   }
 
   /**
-   * 映射 Vue 类型到小程序类型
+   * 映射 Vue 类型到小程序类型（返回构造函数而不是字符串）
    */
   private mapVueTypeToMiniProgram(vueType: any): string {
     if (!vueType) return 'Object'  // 默认为 Object 而不是 null
@@ -861,6 +861,11 @@ Component(createComponent(componentOptions));
       } else if (typeof value === 'string' && this.isExpressionString(value)) {
         // 检查是否为表达式字符串（如 new Date(), 对象字面量等）
         const placeholder = `__EXPRESSION_PLACEHOLDER_${placeholderIndex++}__`
+        functionPlaceholders.set(placeholder, value)
+        return placeholder
+      } else if (typeof value === 'string' && ['String', 'Number', 'Boolean', 'Object', 'Array'].includes(value)) {
+        // 特殊处理小程序类型构造函数，避免被JSON.stringify包装成字符串
+        const placeholder = `__TYPE_PLACEHOLDER_${placeholderIndex++}__`
         functionPlaceholders.set(placeholder, value)
         return placeholder
       }
@@ -951,6 +956,9 @@ Component(createComponent(componentOptions));
 
     // 检查是否为数字
     if (/^\d+(\.\d+)?$/.test(str)) return true
+
+    // 检查是否为小程序类型构造函数（不加引号）
+    if (['String', 'Number', 'Boolean', 'Object', 'Array'].includes(str)) return true
 
     // 检查是否为 new 表达式（但不包含this的表达式，因为在data中不能使用this）
     if (str.startsWith('new ') && !str.includes('this.')) return true

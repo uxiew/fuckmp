@@ -71,8 +71,8 @@ const incrementVisit = () => {
 }
 
 const navigateToProfile = () => {
-  wx.navigateTo({
-    url: '/pages/profile/index'
+  wx.switchTab({
+    url: '/pages/profile'
   })
 }
 
