@@ -2,7 +2,7 @@
  * 组件代码生成器
  */
 
-import type { TransformContext, GenerateResult } from '@/types/index.js'
+import type { TransformContext, GenerateResult, CompilerOptions } from '@/types/index.js'
 import type { ScriptTransformResult, TemplateTransformResult, StyleTransformResult } from '@/transformer/index.js'
 import { logger } from '@/utils/index.js'
 
@@ -10,6 +10,12 @@ import { logger } from '@/utils/index.js'
  * 组件生成器类
  */
 export class ComponentGenerator {
+  private options: CompilerOptions['injection']
+
+  constructor(options: CompilerOptions['injection']) {
+    this.options = options
+  }
+
   /**
    * 生成组件代码
    */
@@ -237,19 +243,21 @@ ${entries.join(',\n')}
       methodParts.push(emitMethods)
     }
 
-    // 事件处理器
-    const eventHandlers = this.generateEventHandlers(context)
-    if (eventHandlers.trim()) {
-      methodParts.push(eventHandlers)
+    // 事件处理器（仅在配置启用时生成）
+    if (!this.options.pureMode && this.options.component.eventHandlers) {
+      const eventHandlers = this.generateEventHandlers(context)
+      if (eventHandlers.trim()) {
+        methodParts.push(eventHandlers)
+      }
     }
 
-    // 响应式系统设置（总是包含）
+    // 响应式系统设置（始终生成，支撑程序运行）
     methodParts.push(`    // 响应式系统设置
     _setupReactivity() {
 ${this.generateReactivitySetup(context)}
     }`)
 
-    // 更新计算属性（总是包含）
+    // 更新计算属性（始终生成，支撑程序运行）
     methodParts.push(`    // 更新计算属性
     _updateComputed() {
 ${this.generateComputedUpdate(computed)}
@@ -327,35 +335,38 @@ ${this.generateComputedUpdate(computed)}
   private generateEventHandlers(context: TransformContext): string {
     const handlers: string[] = []
 
-    // v-model 输入处理器
-    Object.keys(context.data).forEach(key => {
-      const eventName = `update:${key}`
-      const methodName = `_emit${this.capitalize(eventName.replace(':', ''))}`
+    // 只有在配置启用输入处理器时才生成
+    if (!this.options.pureMode && this.options.component.inputHandlers) {
+      // v-model 输入处理器（仅为实际使用的数据属性生成）
+      Object.keys(context.data).forEach(key => {
+        const eventName = `update:${key}`
+        const methodName = `_emit${this.capitalize(eventName.replace(':', ''))}`
 
-      handlers.push(`    _handleInput_${key.replace(/\./g, '_')}(event) {
-      const value = event.detail.value
-      this.setData({
-        ${key}: value
-      })
-      this.${methodName}(value)
-    }`)
+        handlers.push(`    _handleInput_${key.replace(/\./g, '_')}(event) {
+        const value = event.detail.value
+        this.setData({
+          ${key}: value
+        })
+        this.${methodName}(value)
+      }`)
 
-      handlers.push(`    _handleNumberInput_${key.replace(/\./g, '_')}(event) {
-      const value = parseFloat(event.detail.value) || 0
-      this.setData({
-        ${key}: value
-      })
-      this.${methodName}(value)
-    }`)
+        handlers.push(`    _handleNumberInput_${key.replace(/\./g, '_')}(event) {
+        const value = parseFloat(event.detail.value) || 0
+        this.setData({
+          ${key}: value
+        })
+        this.${methodName}(value)
+      }`)
 
-      handlers.push(`    _handleTrimInput_${key.replace(/\./g, '_')}(event) {
-      const value = event.detail.value.trim()
-      this.setData({
-        ${key}: value
+        handlers.push(`    _handleTrimInput_${key.replace(/\./g, '_')}(event) {
+        const value = event.detail.value.trim()
+        this.setData({
+          ${key}: value
+        })
+        this.${methodName}(value)
+      }`)
       })
-      this.${methodName}(value)
-    }`)
-    })
+    }
 
     if (handlers.length === 0) {
       return ''

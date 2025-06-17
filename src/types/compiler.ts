@@ -45,6 +45,40 @@ export interface CompilerOptions {
     /** 增量编译 */
     incremental: boolean
   }
+  /** 代码注入控制配置 */
+  injection: {
+    /** 是否启用纯净模式（不自动注入任何代码） */
+    pureMode: boolean
+    /** 页面功能注入控制 */
+    page: {
+      /** 是否自动注入分享到好友功能 */
+      shareAppMessage: boolean
+      /** 是否自动注入分享到朋友圈功能 */
+      shareTimeline: boolean
+      /** 是否自动注入加载状态UI */
+      loadingState: boolean
+      /** 是否自动注入下拉刷新功能 */
+      pullDownRefresh: boolean
+      /** 是否自动注入上拉加载更多功能 */
+      reachBottom: boolean
+      /** 是否自动注入基础页面样式 */
+      baseStyles: boolean
+      /** 是否自动注入通用事件处理器 */
+      eventHandlers: boolean
+    }
+    /** 组件功能注入控制 */
+    component: {
+      /** 是否自动注入输入处理器 */
+      inputHandlers: boolean
+      /** 是否自动注入事件处理器 */
+      eventHandlers: boolean
+    }
+    /** 响应式系统注入控制 */
+    reactivity: {
+      /** 是否自动注入额外的响应式辅助方法（核心方法始终生成） */
+      extraHelpers: boolean
+    }
+  }
 }
 
 /**
@@ -158,14 +192,14 @@ export interface CompileResult {
 }
 
 /**
- * AST 节点类型
+ * Babel AST 节点类型
  */
-export type ASTNode = BabelNode
+export type BabelASTNode = BabelNode
 
 /**
  * 宏处理器类型
  */
-export type MacroHandler = (node: ASTNode, context: TransformContext) => any
+export type MacroHandler = (node: BabelASTNode, context: TransformContext) => any
 
 /**
  * 指令转换器类型

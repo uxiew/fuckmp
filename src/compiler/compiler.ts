@@ -8,8 +8,9 @@ import { ComponentGenerator, PageGenerator, ConfigGenerator } from '@/generator/
 import { ConfigManager } from './options.js'
 import { PluginManager, createDefaultPluginManager } from '@/plugins/index.js'
 import { UserConfigManager } from '@/config/user-config.js'
+import { RuntimeInjector } from './runtime-injector'
 import type { CompilerOptions, CompileResult, ParseResult, TransformContext } from '@/types/index.js'
-import { logger, scanVueFiles, getOutputPath, isPageComponent, writeFile, ensureDir, getRelativePath, normalizePath, PathResolver, createPathResolver, readFile } from '@/utils/index.js'
+import { logger, scanVueFiles, getOutputPath, isPageComponent, isAppComponent, writeFile, ensureDir, getRelativePath, normalizePath, PathResolver, createPathResolver, readFile } from '@/utils/index.js'
 import path from 'path'
 
 /**
@@ -19,6 +20,7 @@ export class Vue3MiniprogramCompiler {
   private configManager: ConfigManager
   private pluginManager: PluginManager
   private userConfigManager: UserConfigManager
+  private runtimeInjector: RuntimeInjector
   private sfcParser: SFCParser
   private scriptParser: ScriptParser
   private templateParser: TemplateParser
@@ -31,6 +33,12 @@ export class Vue3MiniprogramCompiler {
   private configGenerator: ConfigGenerator
   private pathResolver: PathResolver
 
+  // 编译过程中收集的数据
+  private sourceFiles: Map<string, string> = new Map()
+  private compiledPages: Map<string, any> = new Map()
+  private compiledComponents: Map<string, any> = new Map()
+  private appConfig: any = {}
+
   constructor(options: Partial<CompilerOptions> = {}) {
     this.configManager = new ConfigManager(options)
     this.pluginManager = createDefaultPluginManager()
@@ -42,6 +50,9 @@ export class Vue3MiniprogramCompiler {
     // 初始化用户配置管理器
     this.userConfigManager = new UserConfigManager()
     this.userConfigManager.loadConfig(process.cwd()) // 从当前工作目录加载配置
+
+    // 初始化运行时注入器
+    this.runtimeInjector = new RuntimeInjector(this.configManager.getOptions())
 
     // 初始化解析器
     this.sfcParser = new SFCParser(this.configManager.getOptions())
@@ -56,8 +67,9 @@ export class Vue3MiniprogramCompiler {
     this.styleTransformer = new StyleTransformer()
 
     // 初始化生成器
-    this.componentGenerator = new ComponentGenerator()
-    this.pageGenerator = new PageGenerator()
+    const injectionOptions = this.configManager.getInjection()
+    this.componentGenerator = new ComponentGenerator(injectionOptions)
+    this.pageGenerator = new PageGenerator(injectionOptions)
     this.configGenerator = new ConfigGenerator(this.configManager.getOptions())
   }
 
@@ -70,6 +82,9 @@ export class Vue3MiniprogramCompiler {
 
       // 读取文件内容
       const content = await readFile(filePath)
+
+      // 收集源文件内容用于运行时分析
+      this.sourceFiles.set(filePath, content)
 
       // 解析 SFC
       const parseResult = await this.sfcParser.parseSFC(content, filePath)
@@ -106,8 +121,29 @@ export class Vue3MiniprogramCompiler {
       // 生成代码
       const generateResult = await this.generateCode(results, context)
 
-      // 写入文件
-      await this.writeFiles(filePath, generateResult)
+      // 收集页面、组件和应用配置用于运行时注入
+      if (isAppComponent(filePath)) {
+        // 应用入口文件
+        this.appConfig = {
+          config: generateResult.json,
+          context: context
+        }
+      } else if (context.isPage) {
+        this.compiledPages.set(filePath, {
+          config: generateResult.json,
+          context: context
+        })
+      } else {
+        this.compiledComponents.set(filePath, {
+          config: generateResult.json,
+          context: context
+        })
+      }
+
+      // 写入文件（应用入口文件由运行时注入器处理）
+      if (!isAppComponent(filePath)) {
+        await this.writeFiles(filePath, generateResult)
+      }
 
       logger.success(`文件编译完成: ${filePath}`)
 
@@ -172,6 +208,9 @@ export class Vue3MiniprogramCompiler {
       // 生成应用配置
       await this.generateAppConfig(result.success)
 
+      // 执行运行时注入
+      await this.performRuntimeInjection(options.output)
+
       // 生成项目配置
       await this.configGenerator.generateProjectConfig(options.output)
       await this.configGenerator.generateSitemapConfig(options.output)
@@ -210,9 +249,37 @@ export class Vue3MiniprogramCompiler {
         context.isPage
       )
 
-      // 将脚本转换结果中的样式导入合并到上下文中
-      if (results.script.context && results.script.context.styleImports) {
-        context.styleImports = results.script.context.styleImports
+      // 将脚本转换结果中的上下文合并到主上下文中
+      if (results.script.context) {
+        const scriptContext = results.script.context
+
+        // 合并数据
+        Object.assign(context.data, scriptContext.data)
+
+        // 合并方法
+        Object.assign(context.methods, scriptContext.methods)
+
+        // 合并计算属性
+        Object.assign(context.computed, scriptContext.computed)
+
+        // 合并生命周期
+        Object.assign(context.lifecycle, scriptContext.lifecycle)
+
+        // 合并监听器
+        Object.assign(context.watch, scriptContext.watch)
+
+        // 合并props和emits
+        Object.assign(context.props, scriptContext.props)
+        context.emits = [...context.emits, ...scriptContext.emits]
+
+        // 合并导入和组件
+        scriptContext.imports.forEach((imp: string) => context.imports.add(imp))
+        scriptContext.components.forEach((path: string, name: string) => context.components.set(name, path))
+
+        // 合并样式导入
+        if (scriptContext.styleImports) {
+          context.styleImports = scriptContext.styleImports
+        }
       }
     }
 
@@ -451,6 +518,51 @@ export class Vue3MiniprogramCompiler {
 
     processedConfig.usingComponents = processedComponents
     return processedConfig
+  }
+
+  /**
+   * 执行运行时注入
+   */
+  private async performRuntimeInjection(outputDir: string): Promise<void> {
+    try {
+      logger.info('开始执行运行时注入...')
+
+      // 准备页面配置（包含配置和上下文）
+      const pages = new Map<string, any>()
+      for (const [filePath, pageData] of this.compiledPages) {
+        const relativePath = getRelativePath(this.configManager.getOptions().input, filePath)
+          .replace(/\.vue$/, '')
+        pages.set(relativePath, {
+          config: pageData.config,
+          context: pageData.context
+        })
+      }
+
+      // 准备组件配置（包含配置和上下文）
+      const components = new Map<string, any>()
+      for (const [filePath, componentData] of this.compiledComponents) {
+        const relativePath = getRelativePath(this.configManager.getOptions().input, filePath)
+          .replace(/\.vue$/, '')
+        components.set(relativePath, {
+          config: componentData.config,
+          context: componentData.context
+        })
+      }
+
+      // 执行运行时注入
+      await this.runtimeInjector.injectRuntime(
+        this.sourceFiles,
+        outputDir,
+        this.appConfig,
+        pages,
+        components
+      )
+
+      logger.success('运行时注入完成')
+    } catch (error) {
+      logger.error('运行时注入失败:', error as Error)
+      // 不抛出错误，让编译继续进行
+    }
   }
 
   /**

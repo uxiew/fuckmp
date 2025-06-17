@@ -128,6 +128,10 @@ export class ScriptTransformer {
    * 处理导入
    */
   private processImports(parseResult: ScriptParseResult, context: TransformContext): void {
+    if (!parseResult.imports) {
+      return
+    }
+
     parseResult.imports.forEach((importInfo, source) => {
       if (importInfo.isVue) {
         // Vue 导入
@@ -156,6 +160,10 @@ export class ScriptTransformer {
    * 处理宏调用
    */
   private processMacros(parseResult: ScriptParseResult, context: TransformContext): void {
+    if (!parseResult.macros) {
+      return
+    }
+
     parseResult.macros.forEach((macroCalls, macroName) => {
       const handler = this.macroHandlers.get(macroName)
       if (handler) {
@@ -182,6 +190,10 @@ export class ScriptTransformer {
    * 处理变量声明
    */
   private processVariables(parseResult: ScriptParseResult, context: TransformContext): void {
+    if (!parseResult.variables) {
+      return
+    }
+
     parseResult.variables.forEach((variable, name) => {
       if (variable.isReactive) {
         // 响应式变量
@@ -200,15 +212,16 @@ export class ScriptTransformer {
 
         // 检查是否为函数（包括箭头函数）
         if (typeof initValue === 'string' &&
-          (initValue.includes('[ArrowFunctionExpression]') ||
-            initValue.includes('[FunctionExpression]') ||
-            initValue.includes('function'))) {
+          (initValue.includes('=>') ||
+            initValue.includes('function') ||
+            initValue.startsWith('(') && initValue.includes(') =>'))) {
           // 函数类型，添加到方法中
           context.methods[name] = {
             name,
             params: [],
             isAsync: false,
-            isArrow: true
+            isArrow: initValue.includes('=>'),
+            body: initValue
           }
         } else {
           // 普通数据
@@ -222,6 +235,10 @@ export class ScriptTransformer {
    * 处理函数声明
    */
   private processFunctions(parseResult: ScriptParseResult, context: TransformContext): void {
+    if (!parseResult.functions) {
+      return
+    }
+
     parseResult.functions.forEach((func, name) => {
       context.methods[name] = func
     })

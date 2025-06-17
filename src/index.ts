@@ -14,14 +14,25 @@ export * from './types/index.js'
 // 导出解析器
 export * from './parser/index.js'
 
-// 导出转换器
-export * from './transformer/index.js'
+// 导出转换器（避免类型冲突）
+export {
+  ScriptTransformer,
+  TemplateTransformer,
+  StyleTransformer,
+  EnhancedScriptTransformer
+} from './transformer/index.js'
 
 // 导出生成器
 export * from './generator/index.js'
 
-// 导出运行时
-export * from './runtime/index.js'
+// 导出运行时（避免类型冲突）
+export {
+  Vue3MiniRuntime,
+  initVue3Runtime,
+  definePage,
+  defineComponent,
+  runtime
+} from './runtime/index.js'
 
 // 导出工具函数
 export * from './utils/index.js'
@@ -38,7 +49,7 @@ export function createCompiler(options?: Partial<import('./types/index.js').Comp
  * 编译单个文件的便捷函数
  */
 export async function compileFile(
-  filePath: string, 
+  filePath: string,
   options?: Partial<import('./types/index.js').CompilerOptions>
 ) {
   const compiler = createCompiler(options)

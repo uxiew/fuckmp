@@ -26,6 +26,26 @@ export const DEFAULT_COMPILER_OPTIONS: CompilerOptions = {
     treeshaking: true,
     sourcemap: true,
     incremental: true
+  },
+  injection: {
+    // 默认启用纯净模式，不自动注入任何代码
+    pureMode: true,
+    page: {
+      shareAppMessage: false,
+      shareTimeline: false,
+      loadingState: false,
+      pullDownRefresh: false,
+      reachBottom: false,
+      baseStyles: false,
+      eventHandlers: false
+    },
+    component: {
+      inputHandlers: false,
+      eventHandlers: false
+    },
+    reactivity: {
+      extraHelpers: false  // 额外的响应式辅助方法（核心方法始终生成）
+    }
   }
 }
 
@@ -60,7 +80,7 @@ export class OptionsValidator {
     // 验证特性配置
     if (options.features) {
       const { features } = options
-      
+
       if (features.typescript && !features.scriptSetup) {
         errors.push('使用 TypeScript 时建议启用 scriptSetup')
       }
@@ -86,6 +106,22 @@ export class OptionsValidator {
       optimization: {
         ...DEFAULT_COMPILER_OPTIONS.optimization,
         ...options.optimization
+      },
+      injection: {
+        ...DEFAULT_COMPILER_OPTIONS.injection,
+        ...options.injection,
+        page: {
+          ...DEFAULT_COMPILER_OPTIONS.injection.page,
+          ...options.injection?.page
+        },
+        component: {
+          ...DEFAULT_COMPILER_OPTIONS.injection.component,
+          ...options.injection?.component
+        },
+        reactivity: {
+          ...DEFAULT_COMPILER_OPTIONS.injection.reactivity,
+          ...options.injection?.reactivity
+        }
       }
     }
   }
@@ -129,6 +165,22 @@ export class ConfigManager {
       optimization: {
         ...this.options.optimization,
         ...updates.optimization
+      },
+      injection: {
+        ...this.options.injection,
+        ...updates.injection,
+        page: {
+          ...this.options.injection.page,
+          ...updates.injection?.page
+        },
+        component: {
+          ...this.options.injection.component,
+          ...updates.injection?.component
+        },
+        reactivity: {
+          ...this.options.injection.reactivity,
+          ...updates.injection?.reactivity
+        }
       }
     }
 
@@ -191,6 +243,41 @@ export class ConfigManager {
   }
 
   /**
+   * 获取注入配置
+   */
+  getInjection(): CompilerOptions['injection'] {
+    return this.options.injection
+  }
+
+  /**
+   * 检查是否启用纯净模式
+   */
+  isPureMode(): boolean {
+    return this.options.injection.pureMode
+  }
+
+  /**
+   * 获取页面注入配置
+   */
+  getPageInjection(): CompilerOptions['injection']['page'] {
+    return this.options.injection.page
+  }
+
+  /**
+   * 获取组件注入配置
+   */
+  getComponentInjection(): CompilerOptions['injection']['component'] {
+    return this.options.injection.component
+  }
+
+  /**
+   * 获取响应式注入配置
+   */
+  getReactivityInjection(): CompilerOptions['injection']['reactivity'] {
+    return this.options.injection.reactivity
+  }
+
+  /**
    * 导出配置为 JSON
    */
   toJSON(): string {
@@ -216,7 +303,7 @@ export class ConfigManager {
     try {
       const { readFile } = await import('@/utils/index.js')
       const content = await readFile(filePath)
-      
+
       if (filePath.endsWith('.json')) {
         return ConfigManager.fromJSON(content)
       } else if (filePath.endsWith('.js') || filePath.endsWith('.ts')) {
@@ -238,7 +325,7 @@ export class ConfigManager {
   async saveToFile(filePath: string): Promise<void> {
     try {
       const { writeFile } = await import('@/utils/index.js')
-      
+
       if (filePath.endsWith('.json')) {
         await writeFile(filePath, this.toJSON())
       } else if (filePath.endsWith('.js')) {
@@ -291,7 +378,7 @@ export default config`
    */
   getSummary(): string {
     const { input, output, framework, features, optimization } = this.options
-    
+
     const enabledFeatures = Object.entries(features)
       .filter(([, enabled]) => enabled)
       .map(([feature]) => feature)

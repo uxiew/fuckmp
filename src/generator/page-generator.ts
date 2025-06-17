@@ -2,7 +2,7 @@
  * 页面代码生成器
  */
 
-import type { TransformContext, GenerateResult } from '@/types/index.js'
+import type { TransformContext, GenerateResult, CompilerOptions } from '@/types/index.js'
 import type { ScriptTransformResult, TemplateTransformResult, StyleTransformResult } from '@/transformer/index.js'
 import { logger } from '@/utils/index.js'
 
@@ -10,6 +10,12 @@ import { logger } from '@/utils/index.js'
  * 页面生成器类
  */
 export class PageGenerator {
+  private options: CompilerOptions['injection']
+
+  constructor(options: CompilerOptions['injection']) {
+    this.options = options
+  }
+
   /**
    * 生成页面代码
    */
@@ -72,37 +78,45 @@ ${methodsCode}`)
 ${computedMethods}`)
     }
 
-    // 事件处理器
-    const eventHandlers = this.generateEventHandlers(context)
-    if (eventHandlers) {
-      parts.push(`  // 事件处理器
+    // 事件处理器（仅在配置启用时生成）
+    if (!this.options.pureMode && this.options.page.eventHandlers) {
+      const eventHandlers = this.generateEventHandlers(context)
+      if (eventHandlers) {
+        parts.push(`  // 事件处理器
 ${eventHandlers}`)
+      }
     }
 
-    // 响应式系统设置
+    // 响应式系统设置（始终生成，支撑程序运行）
     parts.push(`  // 响应式系统设置
   _setupReactivity() {
 ${this.generateReactivitySetup(context)}
   }`)
 
-    // 更新计算属性
+    // 更新计算属性（始终生成，支撑程序运行）
     parts.push(`  // 更新计算属性
   _updateComputed() {
 ${this.generateComputedUpdate(computed)}
   }`)
 
-    // 只有在用户定义了分享相关生命周期时才添加
-    if (lifecycle.onShareAppMessage) {
+    // 页面分享（仅在配置启用时生成）
+    if (!this.options.pureMode && this.options.page.shareAppMessage) {
       parts.push(`  // 页面分享
   onShareAppMessage() {
-    ${lifecycle.onShareAppMessage}
+    return {
+      title: '${this.getPageTitle(context)}',
+      path: '${this.getPagePath(context)}'
+    }
   }`)
     }
 
-    if (lifecycle.onShareTimeline) {
+    // 页面分享到朋友圈（仅在配置启用时生成）
+    if (!this.options.pureMode && this.options.page.shareTimeline) {
       parts.push(`  // 页面分享到朋友圈
   onShareTimeline() {
-    ${lifecycle.onShareTimeline}
+    return {
+      title: '${this.getPageTitle(context)}'
+    }
   }`)
     }
 
@@ -147,6 +161,24 @@ ${parts.join(',\n\n')}
     // 移除所有的 _ctx. 前缀（后处理步骤）
     wxml = this.removeCtxPrefixes(wxml)
 
+    // 添加页面容器（仅在配置启用时）
+    if (!this.options.pureMode && this.options.page.baseStyles) {
+      wxml = `<view class="page-container">
+  ${wxml}
+</view>`
+    }
+
+    // 添加加载状态（仅在配置启用且用户定义了loading状态时）
+    if (!this.options.pureMode && this.options.page.loadingState && this.hasLoadingState(context)) {
+      wxml = `<view wx:if="{{loading}}" class="loading-container">
+  <view class="loading-spinner"></view>
+  <text class="loading-text">加载中...</text>
+</view>
+<view wx:else>
+  ${wxml}
+</view>`
+    }
+
     // 只有在使用了 scoped 样式时才添加作用域属性
     if (context.hasScoped && context.filename) {
       const scopeId = this.generateScopeId(context.filename)
@@ -160,13 +192,56 @@ ${parts.join(',\n\n')}
    * 生成 WXSS 样式
    */
   private generateWXSS(styleResults: StyleTransformResult | StyleTransformResult[], context: TransformContext): string {
+    let finalStyles = ''
+
+    // 添加页面基础样式（仅在配置启用时）
+    if (!this.options.pureMode && this.options.page.baseStyles) {
+      const baseStyles = `/* 页面基础样式 */
+.page-container {
+  min-height: 100vh;
+  background-color: #f5f5f5;
+}
+
+/* 加载状态样式 */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.loading-spinner {
+  width: 60rpx;
+  height: 60rpx;
+  border: 4rpx solid #e0e0e0;
+  border-top: 4rpx solid #1976d2;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.loading-text {
+  margin-top: 20rpx;
+  color: #666;
+  font-size: 28rpx;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 用户自定义样式 */`
+      finalStyles = baseStyles
+    }
+
     if (!styleResults) {
-      return ''
+      return finalStyles
     }
 
     // 如果是单个样式结果，直接返回
     if (!Array.isArray(styleResults)) {
-      return styleResults.wxss
+      return finalStyles ? finalStyles + '\n' + styleResults.wxss : styleResults.wxss
     }
 
     // 如果是多个样式结果，合并它们
@@ -175,7 +250,7 @@ ${parts.join(',\n\n')}
       .map(result => result.wxss)
       .join('\n\n')
 
-    return allStyles
+    return finalStyles ? finalStyles + '\n' + allStyles : allStyles
   }
 
   /**
@@ -189,20 +264,16 @@ ${parts.join(',\n\n')}
       const code = lifecycle[lifecycleName]
       if (code && code.trim()) {
         const params = lifecycleName === 'onLoad' ? 'options' : ''
+        const setupCall = lifecycleName === 'onLoad' ? 'this._setupReactivity()' : ''
         entries.push(`  ${lifecycleName}(${params}) {
-    ${lifecycleName === 'onLoad' ? 'this._setupReactivity()' : ''}
+    ${setupCall}
     ${code.trim()}
   }`)
       } else if (lifecycleName === 'onLoad') {
-        // 确保 onLoad 存在
+        // 确保 onLoad 存在，响应式设置是必需的
         entries.push(`  onLoad(options) {
     this._setupReactivity()
     // 页面加载完成
-  }`)
-      } else if (lifecycleName === 'onShow') {
-        // 确保 onShow 存在
-        entries.push(`  onShow() {
-    // 页面显示时触发
   }`)
       }
     })
@@ -218,6 +289,74 @@ ${parts.join(',\n\n')}
       if (typeof method === 'function') {
         const funcStr = method.toString()
         return `  ${name}${funcStr.substring(funcStr.indexOf('('))}`
+      } else if (method && typeof method === 'object' && method.body) {
+        // 如果是包含函数体的对象
+        const body = method.body.trim()
+
+        // 处理箭头函数
+        if (body.includes('=>')) {
+          // 匹配箭头函数的参数和函数体
+          const arrowMatch = body.match(/^\((.*?)\)\s*=>\s*(.*)$/s)
+          if (arrowMatch) {
+            const params = arrowMatch[1]
+            let functionBody = arrowMatch[2].trim()
+
+            if (functionBody.startsWith('{') && functionBody.endsWith('}')) {
+              // 块语句，移除外层大括号
+              functionBody = functionBody.slice(1, -1).trim()
+              return `  ${name}(${params}) {
+    ${functionBody}
+  }`
+            } else {
+              // 表达式，添加return
+              return `  ${name}(${params}) {
+    return ${functionBody}
+  }`
+            }
+          }
+        }
+
+        // 处理普通函数
+        if (body.includes('function')) {
+          const funcMatch = body.match(/function\s*\((.*?)\)\s*(.+)/)
+          if (funcMatch) {
+            const params = funcMatch[1]
+            const functionBody = funcMatch[2]
+            return `  ${name}(${params}) ${functionBody}`
+          }
+        }
+
+        // 如果解析失败，使用原始body
+        return `  ${name}() {
+    ${body}
+  }`
+      } else if (typeof method === 'string') {
+        // 如果method直接是字符串（函数体）
+        const body = method.trim()
+
+        if (body.includes('=>')) {
+          // 处理字符串形式的箭头函数
+          const arrowMatch = body.match(/^\((.*?)\)\s*=>\s*(.*)$/s)
+          if (arrowMatch) {
+            const params = arrowMatch[1]
+            let functionBody = arrowMatch[2]?.trim() || ''
+
+            if (functionBody.startsWith('{') && functionBody.endsWith('}')) {
+              functionBody = functionBody.slice(1, -1).trim()
+              return `  ${name}(${params}) {
+    ${functionBody}
+  }`
+            } else {
+              return `  ${name}(${params}) {
+    return ${functionBody}
+  }`
+            }
+          }
+        }
+
+        return `  ${name}() {
+    ${body}
+  }`
       } else {
         return `  ${name}() {
     // 方法实现
@@ -335,12 +474,14 @@ ${parts.join(',\n\n')}
     })`)
     })
 
-    // 初始化加载状态
-    setup.push(`    // 初始化页面状态
+    // 初始化加载状态（仅在配置启用时）
+    if (!this.options.pureMode && this.options.page.loadingState) {
+      setup.push(`    // 初始化页面状态
     this.setData({
       loading: false,
       hasMore: true
     })`)
+    }
 
     return setup.join('\n')
   }

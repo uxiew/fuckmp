@@ -169,6 +169,15 @@ export function isPageComponent(filePath: string): boolean {
 }
 
 /**
+ * 判断是否为应用入口文件
+ */
+export function isAppComponent(filePath: string): boolean {
+  const normalizedPath = normalizePath(filePath)
+  const fileName = basename(normalizedPath)
+  return fileName === 'app.vue'
+}
+
+/**
  * 获取文件的修改时间
  */
 export async function getModifiedTime(path: string): Promise<number> {

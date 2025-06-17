@@ -1,0 +1,41 @@
+{
+  "input": "test-project",
+  "output": "test-output-with-injection",
+  "appId": "test-app-id",
+  "framework": "vue3",
+  "features": {
+    "scriptSetup": true,
+    "scss": true,
+    "typescript": true,
+    "compositionApi": true,
+    "emits": true,
+    "slots": true,
+    "provide": true
+  },
+  "optimization": {
+    "minify": false,
+    "treeshaking": true,
+    "sourcemap": true,
+    "incremental": true
+  },
+  "injection": {
+    "pureMode": false,
+    "page": {
+      "shareAppMessage": true,
+      "shareTimeline": true,
+      "loadingState": true,
+      "pullDownRefresh": false,
+      "reachBottom": false,
+      "baseStyles": true,
+      "eventHandlers": true
+    },
+    "component": {
+      "inputHandlers": true,
+      "eventHandlers": true
+    },
+    "reactivity": {
+      "setupMethod": true,
+      "updateMethod": true
+    }
+  }
+}

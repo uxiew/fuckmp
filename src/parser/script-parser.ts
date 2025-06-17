@@ -266,6 +266,57 @@ export class ScriptParser {
   }
 
   /**
+   * 生成代码字符串（用于函数体等）
+   */
+  private generateCodeString(node: any): string {
+    switch (node.type) {
+      case 'StringLiteral':
+        return `'${node.value}'`
+      case 'NumericLiteral':
+        return String(node.value)
+      case 'BooleanLiteral':
+        return String(node.value)
+      case 'NullLiteral':
+        return 'null'
+      case 'Identifier':
+        return node.name
+      case 'ArrayExpression':
+        const elements = node.elements.map((el: any) => el ? this.generateCodeString(el) : 'null').join(', ')
+        return `[${elements}]`
+      case 'ObjectExpression':
+        const properties = node.properties.map((prop: any) => {
+          if (prop.type === 'ObjectProperty') {
+            const key = prop.key.type === 'Identifier' ? prop.key.name : this.generateCodeString(prop.key)
+            const value = this.generateCodeString(prop.value)
+            return `${key}: ${value}`
+          }
+          return ''
+        }).filter(Boolean).join(', ')
+        return `{ ${properties} }`
+      case 'BinaryExpression':
+        return this.generateBinaryExpressionCode(node)
+      case 'LogicalExpression':
+        return this.generateLogicalExpressionCode(node)
+      case 'MemberExpression':
+        return this.generateMemberExpressionCode(node)
+      case 'CallExpression':
+        return this.generateCallExpressionCode(node)
+      case 'UpdateExpression':
+        return this.generateUpdateExpression(node)
+      case 'AssignmentExpression':
+        return this.generateAssignmentExpression(node)
+      case 'UnaryExpression':
+        return this.generateUnaryExpression(node)
+      case 'NewExpression':
+        return this.generateNewExpression(node)
+      case 'ConditionalExpression':
+        return this.generateConditionalExpression(node)
+      default:
+        return `[${node.type}]`
+    }
+  }
+
+  /**
    * 提取参数值
    */
   private extractArgumentValue(node: any): any {
@@ -283,17 +334,200 @@ export class ScriptParser {
       case 'ArrayExpression':
         return node.elements.map((el: any) => el ? this.extractArgumentValue(el) : null)
       case 'ObjectExpression':
-        const obj: Record<string, any> = {}
-        node.properties.forEach((prop: any) => {
+        // 生成对象字面量代码字符串
+        const properties = node.properties.map((prop: any) => {
           if (prop.type === 'ObjectProperty') {
-            const key = prop.key.type === 'Identifier' ? prop.key.name : prop.key.value
-            obj[key] = this.extractArgumentValue(prop.value)
+            const key = prop.key.type === 'Identifier' ? prop.key.name : JSON.stringify(prop.key.value)
+            const value = this.extractArgumentValue(prop.value)
+            return `${key}: ${typeof value === 'string' && !value.includes('=>') && !value.includes('function') ? JSON.stringify(value) : value}`
           }
-        })
-        return obj
+          return ''
+        }).filter(Boolean).join(', ')
+        return `{ ${properties} }`
+      case 'ArrowFunctionExpression':
+      case 'FunctionExpression':
+        // 对于函数，生成函数代码字符串
+        return this.generateFunctionCode(node)
+      case 'CallExpression':
+        // 对于函数调用，生成调用代码字符串
+        return this.generateCallExpressionCode(node)
+      case 'NewExpression':
+        // 对于 new 表达式，生成构造函数调用代码
+        return this.generateNewExpressionCode(node)
+      case 'MemberExpression':
+        // 对于成员访问表达式
+        return this.generateMemberExpressionCode(node)
+      case 'ConditionalExpression':
+        // 对于三元运算符
+        return this.generateConditionalExpressionCode(node)
+      case 'BinaryExpression':
+        // 对于二元运算符
+        return this.generateBinaryExpressionCode(node)
+      case 'LogicalExpression':
+        // 对于逻辑运算符
+        return this.generateLogicalExpressionCode(node)
+      case 'TemplateLiteral':
+        // 对于模板字面量
+        return this.generateTemplateLiteral(node)
+      case 'UpdateExpression':
+        // 对于更新表达式（如 ++、--）
+        return this.generateUpdateExpression(node)
+      case 'AssignmentExpression':
+        // 对于赋值表达式
+        return this.generateAssignmentExpression(node)
+      case 'UnaryExpression':
+        // 对于一元表达式，生成一元运算符代码
+        return this.generateUnaryExpression(node)
+      case 'BreakStatement':
+        return 'break'
+      case 'ContinueStatement':
+        return 'continue'
       default:
         return `[${node.type}]`
     }
+  }
+
+  /**
+   * 生成函数代码
+   */
+  private generateFunctionCode(node: any): string {
+    const params = node.params.map((param: any) => {
+      if (param.type === 'Identifier') {
+        return param.name
+      }
+      return 'param'
+    }).join(', ')
+
+    if (node.type === 'ArrowFunctionExpression') {
+      if (node.body.type === 'BlockStatement') {
+        return `(${params}) => ${this.generateBlockStatement(node.body)}`
+      } else {
+        return `(${params}) => ${this.extractArgumentValue(node.body)}`
+      }
+    } else {
+      return `function(${params}) ${this.generateBlockStatement(node.body)}`
+    }
+  }
+
+  /**
+   * 生成块语句代码
+   */
+  private generateBlockStatement(node: any): string {
+    if (node.type === 'BlockStatement') {
+      const statements = node.body.map((stmt: any) => this.generateStatement(stmt)).join('\n    ')
+      return `{\n    ${statements}\n  }`
+    }
+    return '{}'
+  }
+
+  /**
+   * 生成语句代码
+   */
+  private generateStatement(node: any): string {
+    switch (node.type) {
+      case 'ReturnStatement':
+        return `return ${node.argument ? this.generateCodeString(node.argument) : ''}`
+      case 'ExpressionStatement':
+        return this.generateCodeString(node.expression)
+      case 'VariableDeclaration':
+        const declarations = node.declarations.map((decl: any) => {
+          const init = decl.init ? ` = ${this.generateCodeString(decl.init)}` : ''
+          return `${decl.id.name}${init}`
+        }).join(', ')
+        return `${node.kind} ${declarations}`
+      case 'SwitchStatement':
+        return this.generateSwitchStatement(node)
+      case 'IfStatement':
+        return this.generateIfStatement(node)
+      case 'ForStatement':
+        return this.generateForStatement(node)
+      case 'WhileStatement':
+        return this.generateWhileStatement(node)
+      case 'BlockStatement':
+        return this.generateBlockStatement(node)
+      case 'UpdateExpression':
+        return this.generateUpdateExpression(node)
+      case 'AssignmentExpression':
+        return this.generateAssignmentExpression(node)
+      case 'BreakStatement':
+        return 'break'
+      case 'ContinueStatement':
+        return 'continue'
+      default:
+        return `// ${node.type}`
+    }
+  }
+
+  /**
+   * 生成函数调用代码
+   */
+  private generateCallExpressionCode(node: any): string {
+    const callee = this.extractArgumentValue(node.callee)
+
+    // 对于Vue响应式API调用，直接返回参数内容
+    if (typeof callee === 'string' && ['ref', 'reactive', 'computed'].includes(callee)) {
+      if (node.arguments.length > 0) {
+        return this.extractArgumentValue(node.arguments[0])
+      }
+    }
+
+    const args = node.arguments.map((arg: any) => {
+      const value = this.extractArgumentValue(arg)
+      // 如果是字符串字面量，需要添加引号
+      if (arg.type === 'StringLiteral') {
+        return JSON.stringify(value)
+      }
+      return value
+    }).join(', ')
+    return `${callee}(${args})`
+  }
+
+  /**
+   * 生成 new 表达式代码
+   */
+  private generateNewExpressionCode(node: any): string {
+    const callee = this.extractArgumentValue(node.callee)
+    const args = node.arguments.map((arg: any) => this.extractArgumentValue(arg)).join(', ')
+    return `new ${callee}(${args})`
+  }
+
+  /**
+   * 生成成员访问表达式代码
+   */
+  private generateMemberExpressionCode(node: any): string {
+    const object = this.extractArgumentValue(node.object)
+    const property = node.computed ?
+      `[${this.extractArgumentValue(node.property)}]` :
+      `.${node.property.name}`
+    return `${object}${property}`
+  }
+
+  /**
+   * 生成三元运算符代码
+   */
+  private generateConditionalExpressionCode(node: any): string {
+    const test = this.extractArgumentValue(node.test)
+    const consequent = this.extractArgumentValue(node.consequent)
+    const alternate = this.extractArgumentValue(node.alternate)
+    return `${test} ? ${consequent} : ${alternate}`
+  }
+
+  /**
+   * 生成二元运算符代码
+   */
+  private generateBinaryExpressionCode(node: any): string {
+    const left = this.generateCodeString(node.left)
+    const right = this.generateCodeString(node.right)
+    return `${left} ${node.operator} ${right}`
+  }
+
+  /**
+   * 生成逻辑运算符代码
+   */
+  private generateLogicalExpressionCode(node: any): string {
+    const left = this.generateCodeString(node.left)
+    const right = this.generateCodeString(node.right)
+    return `${left} ${node.operator} ${right}`
   }
 
   /**
@@ -344,5 +578,126 @@ export class ScriptParser {
     })
 
     return reactiveVars
+  }
+
+  /**
+   * 生成Switch语句
+   */
+  private generateSwitchStatement(node: any): string {
+    const discriminant = this.extractArgumentValue(node.discriminant)
+    const cases = node.cases.map((caseNode: any) => {
+      if (caseNode.test) {
+        const test = this.extractArgumentValue(caseNode.test)
+        const consequent = caseNode.consequent.map((stmt: any) => this.generateStatement(stmt)).join('\n      ')
+        return `    case ${test}:\n      ${consequent}`
+      } else {
+        const consequent = caseNode.consequent.map((stmt: any) => this.generateStatement(stmt)).join('\n      ')
+        return `    default:\n      ${consequent}`
+      }
+    }).join('\n')
+
+    return `switch (${discriminant}) {\n${cases}\n  }`
+  }
+
+  /**
+   * 生成If语句
+   */
+  private generateIfStatement(node: any): string {
+    const test = this.extractArgumentValue(node.test)
+    const consequent = this.generateStatement(node.consequent)
+    const alternate = node.alternate ? ` else ${this.generateStatement(node.alternate)}` : ''
+    return `if (${test}) ${consequent}${alternate}`
+  }
+
+  /**
+   * 生成For语句
+   */
+  private generateForStatement(node: any): string {
+    const init = node.init ? this.generateStatement(node.init) : ''
+    const test = node.test ? this.extractArgumentValue(node.test) : ''
+    const update = node.update ? this.extractArgumentValue(node.update) : ''
+    const body = this.generateStatement(node.body)
+    return `for (${init}; ${test}; ${update}) ${body}`
+  }
+
+  /**
+   * 生成While语句
+   */
+  private generateWhileStatement(node: any): string {
+    const test = this.extractArgumentValue(node.test)
+    const body = this.generateStatement(node.body)
+    return `while (${test}) ${body}`
+  }
+
+  /**
+   * 生成模板字面量
+   */
+  private generateTemplateLiteral(node: any): string {
+    let result = '`'
+
+    for (let i = 0; i < node.quasis.length; i++) {
+      // 添加字符串部分
+      result += node.quasis[i].value.raw
+
+      // 添加表达式部分（如果存在）
+      if (i < node.expressions.length) {
+        result += '${' + this.extractArgumentValue(node.expressions[i]) + '}'
+      }
+    }
+
+    result += '`'
+    return result
+  }
+
+  /**
+   * 生成更新表达式（如 ++、--）
+   */
+  private generateUpdateExpression(node: any): string {
+    const argument = this.generateCodeString(node.argument)
+    if (node.prefix) {
+      return `${node.operator}${argument}`
+    } else {
+      return `${argument}${node.operator}`
+    }
+  }
+
+  /**
+   * 生成赋值表达式
+   */
+  private generateAssignmentExpression(node: any): string {
+    const left = this.generateCodeString(node.left)
+    const right = this.generateCodeString(node.right)
+    return `${left} ${node.operator} ${right}`
+  }
+
+  /**
+   * 生成一元表达式（如 !、-、+、typeof 等）
+   */
+  private generateUnaryExpression(node: any): string {
+    const argument = this.generateCodeString(node.argument)
+    if (node.prefix) {
+      return `${node.operator}${argument}`
+    } else {
+      return `${argument}${node.operator}`
+    }
+  }
+
+  /**
+   * 生成 new 表达式
+   */
+  private generateNewExpression(node: any): string {
+    const callee = this.generateCodeString(node.callee)
+    const args = node.arguments.map((arg: any) => this.generateCodeString(arg)).join(', ')
+    return `new ${callee}(${args})`
+  }
+
+  /**
+   * 生成条件表达式（三元运算符）
+   */
+  private generateConditionalExpression(node: any): string {
+    const test = this.generateCodeString(node.test)
+    const consequent = this.generateCodeString(node.consequent)
+    const alternate = this.generateCodeString(node.alternate)
+    return `${test} ? ${consequent} : ${alternate}`
   }
 }
