@@ -293,6 +293,10 @@ export class ScriptParser {
           return ''
         }).filter(Boolean).join(', ')
         return `{ ${properties} }`
+      case 'ArrowFunctionExpression':
+      case 'FunctionExpression':
+        // 对于函数，生成函数代码字符串
+        return this.generateFunctionCode(node)
       case 'BinaryExpression':
         return this.generateBinaryExpressionCode(node)
       case 'LogicalExpression':
@@ -311,6 +315,8 @@ export class ScriptParser {
         return this.generateNewExpression(node)
       case 'ConditionalExpression':
         return this.generateConditionalExpression(node)
+      case 'TemplateLiteral':
+        return this.generateTemplateLiteral(node)
       default:
         return `[${node.type}]`
     }
@@ -330,7 +336,7 @@ export class ScriptParser {
       case 'NullLiteral':
         return null
       case 'Identifier':
-        return node.name
+        return this.transformVueIdentifier(node.name)
       case 'ArrayExpression':
         return node.elements.map((el: any) => el ? this.extractArgumentValue(el) : null)
       case 'ObjectExpression':
@@ -339,7 +345,12 @@ export class ScriptParser {
           if (prop.type === 'ObjectProperty') {
             const key = prop.key.type === 'Identifier' ? prop.key.name : JSON.stringify(prop.key.value)
             const value = this.extractArgumentValue(prop.value)
-            return `${key}: ${typeof value === 'string' && !value.includes('=>') && !value.includes('function') ? JSON.stringify(value) : value}`
+
+            // 只有真正的字符串字面量才需要添加引号
+            // 对象、数组、函数、表达式等都不需要引号
+            const needsQuotes = prop.value.type === 'StringLiteral'
+
+            return `${key}: ${needsQuotes ? JSON.stringify(value) : value}`
           }
           return ''
         }).filter(Boolean).join(', ')
@@ -467,8 +478,22 @@ export class ScriptParser {
     // 对于Vue响应式API调用，直接返回参数内容
     if (typeof callee === 'string' && ['ref', 'reactive', 'computed'].includes(callee)) {
       if (node.arguments.length > 0) {
-        return this.extractArgumentValue(node.arguments[0])
+        // 对于 reactive 和 ref，直接生成参数的代码
+        return this.generateCodeString(node.arguments[0])
       }
+    }
+
+    // 特殊处理 emit 函数调用
+    if (callee === 'this.triggerEvent' || callee === 'emit') {
+      const args = node.arguments.map((arg: any) => {
+        const value = this.extractArgumentValue(arg)
+        // 如果是字符串字面量，需要添加引号
+        if (arg.type === 'StringLiteral') {
+          return JSON.stringify(value)
+        }
+        return value
+      }).join(', ')
+      return `this.triggerEvent(${args})`
     }
 
     const args = node.arguments.map((arg: any) => {
@@ -499,6 +524,13 @@ export class ScriptParser {
     const property = node.computed ?
       `[${this.extractArgumentValue(node.property)}]` :
       `.${node.property.name}`
+
+    // 特殊处理 Vue 响应式变量的 .value 访问
+    if (typeof object === 'string' && !object.includes('.') && property === '.value') {
+      // 将 响应式变量.value 转换为 this.data.响应式变量
+      return `this.data.${object}`
+    }
+
     return `${object}${property}`
   }
 
@@ -587,7 +619,10 @@ export class ScriptParser {
     const discriminant = this.extractArgumentValue(node.discriminant)
     const cases = node.cases.map((caseNode: any) => {
       if (caseNode.test) {
-        const test = this.extractArgumentValue(caseNode.test)
+        // 对于 case 测试值，需要生成正确的代码字符串
+        const test = caseNode.test.type === 'StringLiteral'
+          ? JSON.stringify(caseNode.test.value)
+          : this.extractArgumentValue(caseNode.test)
         const consequent = caseNode.consequent.map((stmt: any) => this.generateStatement(stmt)).join('\n      ')
         return `    case ${test}:\n      ${consequent}`
       } else {
@@ -667,6 +702,16 @@ export class ScriptParser {
   private generateAssignmentExpression(node: any): string {
     const left = this.generateCodeString(node.left)
     const right = this.generateCodeString(node.right)
+
+    // 特殊处理响应式变量的赋值
+    if (node.left.type === 'MemberExpression' &&
+      node.left.property.name === 'value' &&
+      node.left.object.type === 'Identifier') {
+      const varName = node.left.object.name
+      // 将 响应式变量.value = 值 转换为 this.setData({ 响应式变量: 值 })
+      return `this.setData({ ${varName}: ${right} })`
+    }
+
     return `${left} ${node.operator} ${right}`
   }
 
@@ -699,5 +744,19 @@ export class ScriptParser {
     const consequent = this.generateCodeString(node.consequent)
     const alternate = this.generateCodeString(node.alternate)
     return `${test} ? ${consequent} : ${alternate}`
+  }
+
+  /**
+   * 转换 Vue 标识符为小程序 API
+   */
+  private transformVueIdentifier(name: string): string {
+    switch (name) {
+      case 'props':
+        return 'this.properties'
+      case 'emit':
+        return 'this.triggerEvent'
+      default:
+        return name
+    }
   }
 }

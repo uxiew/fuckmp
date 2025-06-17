@@ -120,9 +120,6 @@ export class VueTemplateTransformer {
    */
   private transformASTNode(node: any, result: TemplateTransformResult, context: TransformContext): string {
     if (!node) return ''
-
-
-
     switch (node.type) {
       case 1: // ELEMENT
         return this.transformElementNode(node, result, context)
@@ -359,8 +356,7 @@ export class VueTemplateTransformer {
 
       case 'on':
         const eventName = this.mapEventName(arg)
-        result.eventHandlers.set(exp, exp)
-        return `bind:${eventName}="${exp}"`
+        return this.transformEventHandler(eventName, exp, result)
 
       case 'if':
         return `wx:if="{{${exp}}}"`
@@ -471,6 +467,92 @@ export class VueTemplateTransformer {
    */
   private mapEventName(eventName: string): string {
     return EVENT_MAP[eventName as keyof typeof EVENT_MAP] || eventName
+  }
+
+  /**
+   * 转换事件处理器，正确处理带参数的函数调用
+   */
+  private transformEventHandler(eventName: string, expression: string, result: TemplateTransformResult): string | string[] {
+    // 检查是否为带参数的函数调用，如 handleMenuClick('about')
+    const functionCallMatch = expression.match(/^(\w+)\s*\(\s*(.+)\s*\)$/)
+
+    if (functionCallMatch) {
+      const [, functionName, argsString] = functionCallMatch
+
+      // 确保函数名和参数字符串存在
+      if (!functionName || !argsString) {
+        result.eventHandlers.set(expression, expression)
+        return `bind:${eventName}="${expression}"`
+      }
+
+      // 解析参数
+      const args = this.parseEventArguments(argsString)
+
+      // 生成 data-* 属性和事件绑定
+      const dataAttrs: string[] = []
+      args.forEach((arg, index) => {
+        // 移除引号并生成 data 属性
+        const cleanArg = arg.replace(/^['"]|['"]$/g, '')
+        dataAttrs.push(`data-arg${index}="${cleanArg}"`)
+      })
+
+      // 记录事件处理器
+      result.eventHandlers.set(functionName, functionName)
+
+      // 返回事件绑定和数据属性
+      const eventBinding = `bind:${eventName}="${functionName}"`
+
+      if (dataAttrs.length > 0) {
+        return [eventBinding, ...dataAttrs]
+      } else {
+        return eventBinding
+      }
+    } else {
+      // 简单的函数名，直接绑定
+      result.eventHandlers.set(expression, expression)
+      return `bind:${eventName}="${expression}"`
+    }
+  }
+
+  /**
+   * 解析事件参数
+   */
+  private parseEventArguments(argsString: string): string[] {
+    const args: string[] = []
+    let current = ''
+    let inQuotes = false
+    let quoteChar = ''
+    let depth = 0
+
+    for (let i = 0; i < argsString.length; i++) {
+      const char = argsString[i]
+
+      if (!inQuotes && (char === '"' || char === "'")) {
+        inQuotes = true
+        quoteChar = char
+        current += char
+      } else if (inQuotes && char === quoteChar) {
+        inQuotes = false
+        current += char
+      } else if (!inQuotes && char === '(') {
+        depth++
+        current += char
+      } else if (!inQuotes && char === ')') {
+        depth--
+        current += char
+      } else if (!inQuotes && char === ',' && depth === 0) {
+        args.push(current.trim())
+        current = ''
+      } else {
+        current += char
+      }
+    }
+
+    if (current.trim()) {
+      args.push(current.trim())
+    }
+
+    return args
   }
 
 

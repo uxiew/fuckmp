@@ -2,6 +2,8 @@ dist
 debug-test
 *-output
 
+.augment-guidelines
+
 node_modules
 .DS_Store
 *.log

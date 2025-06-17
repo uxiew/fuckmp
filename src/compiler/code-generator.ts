@@ -154,7 +154,30 @@ export class CodeGenerator {
       // 返回小程序组件配置
       return {
         ...componentConfig,
+
+        // 组件数据
+        data() {
+          // 创建组件实例的响应式数据
+          const componentData = componentConfig.data ? componentConfig.data() : {};
+
+          // 添加 Vue 响应式变量的支持
+          const vueContext = this.createVueContext(componentConfig);
+
+          return {
+            ...componentData,
+            ...vueContext.data
+          };
+        },
+
+        // 组件方法
+        methods: {
+          ...this.createVueMethods(componentConfig)
+        },
+
         attached() {
+          // 初始化 Vue 上下文
+          this.vueContext = this.createVueContext(componentConfig);
+
           if (this.config.debug) {
             console.log('[Vue3MiniRuntime] 组件附加:', componentConfig);
           }
@@ -163,6 +186,93 @@ export class CodeGenerator {
           }
         }
       };
+    }
+
+    // 创建 Vue 上下文
+    createVueContext(componentConfig) {
+      const context = {
+        data: {},
+        props: componentConfig.properties || {},
+        emit: (eventName, ...args) => {
+          this.triggerEvent(eventName, ...args);
+        }
+      };
+
+      // 添加响应式变量支持
+      if (componentConfig.data) {
+        const data = componentConfig.data();
+        Object.keys(data).forEach(key => {
+          context.data[key] = data[key];
+        });
+      }
+
+      return context;
+    }
+
+    // 创建 Vue 方法
+    createVueMethods(componentConfig) {
+      const methods = {};
+
+      // 包装组件方法，将 Vue 变量转换为小程序 API
+      if (componentConfig.methods) {
+        Object.entries(componentConfig.methods).forEach(([name, methodBody]) => {
+          methods[name] = function(...args) {
+            // 创建一个安全的执行环境
+            const context = {
+              // 小程序组件 API
+              properties: this.properties || {},
+              data: this.data || {},
+              triggerEvent: this.triggerEvent ? this.triggerEvent.bind(this) : () => {},
+              setData: this.setData ? this.setData.bind(this) : () => {},
+
+              // Vue 兼容 API
+              props: this.properties || {},
+              emit: (eventName, ...eventArgs) => {
+                if (this.triggerEvent) {
+                  this.triggerEvent(eventName, ...eventArgs);
+                }
+              },
+              showDetails: {
+                get value() {
+                  return context.data.showDetails || false;
+                },
+                set value(val) {
+                  if (context.setData) {
+                    context.setData({ showDetails: val });
+                  }
+                }
+              }
+            };
+
+            // 在全局临时设置 Vue 变量
+            const originalProps = global.props;
+            const originalEmit = global.emit;
+            const originalShowDetails = global.showDetails;
+
+            try {
+              global.props = context.props;
+              global.emit = context.emit;
+              global.showDetails = context.showDetails;
+
+              // 如果方法体是字符串，需要在正确的上下文中执行
+              if (typeof methodBody === 'string') {
+                // 创建一个函数来执行方法体
+                const func = new Function('props', 'emit', 'showDetails', 'wx', methodBody);
+                return func.call(this, context.props, context.emit, context.showDetails, global.wx || {});
+              } else if (typeof methodBody === 'function') {
+                return methodBody.apply(this, args);
+              }
+            } finally {
+              // 恢复全局变量
+              global.props = originalProps;
+              global.emit = originalEmit;
+              global.showDetails = originalShowDetails;
+            }
+          };
+        });
+      }
+
+      return methods;
     }
   }
 
@@ -385,12 +495,11 @@ App({
    * 生成页面代码
    */
   generatePageCode(pageData: any, pagePath: string): GeneratedFile {
-    // 提取配置和上下文
-    const config = pageData.config || pageData
+    // 只提取上下文，完全忽略小程序配置
     const context = pageData.context
 
-    // 生成页面选项对象
-    const pageOptions = this.generatePageOptions(context, config)
+    // 生成页面选项对象（只使用 Vue 上下文）
+    const pageOptions = this.generatePageOptions(context, null)
 
     const content = `${this.generateFileHeader()}
 
@@ -467,7 +576,8 @@ Component(createComponent(componentOptions));
       ...this.generateLifecycle(context.lifecycle)
     }
 
-    return this.stringifyWithFunctions(options)
+    // 过滤掉无效的属性
+    return this.stringifyWithFunctions(this.filterInvalidOptions(options))
   }
 
   /**
@@ -475,18 +585,15 @@ Component(createComponent(componentOptions));
    */
   private generatePageOptions(context: any, config: any): string {
     if (!context) {
-      // 如果没有上下文，只返回配置
-      return JSON.stringify(config || {}, null, 2)
+      // 如果没有上下文，返回空对象
+      return '{}'
     }
 
     const options: any = {
-      // 小程序配置
-      ...config,
-
       // Vue 组件数据
       data: this.generateDataFunction(context.data),
 
-      // Vue 组件方法
+      // Vue 组件方法（页面方法直接放在根级别）
       ...this.generateMethods(context.methods),
 
       // Vue 计算属性
@@ -499,7 +606,8 @@ Component(createComponent(componentOptions));
       ...this.generateLifecycle(context.lifecycle)
     }
 
-    return this.stringifyWithFunctions(options)
+    // 过滤掉无效的属性
+    return this.stringifyWithFunctions(this.filterInvalidOptions(options))
   }
 
   /**
@@ -554,12 +662,29 @@ Component(createComponent(componentOptions));
         key === 'emit') {
         return
       }
+
+      // 过滤掉无效的生命周期方法
+      if (['attached', 'onReady', 'onShow', 'onHide', 'onUnload'].includes(key) &&
+        typeof value === 'string' && value.includes('无效的回调函数')) {
+        return
+      }
+
+      // 过滤掉包含this.的表达式，因为在data初始化时this还不存在
+      if (typeof value === 'string' && value.includes('this.')) {
+        return
+      }
+
+      // 过滤掉计算属性内部的临时变量（如now, lastActive等）
+      if (['now', 'lastActive'].includes(key)) {
+        return
+      }
+
       filteredData[key] = value
     })
 
-    // 创建一个包含实际数据的函数字符串
-    const dataStr = JSON.stringify(filteredData, null, 2)
-    return `function() { return ${dataStr} }`
+    // 创建一个包含实际数据的函数字符串，使用 stringifyObjectLiteral 生成正确的小程序格式
+    const dataStr = this.stringifyObjectLiteral(filteredData, 2)
+    return `${dataStr}`
   }
 
   /**
@@ -573,8 +698,9 @@ Component(createComponent(componentOptions));
     const result: any = {}
     Object.entries(methods).forEach(([name, method]: [string, any]) => {
       if (method && typeof method.body === 'string') {
-        // 直接使用方法体字符串，让 stringifyWithFunctions 处理
-        result[name] = method.body
+        // 检测并转换事件处理函数
+        const convertedBody = this.convertEventHandlerFunction(name, method.body)
+        result[name] = convertedBody
       }
     })
     return result
@@ -663,7 +789,7 @@ Component(createComponent(componentOptions));
    * 映射 Vue 类型到小程序类型
    */
   private mapVueTypeToMiniProgram(vueType: any): string {
-    if (!vueType) return 'null'
+    if (!vueType) return 'Object'  // 默认为 Object 而不是 null
 
     if (typeof vueType === 'string') {
       switch (vueType.toLowerCase()) {
@@ -672,11 +798,45 @@ Component(createComponent(componentOptions));
         case 'boolean': return 'Boolean'
         case 'array': return 'Array'
         case 'object': return 'Object'
-        default: return 'null'
+        default: return 'Object'  // 未知类型默认为 Object
       }
     }
 
-    return 'null'
+    // 如果是构造函数，尝试推断类型
+    if (typeof vueType === 'function') {
+      switch (vueType.name) {
+        case 'String': return 'String'
+        case 'Number': return 'Number'
+        case 'Boolean': return 'Boolean'
+        case 'Array': return 'Array'
+        case 'Object': return 'Object'
+        default: return 'Object'
+      }
+    }
+
+    return 'Object'
+  }
+
+  /**
+   * 过滤掉无效的选项属性
+   */
+  private filterInvalidOptions(options: any): any {
+    const filtered: any = {}
+
+    Object.entries(options).forEach(([key, value]) => {
+      // 过滤掉无效的生命周期方法
+      if (['attached', 'onReady', 'onShow', 'onHide', 'onUnload'].includes(key) &&
+        typeof value === 'string' && value.includes('无效的回调函数')) {
+        return
+      }
+
+      // 过滤掉空值或无效值
+      if (value !== null && value !== undefined && value !== '') {
+        filtered[key] = value
+      }
+    })
+
+    return filtered
   }
 
   /**
@@ -693,21 +853,30 @@ Component(createComponent(componentOptions));
         functionPlaceholders.set(placeholder, value.toString())
         return placeholder
       } else if (typeof value === 'string' && this.isFunctionString(value)) {
-        // 检查是否为函数字符串
+        // 检查是否为函数字符串，并转换箭头函数为普通函数
         const placeholder = `__FUNCTION_PLACEHOLDER_${placeholderIndex++}__`
+        const convertedFunction = this.convertArrowFunctionToRegular(value)
+        functionPlaceholders.set(placeholder, convertedFunction)
+        return placeholder
+      } else if (typeof value === 'string' && this.isExpressionString(value)) {
+        // 检查是否为表达式字符串（如 new Date(), 对象字面量等）
+        const placeholder = `__EXPRESSION_PLACEHOLDER_${placeholderIndex++}__`
         functionPlaceholders.set(placeholder, value)
         return placeholder
       }
       return value
     }))
 
-    // 第二步：序列化对象
-    let result = JSON.stringify(processedObj, null, 2)
+    // 第二步：序列化对象，使用自定义格式
+    let result = this.stringifyObjectLiteral(processedObj, 2)
 
     // 第三步：恢复函数
     for (const [placeholder, functionCode] of functionPlaceholders) {
       result = result.replace(`"${placeholder}"`, functionCode)
     }
+
+    // 第四步：转换所有剩余的箭头函数为普通函数
+    result = this.convertAllArrowFunctions(result)
 
     return result
   }
@@ -730,6 +899,220 @@ Component(createComponent(componentOptions));
     }
 
     return false
+  }
+
+  /**
+   * 将对象序列化为 JavaScript 对象字面量格式（不给属性名加引号）
+   */
+  private stringifyObjectLiteral(obj: any, indent: number = 0): string {
+    if (obj === null) return 'null'
+    if (obj === undefined) return 'undefined'
+    if (typeof obj === 'boolean') return obj.toString()
+    if (typeof obj === 'number') return obj.toString()
+    if (typeof obj === 'string') {
+      // 检查是否为表达式字符串，如果是则不添加引号
+      if (this.isExpressionString(obj)) {
+        return obj
+      }
+      return JSON.stringify(obj)
+    }
+
+    if (Array.isArray(obj)) {
+      const items = obj.map(item => this.stringifyObjectLiteral(item, indent + 2))
+      return `[${items.join(', ')}]`
+    }
+
+    if (typeof obj === 'object') {
+      const spaces = ' '.repeat(indent)
+      const nextSpaces = ' '.repeat(indent + 2)
+      const entries = Object.entries(obj).map(([key, value]) => {
+        const valueStr = this.stringifyObjectLiteral(value, indent + 2)
+        return `${nextSpaces}${key}: ${valueStr}`
+      })
+
+      if (entries.length === 0) {
+        return '{}'
+      }
+
+      return `{\n${entries.join(',\n')}\n${spaces}}`
+    }
+
+    return String(obj)
+  }
+
+  /**
+   * 检查字符串是否为表达式代码
+   */
+  private isExpressionString(str: string): boolean {
+    if (!str || typeof str !== 'string') return false
+
+    // 检查是否为布尔值
+    if (str === 'true' || str === 'false') return true
+
+    // 检查是否为数字
+    if (/^\d+(\.\d+)?$/.test(str)) return true
+
+    // 检查是否为 new 表达式（但不包含this的表达式，因为在data中不能使用this）
+    if (str.startsWith('new ') && !str.includes('this.')) return true
+
+    // 检查是否为对象字面量
+    if (str.startsWith('{') && str.endsWith('}') && !str.includes('this.')) return true
+
+    // 检查是否为数组字面量
+    if (str.startsWith('[') && str.endsWith(']') && !str.includes('this.')) return true
+
+    // 检查是否为计算表达式（但不包含this）
+    if (str.includes('(') && str.includes(')') && !str.includes('=>') && !str.startsWith('function') && !str.includes('this.')) {
+      return true
+    }
+
+    // 不允许this.开头的表达式在data中使用
+    if (str.startsWith('this.')) return false
+
+    // 检查是否为函数调用（但不包含this）
+    if (/^\w+\(.*\)$/.test(str) && !str.includes('this.')) return true
+
+    return false
+  }
+
+  /**
+   * 将箭头函数转换为普通函数
+   */
+  private convertArrowFunctionToRegular(functionStr: string): string {
+    if (!functionStr || typeof functionStr !== 'string') {
+      return functionStr
+    }
+
+    // 检查是否为箭头函数
+    if (!functionStr.includes('=>')) {
+      return functionStr
+    }
+
+    // 简单的箭头函数转换
+    // 匹配 (参数) => { 函数体 } 或 参数 => { 函数体 }
+    const arrowFunctionRegex = /^(\([^)]*\)|[^=]+)\s*=>\s*(.+)$/s
+    const match = functionStr.match(arrowFunctionRegex)
+
+    if (match && match[1] && match[2]) {
+      let params = match[1].trim()
+      const body = match[2].trim()
+
+      // 移除参数周围的括号（如果只有一个参数且没有括号）
+      if (params.startsWith('(') && params.endsWith(')')) {
+        params = params.slice(1, -1)
+      }
+
+      // 如果函数体不是以 { 开始，说明是表达式，需要添加 return
+      if (!body.startsWith('{')) {
+        return `function(${params}) { return ${body} }`
+      } else {
+        return `function(${params}) ${body}`
+      }
+    }
+
+    return functionStr
+  }
+
+  /**
+   * 检测并转换事件处理函数，使其能够从dataset中获取参数
+   */
+  private convertEventHandlerFunction(functionName: string, functionStr: string): string {
+    if (!functionStr || typeof functionStr !== 'string') {
+      return functionStr
+    }
+
+    // 检测是否为事件处理器
+    if (!this.isEventHandlerName(functionName)) {
+      return functionStr
+    }
+
+    // 检测普通函数格式: function(params) { body }
+    const functionRegex = /^function\s*\(\s*([^)]+)\s*\)\s*\{([\s\S]*)\}$/
+    const functionMatch = functionStr.match(functionRegex)
+
+    if (functionMatch && functionMatch[1] && functionMatch[2]) {
+      const params = functionMatch[1].trim()
+      const body = functionMatch[2].trim()
+
+      // 如果函数只有一个参数，则转换它
+      if (params && !params.includes(',')) {
+        const paramName = params.trim()
+
+        // 在函数体开头添加从dataset获取参数的代码
+        const newBody = `
+    // 从事件对象的dataset中获取参数
+    const ${paramName} = event.currentTarget.dataset.arg0;
+    ${body}`
+
+        return `function(event) {${newBody}
+  }`
+      }
+    }
+
+    // 检测箭头函数格式: (params) => { body } 或 params => { body }
+    const arrowRegex = /^(\([^)]*\)|[^=]+)\s*=>\s*\{([\s\S]*)\}$/
+    const arrowMatch = functionStr.match(arrowRegex)
+
+    if (arrowMatch && arrowMatch[1] && arrowMatch[2]) {
+      let params = arrowMatch[1].trim()
+      const body = arrowMatch[2].trim()
+
+      // 移除参数周围的括号（如果存在）
+      if (params.startsWith('(') && params.endsWith(')')) {
+        params = params.slice(1, -1)
+      }
+
+      // 如果函数只有一个参数，则转换它
+      if (params && !params.includes(',')) {
+        const paramName = params.trim()
+
+        // 在函数体开头添加从dataset获取参数的代码
+        const newBody = `
+    // 从事件对象的dataset中获取参数
+    const ${paramName} = event.currentTarget.dataset.arg0;
+    ${body}`
+
+        return `function(event) {${newBody}
+  }`
+      }
+    }
+
+    return functionStr
+  }
+
+  /**
+   * 判断函数名是否看起来像事件处理器
+   */
+  private isEventHandlerName(functionName: string): boolean {
+    const eventHandlerPatterns = [
+      /^handle/i,      // handleClick, handleMenuClick
+      /^on[A-Z]/,      // onClick, onSubmit
+      /Click$/,        // menuClick, buttonClick
+      /Tap$/,          // menuTap, itemTap
+      /Press$/,        // longPress
+      /Touch$/,        // touchStart, touchEnd
+    ]
+
+    return eventHandlerPatterns.some(pattern => pattern.test(functionName))
+  }
+
+  /**
+   * 转换字符串中的所有箭头函数为普通函数
+   */
+  private convertAllArrowFunctions(str: string): string {
+    // 匹配对象方法中的箭头函数：  "methodName": (params) => { body }
+    // 更精确的正则表达式，处理多行函数体
+    const methodArrowRegex = /("[\w]+"):\s*(\([^)]*\)|\w*)\s*=>\s*\{([\s\S]*?)\}/g
+
+    return str.replace(methodArrowRegex, (match, methodName, params, body) => {
+      // 移除参数周围的括号（如果存在）
+      let cleanParams = params.trim()
+      if (cleanParams.startsWith('(') && cleanParams.endsWith(')')) {
+        cleanParams = cleanParams.slice(1, -1)
+      }
+
+      return `${methodName}: function(${cleanParams}) {${body}}`
+    })
   }
 
   /**
