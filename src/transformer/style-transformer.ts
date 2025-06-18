@@ -121,6 +121,16 @@ export class StyleTransformer {
         const value = parseFloat(num)
         return `${value * 2}rpx`
       })
+      // em 转 rpx (假设 1em = 16px = 32rpx)
+      .replace(/(\d+(?:\.\d+)?)em/g, (match, num) => {
+        const value = parseFloat(num)
+        return `${value * 32}rpx`
+      })
+      // rem 转 rpx (假设 1rem = 16px = 32rpx)
+      .replace(/(\d+(?:\.\d+)?)rem/g, (match, num) => {
+        const value = parseFloat(num)
+        return `${value * 32}rpx`
+      })
       // vh 转 rpx (假设屏幕高度 667px)
       .replace(/(\d+(?:\.\d+)?)vh/g, (match, num) => {
         const value = parseFloat(num)
@@ -131,34 +141,56 @@ export class StyleTransformer {
         const value = parseFloat(num)
         return `${(value * 375 / 100) * 2}rpx`
       })
-      // rem 转 rpx (假设 1rem = 16px)
-      .replace(/(\d+(?:\.\d+)?)rem/g, (match, num) => {
-        const value = parseFloat(num)
-        return `${value * 16 * 2}rpx`
-      })
   }
 
   /**
    * 选择器转换
    */
   private transformSelectors(css: string): string {
-    return css
-      // 移除深度选择器
+    let transformedCSS = css
+
+    // 移除深度选择器
+    transformedCSS = transformedCSS
       .replace(/::v-deep\s+/g, ' ')
       .replace(/:deep\(/g, ' ')
       .replace(/\)\s*{/g, ' {')
-      // 移除不支持的伪类
-      .replace(/:hover/g, '')
-      .replace(/:focus/g, '')
-      .replace(/:active/g, '')
-      .replace(/:visited/g, '')
-      .replace(/:link/g, '')
-      // 转换伪元素
+
+    // 移除不支持的伪类并记录警告
+    const unsupportedPseudoClasses = [':hover', ':focus', ':active', ':visited', ':link']
+    unsupportedPseudoClasses.forEach(pseudo => {
+      const regex = new RegExp(pseudo.replace(':', '\\:'), 'g')
+      const matches = transformedCSS.match(regex)
+      if (matches) {
+        transformedCSS = transformedCSS.replace(regex, '')
+        logger.warn(`移除不支持的伪类选择器: ${pseudo} (${matches.length} 处)`)
+      }
+    })
+
+    // 转换伪元素
+    transformedCSS = transformedCSS
       .replace(/::before/g, '::before')
       .replace(/::after/g, '::after')
-      // 移除其他不支持的伪元素
-      .replace(/::-webkit-[^{]+/g, '')
-      .replace(/::-moz-[^{]+/g, '')
+
+    // 移除其他不支持的伪元素并记录警告
+    const webkitMatches = transformedCSS.match(/::-webkit-[^{]+/g)
+    if (webkitMatches) {
+      transformedCSS = transformedCSS.replace(/::-webkit-[^{]+/g, '')
+      logger.warn(`移除不支持的 webkit 伪元素 (${webkitMatches.length} 处)`)
+      webkitMatches.forEach(match => {
+        logger.warn(`  - ${match}`)
+      })
+    }
+
+    const mozMatches = transformedCSS.match(/::-moz-[^{]+/g)
+    if (mozMatches) {
+      transformedCSS = transformedCSS.replace(/::-moz-[^{]+/g, '')
+      logger.warn(`移除不支持的 moz 伪元素 (${mozMatches.length} 处)`)
+      mozMatches.forEach(match => {
+        logger.warn(`  - ${match}`)
+      })
+    }
+
+    return transformedCSS
   }
 
   /**
@@ -240,14 +272,48 @@ export class StyleTransformer {
 
     let cleanedCSS = css
 
+    // 移除不支持的属性
     unsupportedProperties.forEach(prop => {
       const regex = new RegExp(`\\s*${prop}\\s*:[^;]+;?`, 'g')
       const matches = cleanedCSS.match(regex)
       if (matches) {
         removedCount += matches.length
         cleanedCSS = cleanedCSS.replace(regex, '')
+        // 编译时警告：移除不支持的样式属性
+        logger.warn(`移除不支持的样式属性: ${prop} (${matches.length} 处)`)
+        matches.forEach(match => {
+          logger.warn(`  - ${match.trim()}`)
+        })
       }
     })
+
+    // 移除 @media 查询（小程序不支持）
+    const mediaRegex = /@media[^{]*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g
+    const mediaMatches = cleanedCSS.match(mediaRegex)
+    if (mediaMatches) {
+      removedCount += mediaMatches.length
+      cleanedCSS = cleanedCSS.replace(mediaRegex, '')
+      // 编译时警告：移除不支持的 @media 查询
+      logger.warn(`移除不支持的 @media 查询 (${mediaMatches.length} 处)`)
+      mediaMatches.forEach(match => {
+        const mediaQuery = match.split('{')[0] + '{ ... }'
+        logger.warn(`  - ${mediaQuery}`)
+      })
+    }
+
+    // 移除其他 @规则（除了 @import）
+    const atRuleRegex = /@(?!import)[^{]*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g
+    const atRuleMatches = cleanedCSS.match(atRuleRegex)
+    if (atRuleMatches) {
+      removedCount += atRuleMatches.length
+      cleanedCSS = cleanedCSS.replace(atRuleRegex, '')
+      // 编译时警告：移除不支持的 @规则
+      logger.warn(`移除不支持的 @规则 (${atRuleMatches.length} 处)`)
+      atRuleMatches.forEach(match => {
+        const atRule = match.split('{')[0] + '{ ... }'
+        logger.warn(`  - ${atRule}`)
+      })
+    }
 
     // 移除空的规则
     cleanedCSS = cleanedCSS.replace(/[^{}]+{\s*}/g, '')
@@ -288,7 +354,7 @@ export class StyleTransformer {
       hash = ((hash << 5) - hash) + char
       hash = hash & hash // 转换为 32 位整数
     }
-    return Math.abs(hash).toString(36).substring(0, 8)
+    return Math.abs(hash).toString(36).substring(0, 6)
   }
 
   /**

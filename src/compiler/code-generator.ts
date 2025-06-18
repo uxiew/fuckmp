@@ -97,6 +97,7 @@ export class CodeGenerator {
     constructor(config) {
       this.config = config;
       this.isInitialized = false;
+      this.reactiveInstances = new Map();
     }
 
     async init() {
@@ -110,6 +111,120 @@ export class CodeGenerator {
       if (this.config.debug) {
         console.log('[Vue3MiniRuntime] 运行时库初始化完成');
       }
+    }
+
+    // 创建响应式系统实例
+    createReactiveSystem(context) {
+      const reactiveSystem = {
+        context: context,
+        refs: new Map(),
+        reactives: new Map(),
+        computeds: new Map(),
+
+        // 生成唯一ID
+        generateId() {
+          return Math.random().toString(36).substr(2, 9);
+        },
+
+        // 创建 ref
+        ref(value) {
+          const key = 'ref_' + this.generateId();
+          let _value = value;
+
+          const refObject = {
+            _isRef: true,
+            _key: key,
+            get value() {
+              return _value;
+            },
+            set value(newValue) {
+              if (newValue !== _value) {
+                _value = newValue;
+                if (context && typeof context.setData === 'function') {
+                  context.setData({ [key]: newValue });
+                }
+              }
+            }
+          };
+
+          if (context && typeof context.setData === 'function') {
+            context.setData({ [key]: value });
+          }
+
+          this.refs.set(key, refObject);
+          return refObject;
+        },
+
+        // 创建 reactive
+        reactive(target) {
+          const key = 'reactive_' + this.generateId();
+          const self = this;
+
+          function createProxy(obj, path = []) {
+            return new Proxy(obj, {
+              get(target, prop) {
+                const value = target[prop];
+                if (value && typeof value === 'object' && typeof prop === 'string') {
+                  return createProxy(value, [...path, prop]);
+                }
+                return value;
+              },
+              set(target, prop, newValue) {
+                if (typeof prop === 'string') {
+                  const oldValue = target[prop];
+                  if (newValue !== oldValue) {
+                    target[prop] = newValue;
+                    if (context && typeof context.setData === 'function') {
+                      const fullPath = path.length > 0
+                        ? key + '.' + [...path, prop].join('.')
+                        : key + '.' + prop;
+                      context.setData({ [fullPath]: newValue });
+                    }
+                  }
+                }
+                return true;
+              }
+            });
+          }
+
+          const proxy = createProxy(target);
+          if (context && typeof context.setData === 'function') {
+            context.setData({ [key]: target });
+          }
+
+          this.reactives.set(key, proxy);
+          return proxy;
+        },
+
+        // 创建 computed
+        computed(getter) {
+          const key = 'computed_' + this.generateId();
+          let _value;
+          let _dirty = true;
+
+          const computedRef = {
+            _isComputed: true,
+            _key: key,
+            get value() {
+              if (_dirty) {
+                _value = getter();
+                _dirty = false;
+                if (context && typeof context.setData === 'function') {
+                  context.setData({ [key]: _value });
+                }
+              }
+              return _value;
+            }
+          };
+
+          const initialValue = computedRef.value;
+          this.computeds.set(key, computedRef);
+          return computedRef;
+        }
+      };
+
+      this.reactiveInstances.set(context, reactiveSystem);
+      return reactiveSystem;
     }
 
     createApp(appConfig) {
@@ -132,13 +247,77 @@ export class CodeGenerator {
         throw new Error('运行时库尚未初始化');
       }
 
+      const self = this;
+
       // 返回小程序页面配置
       return {
         ...pageConfig,
         onLoad() {
-          if (this.config.debug) {
-            console.log('[Vue3MiniRuntime] 页面加载:', pageConfig);
+          // 创建响应式系统
+          const reactiveSystem = self.createReactiveSystem(this);
+
+          // 将响应式 API 添加到页面实例
+          this.ref = reactiveSystem.ref.bind(reactiveSystem);
+          this.reactive = reactiveSystem.reactive.bind(reactiveSystem);
+          this.computed = reactiveSystem.computed.bind(reactiveSystem);
+
+          // 根据页面配置创建响应式变量
+          if (pageConfig._reactiveVariables) {
+            pageConfig._reactiveVariables.forEach(varInfo => {
+              if (varInfo.type === 'ref') {
+                // 创建响应式变量
+                const reactiveVar = this.ref(varInfo.initialValue);
+                this[varInfo.name] = reactiveVar;
+
+                // 创建与 data 对象同步的代理
+                const self = this;
+                Object.defineProperty(this, varInfo.name, {
+                  get() {
+                    return {
+                      get value() {
+                        return reactiveVar.value;
+                      },
+                      set value(newValue) {
+                        reactiveVar.value = newValue;
+                        // 同步到 data 对象
+                        const updateData = {};
+                        updateData[varInfo.name] = newValue;
+                        self.setData(updateData);
+                      }
+                    };
+                  },
+                  configurable: true
+                });
+              } else if (varInfo.type === 'reactive') {
+                // 创建响应式对象
+                const reactiveObj = this.reactive(varInfo.initialValue);
+                this[varInfo.name] = reactiveObj;
+
+                // 同步到 data 对象
+                const updateData = {};
+                updateData[varInfo.name] = varInfo.initialValue;
+                this.setData(updateData);
+              } else if (varInfo.type === 'computed') {
+                // computed 需要特殊处理，因为它需要 getter 函数
+                const computedVar = this.computed(() => varInfo.initialValue);
+                this[varInfo.name] = computedVar;
+
+                // 同步到 data 对象
+                const updateData = {};
+                updateData[varInfo.name] = computedVar.value;
+                this.setData(updateData);
+              }
+            });
           }
+
+          if (self.config.debug) {
+            console.log('[Vue3MiniRuntime] 页面加载:', pageConfig);
+            console.log('[Vue3MiniRuntime] 响应式系统已初始化');
+            if (pageConfig._reactiveVariables) {
+              console.log('[Vue3MiniRuntime] 响应式变量已创建:', pageConfig._reactiveVariables.map(v => v.name));
+            }
+          }
+
           if (pageConfig.onLoad) {
             pageConfig.onLoad.apply(this, arguments);
           }
@@ -150,6 +329,8 @@ export class CodeGenerator {
       if (!this.isInitialized) {
         throw new Error('运行时库尚未初始化');
       }
+
+      const self = this;
 
       // 返回小程序组件配置
       return {
@@ -175,11 +356,71 @@ export class CodeGenerator {
         },
 
         attached() {
+          // 创建响应式系统
+          const reactiveSystem = self.createReactiveSystem(this);
+
+          // 将响应式 API 添加到组件实例
+          this.ref = reactiveSystem.ref.bind(reactiveSystem);
+          this.reactive = reactiveSystem.reactive.bind(reactiveSystem);
+          this.computed = reactiveSystem.computed.bind(reactiveSystem);
+
+          // 根据组件配置创建响应式变量
+          if (componentConfig._reactiveVariables) {
+            componentConfig._reactiveVariables.forEach(varInfo => {
+              if (varInfo.type === 'ref') {
+                // 创建响应式变量
+                const reactiveVar = this.ref(varInfo.initialValue);
+
+                // 创建与 data 对象同步的代理
+                const self = this;
+                Object.defineProperty(this, varInfo.name, {
+                  get() {
+                    return {
+                      get value() {
+                        return reactiveVar.value;
+                      },
+                      set value(newValue) {
+                        reactiveVar.value = newValue;
+                        // 同步到 data 对象
+                        const updateData = {};
+                        updateData[varInfo.name] = newValue;
+                        self.setData(updateData);
+                      }
+                    };
+                  },
+                  configurable: true
+                });
+              } else if (varInfo.type === 'reactive') {
+                // 创建响应式对象
+                const reactiveObj = this.reactive(varInfo.initialValue);
+                this[varInfo.name] = reactiveObj;
+
+                // 同步到 data 对象
+                const updateData = {};
+                updateData[varInfo.name] = varInfo.initialValue;
+                this.setData(updateData);
+              } else if (varInfo.type === 'computed') {
+                // computed 需要特殊处理，因为它需要 getter 函数
+                const computedVar = this.computed(() => varInfo.initialValue);
+                this[varInfo.name] = computedVar;
+
+                // 同步到 data 对象
+                const updateData = {};
+                updateData[varInfo.name] = computedVar.value;
+                this.setData(updateData);
+              }
+            });
+          }
+
           // 初始化 Vue 上下文
           this.vueContext = this.createVueContext(componentConfig);
 
-          if (this.config.debug) {
+          if (self.config.debug) {
             console.log('[Vue3MiniRuntime] 组件附加:', componentConfig);
+            console.log('[Vue3MiniRuntime] 响应式系统已初始化');
+            if (componentConfig._reactiveVariables) {
+              console.log('[Vue3MiniRuntime] 响应式变量已创建:', componentConfig._reactiveVariables.map(v => v.name));
+            }
           }
           if (componentConfig.attached) {
             componentConfig.attached.apply(this, arguments);
@@ -357,9 +598,91 @@ function createPage(pageConfig) {
         // 在页面加载时检查运行时是否已初始化
         if (isInitialized) {
           const runtime = getRuntime();
-          const actualPage = runtime.createPage(pageConfig);
-          // 将实际页面的方法复制到当前页面
-          Object.assign(this, actualPage);
+
+          // 手动执行运行时的页面初始化逻辑
+          // 创建响应式系统
+          const reactiveSystem = runtime.createReactiveSystem(this);
+
+          // 将响应式 API 添加到页面实例
+          this.ref = reactiveSystem.ref.bind(reactiveSystem);
+          this.reactive = reactiveSystem.reactive.bind(reactiveSystem);
+          this.computed = reactiveSystem.computed.bind(reactiveSystem);
+
+          // 根据页面配置创建响应式变量
+          if (pageConfig._reactiveVariables) {
+            pageConfig._reactiveVariables.forEach(varInfo => {
+              if (varInfo.type === 'ref') {
+                // 创建响应式变量
+                const reactiveVar = this.ref(varInfo.initialValue);
+
+                // 创建与 data 对象同步的代理
+                const self = this;
+                Object.defineProperty(this, varInfo.name, {
+                  get() {
+                    return {
+                      get value() {
+                        return reactiveVar.value;
+                      },
+                      set value(newValue) {
+                        reactiveVar.value = newValue;
+                        // 同步到 data 对象
+                        const updateData = {};
+                        updateData[varInfo.name] = newValue;
+                        self.setData(updateData);
+                      }
+                    };
+                  },
+                  configurable: true
+                });
+              } else if (varInfo.type === 'reactive') {
+                // 创建响应式对象
+                const reactiveObj = this.reactive(varInfo.initialValue);
+                this[varInfo.name] = reactiveObj;
+
+                // 同步到 data 对象
+                const updateData = {};
+                updateData[varInfo.name] = varInfo.initialValue;
+                this.setData(updateData);
+              } else if (varInfo.type === 'computed') {
+                // computed 需要特殊处理，因为它需要 getter 函数
+                const computedVar = this.computed(() => varInfo.initialValue);
+                this[varInfo.name] = computedVar;
+
+                // 同步到 data 对象
+                const updateData = {};
+                updateData[varInfo.name] = computedVar.value;
+                this.setData(updateData);
+              }
+            });
+          }
+        } else {
+          // 如果运行时仍未初始化，手动创建响应式变量
+          if (pageConfig._reactiveVariables) {
+            pageConfig._reactiveVariables.forEach(varInfo => {
+              // 创建具有响应式能力的占位符
+              const self = this;
+              let currentValue = varInfo.initialValue;
+
+              this[varInfo.name] = {
+                get value() {
+                  return currentValue;
+                },
+                set value(newValue) {
+                  currentValue = newValue;
+                  // 调用 setData 更新界面
+                  const updateData = {};
+                  updateData[varInfo.name] = newValue;
+                  self.setData(updateData);
+                },
+                _isRef: true
+              };
+
+              // 初始化数据
+              const initData = {};
+              initData[varInfo.name] = varInfo.initialValue;
+              this.setData(initData);
+            });
+          }
         }
 
         // 调用原始的 onLoad
@@ -386,9 +709,91 @@ function createComponent(componentConfig) {
         // 在组件附加时检查运行时是否已初始化
         if (isInitialized) {
           const runtime = getRuntime();
-          const actualComponent = runtime.createComponent(componentConfig);
-          // 将实际组件的方法复制到当前组件
-          Object.assign(this, actualComponent);
+
+          // 手动执行运行时的组件初始化逻辑
+          // 创建响应式系统
+          const reactiveSystem = runtime.createReactiveSystem(this);
+
+          // 将响应式 API 添加到组件实例
+          this.ref = reactiveSystem.ref.bind(reactiveSystem);
+          this.reactive = reactiveSystem.reactive.bind(reactiveSystem);
+          this.computed = reactiveSystem.computed.bind(reactiveSystem);
+
+          // 根据组件配置创建响应式变量
+          if (componentConfig._reactiveVariables) {
+            componentConfig._reactiveVariables.forEach(varInfo => {
+              if (varInfo.type === 'ref') {
+                // 创建响应式变量
+                const reactiveVar = this.ref(varInfo.initialValue);
+
+                // 创建与 data 对象同步的代理
+                const self = this;
+                Object.defineProperty(this, varInfo.name, {
+                  get() {
+                    return {
+                      get value() {
+                        return reactiveVar.value;
+                      },
+                      set value(newValue) {
+                        reactiveVar.value = newValue;
+                        // 同步到 data 对象
+                        const updateData = {};
+                        updateData[varInfo.name] = newValue;
+                        self.setData(updateData);
+                      }
+                    };
+                  },
+                  configurable: true
+                });
+              } else if (varInfo.type === 'reactive') {
+                // 创建响应式对象
+                const reactiveObj = this.reactive(varInfo.initialValue);
+                this[varInfo.name] = reactiveObj;
+
+                // 同步到 data 对象
+                const updateData = {};
+                updateData[varInfo.name] = varInfo.initialValue;
+                this.setData(updateData);
+              } else if (varInfo.type === 'computed') {
+                // computed 需要特殊处理，因为它需要 getter 函数
+                const computedVar = this.computed(() => varInfo.initialValue);
+                this[varInfo.name] = computedVar;
+
+                // 同步到 data 对象
+                const updateData = {};
+                updateData[varInfo.name] = computedVar.value;
+                this.setData(updateData);
+              }
+            });
+          }
+        } else {
+          // 如果运行时仍未初始化，手动创建响应式变量
+          if (componentConfig._reactiveVariables) {
+            componentConfig._reactiveVariables.forEach(varInfo => {
+              // 创建具有响应式能力的占位符
+              const self = this;
+              let currentValue = varInfo.initialValue;
+
+              this[varInfo.name] = {
+                get value() {
+                  return currentValue;
+                },
+                set value(newValue) {
+                  currentValue = newValue;
+                  // 调用 setData 更新界面
+                  const updateData = {};
+                  updateData[varInfo.name] = newValue;
+                  self.setData(updateData);
+                },
+                _isRef: true
+              };
+
+              // 初始化数据
+              const initData = {};
+              initData[varInfo.name] = varInfo.initialValue;
+              this.setData(initData);
+            });
+          }
         }
 
         // 调用原始的 attached
@@ -606,6 +1011,12 @@ Component(createComponent(componentOptions));
       ...this.generateLifecycle(context.lifecycle)
     }
 
+    // 添加响应式变量信息（供运行时使用）
+    if (context.reactiveVariables && context.reactiveVariables.size > 0) {
+      const reactiveVarsArray = Array.from(context.reactiveVariables.values())
+      options._reactiveVariables = reactiveVarsArray
+    }
+
     // 过滤掉无效的属性
     return this.stringifyWithFunctions(this.filterInvalidOptions(options))
   }
@@ -637,6 +1048,12 @@ Component(createComponent(componentOptions));
 
       // Vue 生命周期
       ...this.generateLifecycle(context.lifecycle)
+    }
+
+    // 添加响应式变量信息（供运行时使用）
+    if (context.reactiveVariables && context.reactiveVariables.size > 0) {
+      const reactiveVarsArray = Array.from(context.reactiveVariables.values())
+      options._reactiveVariables = reactiveVarsArray
     }
 
     return this.stringifyWithFunctions(options)
@@ -748,19 +1165,30 @@ Component(createComponent(componentOptions));
 
     const result: any = {}
 
-    // 映射 Vue 生命周期到小程序生命周期
-    const lifecycleMap: Record<string, string> = {
-      onMounted: 'attached',
-      onUnmounted: 'detached',
-      onUpdated: 'moved',
-      onBeforeMount: 'created',
-      onBeforeUnmount: 'detached'
-    }
-
-    Object.entries(lifecycle).forEach(([vueHook, handler]: [string, any]) => {
-      const mpHook = lifecycleMap[vueHook] || vueHook
-      if (handler) {
-        result[mpHook] = handler
+    // 直接使用已经映射好的生命周期钩子
+    // 在 ScriptTransformer 中已经完成了 Vue 到小程序的映射
+    Object.entries(lifecycle).forEach(([hookName, handler]: [string, any]) => {
+      if (handler && typeof handler === 'string' && handler.trim()) {
+        // 生成函数代码
+        if (hookName === 'onLoad') {
+          result[hookName] = `function(options) {\n    ${handler.trim()}\n  }`
+        } else if (hookName.startsWith('pageLifetimes.')) {
+          // 处理组件的页面生命周期
+          const pageLiftimeName = hookName.replace('pageLifetimes.', '')
+          if (!result.pageLifetimes) {
+            result.pageLifetimes = {}
+          }
+          result.pageLifetimes[pageLiftimeName] = `function() {\n    ${handler.trim()}\n  }`
+        } else if (['created', 'attached', 'detached', 'moved'].includes(hookName)) {
+          // 组件生命周期
+          if (!result.lifetimes) {
+            result.lifetimes = {}
+          }
+          result.lifetimes[hookName] = `function() {\n    ${handler.trim()}\n  }`
+        } else {
+          // 页面生命周期
+          result[hookName] = `function() {\n    ${handler.trim()}\n  }`
+        }
       }
     })
 
@@ -824,14 +1252,16 @@ Component(createComponent(componentOptions));
     const filtered: any = {}
 
     Object.entries(options).forEach(([key, value]) => {
+
+
       // 过滤掉无效的生命周期方法
       if (['attached', 'onReady', 'onShow', 'onHide', 'onUnload'].includes(key) &&
         typeof value === 'string' && value.includes('无效的回调函数')) {
         return
       }
 
-      // 过滤掉空值或无效值
-      if (value !== null && value !== undefined && value !== '') {
+      // 过滤掉空值或无效值，但保留数组（即使是空数组）
+      if (value !== null && value !== undefined && value !== '' || Array.isArray(value)) {
         filtered[key] = value
       }
     })

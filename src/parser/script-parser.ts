@@ -85,6 +85,8 @@ export interface ExportInfo {
  * Script 解析器类
  */
 export class ScriptParser {
+  private currentResult: ScriptParseResult | null = null
+
   /**
    * 解析脚本内容
    */
@@ -104,6 +106,9 @@ export class ScriptParser {
         functions: new Map(),
         exports: []
       }
+
+      // 设置当前解析结果，供其他方法使用
+      this.currentResult = result
 
       // 遍历 AST 收集信息
       traverseAST(ast, {
@@ -128,9 +133,15 @@ export class ScriptParser {
       })
 
       logger.debug(`脚本解析完成: ${filename}`)
+
+      // 清理当前解析结果
+      this.currentResult = null
+
       return result
 
     } catch (error) {
+      // 清理当前解析结果
+      this.currentResult = null
       logger.error(`脚本解析失败: ${filename}`, error as Error)
       throw error
     }
@@ -525,12 +536,18 @@ export class ScriptParser {
       `[${this.extractArgumentValue(node.property)}]` :
       `.${node.property.name}`
 
-    // 特殊处理 Vue 响应式变量的 .value 访问
-    if (typeof object === 'string' && !object.includes('.') && property === '.value') {
-      // 将 响应式变量.value 转换为 this.data.响应式变量
-      return `this.data.${object}`
+    // 检查是否为响应式变量访问（如 visitCount.value）
+    if (node.object.type === 'Identifier' &&
+      node.property.name === 'value' &&
+      this.currentResult &&
+      this.currentResult.variables.has(node.object.name) &&
+      this.currentResult.variables.get(node.object.name)?.isReactive) {
+      // 转换为 this.variableName.value
+      return `this.${node.object.name}${property}`
     }
 
+    // 移除特殊处理逻辑，保持原始的 Vue 代码
+    // 响应式变量访问现在由运行时代理系统自动处理
     return `${object}${property}`
   }
 
@@ -688,6 +705,10 @@ export class ScriptParser {
    * 生成更新表达式（如 ++、--）
    */
   private generateUpdateExpression(node: any): string {
+    // 移除字符串替换逻辑，保持原始的 Vue 代码
+    // 响应式更新现在由运行时代理系统自动处理
+
+    // 生成原始的更新表达式
     const argument = this.generateCodeString(node.argument)
     if (node.prefix) {
       return `${node.operator}${argument}`
@@ -703,15 +724,8 @@ export class ScriptParser {
     const left = this.generateCodeString(node.left)
     const right = this.generateCodeString(node.right)
 
-    // 特殊处理响应式变量的赋值
-    if (node.left.type === 'MemberExpression' &&
-      node.left.property.name === 'value' &&
-      node.left.object.type === 'Identifier') {
-      const varName = node.left.object.name
-      // 将 响应式变量.value = 值 转换为 this.setData({ 响应式变量: 值 })
-      return `this.setData({ ${varName}: ${right} })`
-    }
-
+    // 移除特殊处理逻辑，保持原始的 Vue 代码
+    // 响应式变量赋值现在由运行时代理系统自动处理
     return `${left} ${node.operator} ${right}`
   }
 

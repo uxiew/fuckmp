@@ -117,6 +117,18 @@ export interface ParseResult {
 }
 
 /**
+ * 响应式变量信息
+ */
+export interface ReactiveVariableInfo {
+  /** 变量名 */
+  name: string
+  /** 响应式类型 */
+  type: 'ref' | 'reactive' | 'computed'
+  /** 初始值 */
+  initialValue: any
+}
+
+/**
  * 转换上下文
  */
 export interface TransformContext {
@@ -148,6 +160,8 @@ export interface TransformContext {
   components: Map<string, string>
   /** 导入的样式文件 */
   styleImports?: string[]
+  /** 响应式变量信息 */
+  reactiveVariables?: Map<string, ReactiveVariableInfo>
 }
 
 /**

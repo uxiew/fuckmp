@@ -208,6 +208,9 @@ export class Vue3MiniprogramCompiler {
       // 生成应用配置
       await this.generateAppConfig(result.success)
 
+      // 生成应用样式
+      await this.generateAppStyles(options.output)
+
       // 执行运行时注入
       await this.performRuntimeInjection(options.output)
 
@@ -279,6 +282,11 @@ export class Vue3MiniprogramCompiler {
         // 合并样式导入
         if (scriptContext.styleImports) {
           context.styleImports = scriptContext.styleImports
+        }
+
+        // 合并响应式变量信息
+        if (scriptContext.reactiveVariables) {
+          context.reactiveVariables = scriptContext.reactiveVariables
         }
       }
     }
@@ -588,6 +596,29 @@ export class Vue3MiniprogramCompiler {
     logger.debug(`最终页面路径:`, pages)
 
     await this.configGenerator.generateAppConfig(pages, options.output)
+  }
+
+  /**
+   * 生成应用样式
+   */
+  private async generateAppStyles(outputDir: string): Promise<void> {
+    try {
+      logger.debug('生成应用样式文件')
+
+      // 只生成空的 app.wxss 文件，不添加任何不必要的样式
+      const appStyles = `/* Vue3 微信小程序编译器生成的应用样式文件 */
+/* 如需添加全局样式，请在此文件中编写 */
+`
+
+      const appStylesPath = path.join(outputDir, 'app.wxss')
+      await writeFile(appStylesPath, appStyles)
+
+      logger.debug('应用样式文件生成完成')
+
+    } catch (error) {
+      logger.error('应用样式文件生成失败', error as Error)
+      throw error
+    }
   }
 
   /**

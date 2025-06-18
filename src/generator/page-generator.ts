@@ -48,7 +48,7 @@ export class PageGenerator {
    * 生成 JavaScript 代码
    */
   private generateJS(scriptResult: ScriptTransformResult, context: TransformContext): string {
-    const { data, methods, computed, lifecycle } = context
+    const { data, methods, computed, lifecycle, reactiveVariables } = context
 
     // 生成页面定义的各个部分
     const parts: string[] = []
@@ -56,6 +56,13 @@ export class PageGenerator {
     // 页面数据
     parts.push(`  // 页面数据
   data: ${JSON.stringify(data, null, 2)}`)
+
+    // 添加响应式变量信息（供运行时使用）
+    if (reactiveVariables && reactiveVariables.size > 0) {
+      const reactiveVarsArray = Array.from(reactiveVariables.values())
+      parts.push(`  // 响应式变量信息
+  _reactiveVariables: ${JSON.stringify(reactiveVarsArray, null, 2)}`)
+    }
 
     // 页面生命周期函数
     const lifecycleCode = this.generateLifecycle(lifecycle)
@@ -125,7 +132,10 @@ ${this.generateComputedUpdate(computed)}
 ${parts.join(',\n\n')}
 })`
 
-    return this.addHeader(pageCode, context)
+    // 添加运行时库注入
+    const runtimeCode = this.generateRuntimeInjection()
+
+    return this.addHeader(runtimeCode + '\n\n' + pageCode, context)
   }
 
   /**
@@ -254,6 +264,142 @@ ${parts.join(',\n\n')}
   }
 
   /**
+   * 生成运行时库注入代码
+   */
+  private generateRuntimeInjection(): string {
+    const lines = [
+      '// Vue3 微信小程序响应式运行时库',
+      'const { ref, reactive, computed, watch, onMounted, setDataContext } = (() => {',
+      '  // 全局上下文，用于存储当前的小程序实例',
+      '  let currentContext = null',
+      '',
+      '  // 设置当前的小程序上下文',
+      '  function setDataContext(context) {',
+      '    currentContext = context',
+      '  }',
+      '',
+      '  // 调用小程序的 setData 方法更新数据',
+      '  function triggerSetData(key, value) {',
+      '    if (currentContext && typeof currentContext.setData === "function") {',
+      '      currentContext.setData({ [key]: value })',
+      '    }',
+      '  }',
+      '',
+      '  // 创建 ref 响应式引用',
+      '  function ref(value) {',
+      '    let _value = value',
+      '    const dataKey = "ref_" + Math.random().toString(36).substr(2, 9)',
+      '    ',
+      '    const refProxy = {',
+      '      get value() {',
+      '        return _value',
+      '      },',
+      '      set value(newValue) {',
+      '        if (newValue !== _value) {',
+      '          _value = newValue',
+      '          triggerSetData(dataKey, newValue)',
+      '        }',
+      '      }',
+      '    }',
+      '    ',
+      '    if (currentContext) {',
+      '      triggerSetData(dataKey, value)',
+      '    }',
+      '    ',
+      '    return refProxy',
+      '  }',
+      '',
+      '  // 创建 reactive 响应式对象',
+      '  function reactive(target) {',
+      '    const dataKey = "reactive_" + Math.random().toString(36).substr(2, 9)',
+      '    ',
+      '    function createProxy(obj, path = []) {',
+      '      return new Proxy(obj, {',
+      '        get(target, key) {',
+      '          const value = target[key]',
+      '          if (value && typeof value === "object") {',
+      '            return createProxy(value, [...path, key])',
+      '          }',
+      '          return value',
+      '        },',
+      '        set(target, key, newValue) {',
+      '          const oldValue = target[key]',
+      '          if (newValue !== oldValue) {',
+      '            target[key] = newValue',
+      '            const fullPath = path.length > 0',
+      '              ? dataKey + "." + [...path, key].join(".")',
+      '              : dataKey + "." + key',
+      '            triggerSetData(fullPath, newValue)',
+      '          }',
+      '          return true',
+      '        }',
+      '      })',
+      '    }',
+      '    ',
+      '    const proxy = createProxy(target)',
+      '    if (currentContext) {',
+      '      triggerSetData(dataKey, target)',
+      '    }',
+      '    return proxy',
+      '  }',
+      '',
+      '  // 创建计算属性',
+      '  function computed(getter) {',
+      '    let _value',
+      '    let _computed = false',
+      '    const dataKey = "computed_" + Math.random().toString(36).substr(2, 9)',
+      '    ',
+      '    const computeValue = () => {',
+      '      if (!_computed) {',
+      '        _value = getter()',
+      '        _computed = true',
+      '        if (currentContext) {',
+      '          triggerSetData(dataKey, _value)',
+      '        }',
+      '      }',
+      '      return _value',
+      '    }',
+      '    ',
+      '    const computedProxy = {',
+      '      get value() {',
+      '        return computeValue()',
+      '      }',
+      '    }',
+      '    ',
+      '    computeValue()',
+      '    return computedProxy',
+      '  }',
+      '',
+      '  // 监听器函数',
+      '  function watch(source, callback) {',
+      '    let oldValue = source()',
+      '    const checkChanges = () => {',
+      '      const newValue = source()',
+      '      if (newValue !== oldValue) {',
+      '        callback(newValue, oldValue)',
+      '        oldValue = newValue',
+      '      }',
+      '    }',
+      '    setInterval(checkChanges, 100)',
+      '  }',
+      '',
+      '  // 生命周期钩子',
+      '  function onMounted(callback) {',
+      '    if (currentContext && currentContext.onReady) {',
+      '      currentContext.onReady(callback)',
+      '    } else if (callback) {',
+      '      setTimeout(callback, 0)',
+      '    }',
+      '  }',
+      '',
+      '  return { ref, reactive, computed, watch, onMounted, setDataContext }',
+      '})();'
+    ]
+
+    return lines.join('\n')
+  }
+
+  /**
    * 生成生命周期函数
    */
   private generateLifecycle(lifecycle: Record<string, string>): string {
@@ -264,7 +410,8 @@ ${parts.join(',\n\n')}
       const code = lifecycle[lifecycleName]
       if (code && code.trim()) {
         const params = lifecycleName === 'onLoad' ? 'options' : ''
-        const setupCall = lifecycleName === 'onLoad' ? 'this._setupReactivity()' : ''
+        const setupCall = lifecycleName === 'onLoad' ?
+          'setDataContext(this)\n    this._setupReactivity()' : ''
         entries.push(`  ${lifecycleName}(${params}) {
     ${setupCall}
     ${code.trim()}
@@ -272,6 +419,9 @@ ${parts.join(',\n\n')}
       } else if (lifecycleName === 'onLoad') {
         // 确保 onLoad 存在，响应式设置是必需的
         entries.push(`  onLoad(options) {
+    // 初始化运行时上下文
+    setDataContext(this)
+    // 响应式 API 已在运行时库中自动注入
     this._setupReactivity()
     // 页面加载完成
   }`)
@@ -372,6 +522,8 @@ ${parts.join(',\n\n')}
     return entries.join(',\n\n')
   }
 
+
+
   /**
    * 生成计算属性方法
    */
@@ -464,15 +616,24 @@ ${parts.join(',\n\n')}
   private generateReactivitySetup(context: TransformContext): string {
     const setup: string[] = []
 
-    // 设置计算属性
-    Object.keys(context.computed).forEach(name => {
-      setup.push(`    // 设置计算属性: ${name}
-    Object.defineProperty(this.data, '${name}', {
-      get: () => this._computed_${name}(),
-      enumerable: true,
-      configurable: true
+    // 初始化响应式变量
+    if (context.reactiveVariables) {
+      context.reactiveVariables.forEach((varInfo, name) => {
+        if (varInfo.type === 'ref') {
+          setup.push(`    // 初始化 ref 变量: ${name}
+    this.${name} = ref(${JSON.stringify(varInfo.initialValue)})`)
+        } else if (varInfo.type === 'reactive') {
+          setup.push(`    // 初始化 reactive 变量: ${name}
+    this.${name} = reactive(${JSON.stringify(varInfo.initialValue)})`)
+        } else if (varInfo.type === 'computed') {
+          const computed = context.computed[name]
+          setup.push(`    // 初始化计算属性: ${name}
+    this.${name} = computed(() => {
+      ${computed.getter}
     })`)
-    })
+        }
+      })
+    }
 
     // 初始化加载状态（仅在配置启用时）
     if (!this.options.pureMode && this.options.page.loadingState) {

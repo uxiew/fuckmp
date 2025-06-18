@@ -43,9 +43,12 @@ describe('ScriptTransformer', () => {
 
       expect(result.context.data).toHaveProperty('userInfo')
       const userInfo = result.context.data.userInfo
-      expect(userInfo).toHaveProperty('id', 1001)
-      expect(userInfo).toHaveProperty('name', '张三')
-      expect(userInfo).toHaveProperty('email', 'test@example.com')
+
+      // reactive 对象应该被解析为实际的对象
+      expect(typeof userInfo).toBe('object')
+      expect(userInfo.id).toBe(1001)
+      expect(userInfo.name).toBe('张三')
+      expect(userInfo.email).toBe('test@example.com')
     })
 
     it('应该正确转换computed属性', async () => {
@@ -65,7 +68,8 @@ describe('ScriptTransformer', () => {
 
       const doubleCountComputed = result.context.computed.doubleCount
       expect(doubleCountComputed).toHaveProperty('getter')
-      expect(doubleCountComputed.getter).toContain('count.value * 2')
+      // computed 属性中的 count.value 应该被转换为 this.data.count
+      expect(doubleCountComputed.getter).toContain('this.data.count * 2')
     })
   })
 

@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Vue3 微信小程序编译器调试测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .result { margin: 10px 0; padding: 10px; background: #f5f5f5; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        button { margin: 5px; padding: 10px 15px; }
+    </style>
+</head>
+<body>
+    <h1>Vue3 微信小程序编译器调试测试</h1>
+    
+    <div class="test-section">
+        <h2>运行时初始化测试</h2>
+        <button onclick="testRuntimeInit()">测试运行时初始化</button>
+        <div id="runtime-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>页面响应式变量测试</h2>
+        <button onclick="testPageReactive()">测试页面响应式变量</button>
+        <div id="page-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>组件响应式变量测试</h2>
+        <button onclick="testComponentReactive()">测试组件响应式变量</button>
+        <div id="component-result" class="result"></div>
+    </div>
+
+    <script src="test-output/runtime-injection.js"></script>
+    <script>
+        // 模拟小程序环境
+        global = window;
+        
+        // 模拟 wx 对象
+        global.wx = {
+            showToast: function(options) {
+                console.log('wx.showToast:', options);
+            }
+        };
+
+        // 模拟页面对象
+        function createMockPage() {
+            return {
+                data: {},
+                setData: function(data) {
+                    console.log('页面 setData 调用:', data);
+                    Object.assign(this.data, data);
+                    updateResult('page-result', `setData 调用成功: ${JSON.stringify(data)}`);
+                }
+            };
+        }
+
+        // 模拟组件对象
+        function createMockComponent() {
+            return {
+                data: {},
+                properties: {},
+                setData: function(data) {
+                    console.log('组件 setData 调用:', data);
+                    Object.assign(this.data, data);
+                    updateResult('component-result', `setData 调用成功: ${JSON.stringify(data)}`);
+                },
+                triggerEvent: function(eventName, data) {
+                    console.log('组件 triggerEvent 调用:', eventName, data);
+                }
+            };
+        }
+
+        function updateResult(elementId, message, isError = false) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = message;
+            element.className = 'result ' + (isError ? 'error' : 'success');
+        }
+
+        async function testRuntimeInit() {
+            try {
+                console.log('开始测试运行时初始化...');
+                
+                // 测试运行时初始化
+                const runtime = await initVue3Runtime({ debug: true });
+                console.log('运行时初始化成功:', runtime);
+                
+                updateResult('runtime-result', '运行时初始化成功！');
+            } catch (error) {
+                console.error('运行时初始化失败:', error);
+                updateResult('runtime-result', `运行时初始化失败: ${error.message}`, true);
+            }
+        }
+
+        async function testPageReactive() {
+            try {
+                console.log('开始测试页面响应式变量...');
+                
+                // 确保运行时已初始化
+                await initVue3Runtime({ debug: true });
+                
+                // 创建模拟页面配置
+                const pageConfig = {
+                    data: { visitCount: 0 },
+                    incrementVisit: function() {
+                        console.log('执行 incrementVisit，当前 visitCount:', this.visitCount);
+                        this.visitCount.value++;
+                        console.log('incrementVisit 执行完成，新值:', this.visitCount.value);
+                    },
+                    _reactiveVariables: [{
+                        name: "visitCount",
+                        type: "ref",
+                        initialValue: 0
+                    }]
+                };
+
+                // 创建页面
+                const page = createPage(pageConfig);
+                const mockPageInstance = createMockPage();
+
+                // 模拟页面加载
+                console.log('模拟页面加载...');
+                page.onLoad.call(mockPageInstance);
+
+                // 验证响应式变量是否被创建
+                console.log('检查响应式变量:', mockPageInstance.visitCount);
+                
+                if (mockPageInstance.visitCount) {
+                    console.log('响应式变量创建成功，初始值:', mockPageInstance.visitCount.value);
+                    
+                    // 测试响应式变量修改
+                    console.log('测试响应式变量修改...');
+                    pageConfig.incrementVisit.call(mockPageInstance);
+                    
+                    console.log('修改后的值:', mockPageInstance.visitCount.value);
+                    console.log('页面数据:', mockPageInstance.data);
+                    
+                    updateResult('page-result', `页面响应式变量测试成功！visitCount: ${mockPageInstance.visitCount.value}, data.visitCount: ${mockPageInstance.data.visitCount}`);
+                } else {
+                    updateResult('page-result', '页面响应式变量创建失败！', true);
+                }
+            } catch (error) {
+                console.error('页面响应式变量测试失败:', error);
+                updateResult('page-result', `页面响应式变量测试失败: ${error.message}`, true);
+            }
+        }
+
+        async function testComponentReactive() {
+            try {
+                console.log('开始测试组件响应式变量...');
+                
+                // 确保运行时已初始化
+                await initVue3Runtime({ debug: true });
+                
+                // 创建模拟组件配置
+                const componentConfig = {
+                    data: { showDetails: false },
+                    toggleDetails: function() {
+                        console.log('执行 toggleDetails，当前 showDetails:', this.showDetails);
+                        this.showDetails.value = !this.showDetails.value;
+                        console.log('toggleDetails 执行完成，新值:', this.showDetails.value);
+                    },
+                    _reactiveVariables: [{
+                        name: "showDetails",
+                        type: "ref",
+                        initialValue: false
+                    }]
+                };
+
+                // 创建组件
+                const component = createComponent(componentConfig);
+                const mockComponentInstance = createMockComponent();
+
+                // 模拟组件附加
+                console.log('模拟组件附加...');
+                component.attached.call(mockComponentInstance);
+
+                // 验证响应式变量是否被创建
+                console.log('检查响应式变量:', mockComponentInstance.showDetails);
+                
+                if (mockComponentInstance.showDetails) {
+                    console.log('响应式变量创建成功，初始值:', mockComponentInstance.showDetails.value);
+                    
+                    // 测试响应式变量修改
+                    console.log('测试响应式变量修改...');
+                    componentConfig.toggleDetails.call(mockComponentInstance);
+                    
+                    console.log('修改后的值:', mockComponentInstance.showDetails.value);
+                    console.log('组件数据:', mockComponentInstance.data);
+                    
+                    updateResult('component-result', `组件响应式变量测试成功！showDetails: ${mockComponentInstance.showDetails.value}, data.showDetails: ${mockComponentInstance.data.showDetails}`);
+                } else {
+                    updateResult('component-result', '组件响应式变量创建失败！', true);
+                }
+            } catch (error) {
+                console.error('组件响应式变量测试失败:', error);
+                updateResult('component-result', `组件响应式变量测试失败: ${error.message}`, true);
+            }
+        }
+
+        // 页面加载时自动测试运行时初始化
+        window.onload = function() {
+            console.log('页面加载完成，开始自动测试...');
+            testRuntimeInit();
+        };
+    </script>
+</body>
+</html>

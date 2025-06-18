@@ -268,7 +268,12 @@ export class ComponentManager {
         if (reactivityInstance) {
           reactivityInstance.triggerWatchers(changedData)
         }
-      }
+      },
+
+      // 添加响应式 API
+      ref: <T>(value: T) => this.reactivity.ref(value, rawInstance),
+      reactive: <T extends object>(target: T) => this.reactivity.reactive(target, rawInstance),
+      computed: <T>(getter: () => T) => this.reactivity.computed(getter, rawInstance)
     }
 
     // 添加方法

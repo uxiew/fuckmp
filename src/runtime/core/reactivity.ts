@@ -104,37 +104,117 @@ export class Reactivity {
   /**
    * 创建 ref
    */
-  ref<T>(value: T): { value: T } {
-    return {
-      value
+  ref<T>(value: T, context?: any): { value: T; _isRef: true; _key: string } {
+    const key = `ref_${Math.random().toString(36).substr(2, 9)}`
+    let _value = value
+
+    const refObject = {
+      _isRef: true as const,
+      _key: key,
+      get value(): T {
+        return _value
+      },
+      set value(newValue: T) {
+        if (newValue !== _value) {
+          _value = newValue
+          // 如果有上下文，自动调用 setData
+          if (context && typeof context.setData === 'function') {
+            context.setData({ [key]: newValue })
+          }
+        }
+      }
     }
+
+    // 如果有上下文，初始化数据
+    if (context && typeof context.setData === 'function') {
+      context.setData({ [key]: value })
+    }
+
+    return refObject
   }
 
   /**
    * 创建 reactive 对象
    */
-  reactive<T extends object>(target: T): T {
-    // 在小程序环境中，我们直接返回对象
-    // 响应式更新通过 setData 实现
-    return target
+  reactive<T extends object>(target: T, context?: any): T {
+    const key = `reactive_${Math.random().toString(36).substr(2, 9)}`
+
+    function createProxy(obj: any, path: string[] = []): any {
+      return new Proxy(obj, {
+        get(target, prop: string | symbol) {
+          const value = target[prop]
+
+          // 如果是对象，递归创建代理
+          if (value && typeof value === 'object' && typeof prop === 'string') {
+            return createProxy(value, [...path, prop])
+          }
+
+          return value
+        },
+
+        set(target, prop: string | symbol, newValue) {
+          if (typeof prop === 'string') {
+            const oldValue = target[prop]
+
+            if (newValue !== oldValue) {
+              target[prop] = newValue
+
+              // 如果有上下文，自动调用 setData
+              if (context && typeof context.setData === 'function') {
+                const fullPath = path.length > 0
+                  ? `${key}.${[...path, prop].join('.')}`
+                  : `${key}.${prop}`
+
+                context.setData({ [fullPath]: newValue })
+              }
+            }
+          }
+
+          return true
+        }
+      })
+    }
+
+    const proxy = createProxy(target)
+
+    // 如果有上下文，初始化数据
+    if (context && typeof context.setData === 'function') {
+      context.setData({ [key]: target })
+    }
+
+    return proxy
   }
 
   /**
    * 创建 computed
    */
-  computed<T>(getter: () => T): { value: T } {
-    let cached = true
-    let value: T
+  computed<T>(getter: () => T, context?: any): { value: T; _isComputed: true; _key: string } {
+    const key = `computed_${Math.random().toString(36).substr(2, 9)}`
+    let _value: T
+    let _dirty = true
 
-    return {
-      get value() {
-        if (cached) {
-          value = getter()
-          cached = false
+    const computedRef = {
+      _isComputed: true as const,
+      _key: key,
+      get value(): T {
+        if (_dirty) {
+          _value = getter()
+          _dirty = false
+
+          // 如果有上下文，更新数据
+          if (context && typeof context.setData === 'function') {
+            context.setData({ [key]: _value })
+          }
         }
-        return value
+
+        return _value
       }
     }
+
+    // 初始计算
+    const initialValue = computedRef.value
+
+    return computedRef
   }
 
   /**
@@ -191,7 +271,7 @@ class ReactiveInstance {
 
     // 初始化数据
     const data = { ...this.config.data }
-    
+
     // 保存旧值用于监听
     for (const key in data) {
       this.oldValues.set(key, this.deepClone(data[key]))
@@ -241,7 +321,7 @@ class ReactiveInstance {
       if ((watcherDef as WatcherDef).immediate) {
         try {
           const currentValue = this.getValue(key)
-          ;(watcherDef as WatcherDef).callback(currentValue, undefined)
+            ; (watcherDef as WatcherDef).callback(currentValue, undefined)
         } catch (error) {
           logger.error(`监听器 ${key} 立即执行失败:`, error)
         }

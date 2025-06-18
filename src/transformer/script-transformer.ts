@@ -97,7 +97,8 @@ export class ScriptTransformer {
         watch: {},
         lifecycle: {},
         imports: new Set(),
-        components: new Map()
+        components: new Map(),
+        reactiveVariables: new Map()
       }
 
       // 处理导入
@@ -202,9 +203,22 @@ export class ScriptTransformer {
           context.computed[name] = {
             getter: variable.init || 'return null'
           }
+          // 保存响应式变量信息
+          context.reactiveVariables!.set(name, {
+            name,
+            type: 'computed',
+            initialValue: variable.init
+          })
         } else {
-          // ref/reactive 变量
-          context.data[name] = variable.init
+          // ref/reactive 变量 - 确保保持原始数据类型
+          const initialValue = this.parseInitValue(variable.init)
+          context.data[name] = initialValue
+          // 保存响应式变量信息
+          context.reactiveVariables!.set(name, {
+            name,
+            type: variable.macroType as 'ref' | 'reactive',
+            initialValue
+          })
         }
       } else {
         // 普通变量
@@ -215,7 +229,7 @@ export class ScriptTransformer {
           (initValue.includes('=>') ||
             initValue.includes('function') ||
             initValue.startsWith('(') && initValue.includes(') =>'))) {
-          // 函数类型，添加到方法中
+          // 函数类型，直接使用原始字符串，运行时库会处理响应式变量
           context.methods[name] = {
             name,
             params: [],
@@ -224,8 +238,8 @@ export class ScriptTransformer {
             body: initValue
           }
         } else {
-          // 普通数据
-          context.data[name] = initValue
+          // 普通数据 - 确保保持原始数据类型
+          context.data[name] = this.parseInitValue(initValue)
         }
       }
     })
@@ -440,6 +454,76 @@ ${entries.join(',\n')}
     })
 
     return usingComponents
+  }
+
+  /**
+   * 解析初始值，确保保持正确的数据类型
+   */
+  private parseInitValue(value: any): any {
+    // 如果已经是非字符串类型，直接返回
+    if (typeof value !== 'string') {
+      return value
+    }
+
+    const trimmedValue = value.trim()
+
+    // 检查是否为带引号的字符串
+    if ((trimmedValue.startsWith('"') && trimmedValue.endsWith('"')) ||
+      (trimmedValue.startsWith("'") && trimmedValue.endsWith("'"))) {
+      // 移除引号并返回字符串内容
+      return trimmedValue.slice(1, -1)
+    }
+
+    // 检查是否为数字字符串
+    if (/^-?\d+(\.\d+)?$/.test(trimmedValue)) {
+      return parseFloat(trimmedValue)
+    }
+
+    // 检查是否为布尔值字符串
+    if (trimmedValue === 'true') return true
+    if (trimmedValue === 'false') return false
+
+    // 检查是否为 null
+    if (trimmedValue === 'null') return null
+
+    // 检查是否为 undefined
+    if (trimmedValue === 'undefined') return undefined
+
+    // 检查是否为对象字符串（以 { 开头）
+    if (trimmedValue.startsWith('{') && trimmedValue.endsWith('}')) {
+      try {
+        // 尝试解析为对象
+        return JSON.parse(trimmedValue)
+      } catch {
+        // 如果 JSON.parse 失败，尝试使用 eval 解析（更宽松的语法）
+        try {
+          // 使用 Function 构造函数安全地解析对象字面量
+          return new Function('return ' + trimmedValue)()
+        } catch {
+          // 如果都失败，返回原字符串
+          return trimmedValue
+        }
+      }
+    }
+
+    // 检查是否为数组字符串（以 [ 开头）
+    if (trimmedValue.startsWith('[') && trimmedValue.endsWith(']')) {
+      try {
+        // 尝试解析为数组
+        return JSON.parse(trimmedValue)
+      } catch {
+        // 如果 JSON.parse 失败，尝试使用 eval 解析
+        try {
+          return new Function('return ' + trimmedValue)()
+        } catch {
+          // 如果都失败，返回原字符串
+          return trimmedValue
+        }
+      }
+    }
+
+    // 其他情况返回原字符串
+    return trimmedValue
   }
 
   /**
