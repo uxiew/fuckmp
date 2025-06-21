@@ -82,456 +82,10 @@ export class CodeGenerator {
 
     return `${this.generateFileHeader()}
 
-// 运行时库代码
+// ===== 打包的运行时库代码 =====
+${bundleResult.code}
 
-// Vue3 小程序运行时库 v1.0.0
-// 自动生成，请勿手动修改
-// 包含模块: ${bundleResult.modules.join(', ')}
-
-(function(global) {
-  // 运行时库命名空间
-  const Vue3MiniRuntime = {};
-
-  // 简单的运行时库实现
-  class Vue3MiniRuntimeCore {
-    constructor(config) {
-      this.config = config;
-      this.isInitialized = false;
-      this.reactiveInstances = new Map();
-    }
-
-    async init() {
-      if (this.isInitialized) {
-        return;
-      }
-
-      // 初始化运行时库
-      this.isInitialized = true;
-
-      if (this.config.debug) {
-        console.log('[Vue3MiniRuntime] 运行时库初始化完成');
-      }
-    }
-
-    // 创建响应式系统实例
-    createReactiveSystem(context) {
-      const reactiveSystem = {
-        context: context,
-        refs: new Map(),
-        reactives: new Map(),
-        computeds: new Map(),
-
-        // 生成唯一ID
-        generateId() {
-          return Math.random().toString(36).substr(2, 9);
-        },
-
-        // 创建 ref
-        ref(value) {
-          const key = 'ref_' + this.generateId();
-          let _value = value;
-
-          const refObject = {
-            _isRef: true,
-            _key: key,
-            get value() {
-              return _value;
-            },
-            set value(newValue) {
-              if (newValue !== _value) {
-                _value = newValue;
-                if (context && typeof context.setData === 'function') {
-                  context.setData({ [key]: newValue });
-                }
-              }
-            }
-          };
-
-          if (context && typeof context.setData === 'function') {
-            context.setData({ [key]: value });
-          }
-
-          this.refs.set(key, refObject);
-          return refObject;
-        },
-
-        // 创建 reactive
-        reactive(target) {
-          const key = 'reactive_' + this.generateId();
-          const self = this;
-
-          function createProxy(obj, path = []) {
-            return new Proxy(obj, {
-              get(target, prop) {
-                const value = target[prop];
-                if (value && typeof value === 'object' && typeof prop === 'string') {
-                  return createProxy(value, [...path, prop]);
-                }
-                return value;
-              },
-              set(target, prop, newValue) {
-                if (typeof prop === 'string') {
-                  const oldValue = target[prop];
-                  if (newValue !== oldValue) {
-                    target[prop] = newValue;
-                    if (context && typeof context.setData === 'function') {
-                      const fullPath = path.length > 0
-                        ? key + '.' + [...path, prop].join('.')
-                        : key + '.' + prop;
-                      context.setData({ [fullPath]: newValue });
-                    }
-                  }
-                }
-                return true;
-              }
-            });
-          }
-
-          const proxy = createProxy(target);
-          if (context && typeof context.setData === 'function') {
-            context.setData({ [key]: target });
-          }
-
-          this.reactives.set(key, proxy);
-          return proxy;
-        },
-
-        // 创建 computed
-        computed(getter) {
-          const key = 'computed_' + this.generateId();
-          let _value;
-          let _dirty = true;
-
-          const computedRef = {
-            _isComputed: true,
-            _key: key,
-            get value() {
-              if (_dirty) {
-                _value = getter();
-                _dirty = false;
-                if (context && typeof context.setData === 'function') {
-                  context.setData({ [key]: _value });
-                }
-              }
-              return _value;
-            }
-          };
-
-          const initialValue = computedRef.value;
-          this.computeds.set(key, computedRef);
-          return computedRef;
-        }
-      };
-
-      this.reactiveInstances.set(context, reactiveSystem);
-      return reactiveSystem;
-    }
-
-    createApp(appConfig) {
-      if (!this.isInitialized) {
-        throw new Error('运行时库尚未初始化');
-      }
-
-      return {
-        config: appConfig,
-        mount() {
-          if (this.config.debug) {
-            console.log('[Vue3MiniRuntime] 应用实例已创建');
-          }
-        }
-      };
-    }
-
-    createPage(pageConfig) {
-      if (!this.isInitialized) {
-        throw new Error('运行时库尚未初始化');
-      }
-
-      const self = this;
-
-      // 返回小程序页面配置
-      return {
-        ...pageConfig,
-        onLoad() {
-          // 创建响应式系统
-          const reactiveSystem = self.createReactiveSystem(this);
-
-          // 将响应式 API 添加到页面实例
-          this.ref = reactiveSystem.ref.bind(reactiveSystem);
-          this.reactive = reactiveSystem.reactive.bind(reactiveSystem);
-          this.computed = reactiveSystem.computed.bind(reactiveSystem);
-
-          // 根据页面配置创建响应式变量
-          if (pageConfig._reactiveVariables) {
-            pageConfig._reactiveVariables.forEach(varInfo => {
-              if (varInfo.type === 'ref') {
-                // 创建响应式变量
-                const reactiveVar = this.ref(varInfo.initialValue);
-                this[varInfo.name] = reactiveVar;
-
-                // 创建与 data 对象同步的代理
-                const self = this;
-                Object.defineProperty(this, varInfo.name, {
-                  get() {
-                    return {
-                      get value() {
-                        return reactiveVar.value;
-                      },
-                      set value(newValue) {
-                        reactiveVar.value = newValue;
-                        // 同步到 data 对象
-                        const updateData = {};
-                        updateData[varInfo.name] = newValue;
-                        self.setData(updateData);
-                      }
-                    };
-                  },
-                  configurable: true
-                });
-              } else if (varInfo.type === 'reactive') {
-                // 创建响应式对象
-                const reactiveObj = this.reactive(varInfo.initialValue);
-                this[varInfo.name] = reactiveObj;
-
-                // 同步到 data 对象
-                const updateData = {};
-                updateData[varInfo.name] = varInfo.initialValue;
-                this.setData(updateData);
-              } else if (varInfo.type === 'computed') {
-                // computed 需要特殊处理，因为它需要 getter 函数
-                const computedVar = this.computed(() => varInfo.initialValue);
-                this[varInfo.name] = computedVar;
-
-                // 同步到 data 对象
-                const updateData = {};
-                updateData[varInfo.name] = computedVar.value;
-                this.setData(updateData);
-              }
-            });
-          }
-
-          if (self.config.debug) {
-            console.log('[Vue3MiniRuntime] 页面加载:', pageConfig);
-            console.log('[Vue3MiniRuntime] 响应式系统已初始化');
-            if (pageConfig._reactiveVariables) {
-              console.log('[Vue3MiniRuntime] 响应式变量已创建:', pageConfig._reactiveVariables.map(v => v.name));
-            }
-          }
-
-          if (pageConfig.onLoad) {
-            pageConfig.onLoad.apply(this, arguments);
-          }
-        }
-      };
-    }
-
-    createComponent(componentConfig) {
-      if (!this.isInitialized) {
-        throw new Error('运行时库尚未初始化');
-      }
-
-      const self = this;
-
-      // 返回小程序组件配置
-      return {
-        ...componentConfig,
-
-        // 组件数据
-        data() {
-          // 创建组件实例的响应式数据
-          const componentData = componentConfig.data ? componentConfig.data() : {};
-
-          // 添加 Vue 响应式变量的支持
-          const vueContext = this.createVueContext(componentConfig);
-
-          return {
-            ...componentData,
-            ...vueContext.data
-          };
-        },
-
-        // 组件方法
-        methods: {
-          ...this.createVueMethods(componentConfig)
-        },
-
-        attached() {
-          // 创建响应式系统
-          const reactiveSystem = self.createReactiveSystem(this);
-
-          // 将响应式 API 添加到组件实例
-          this.ref = reactiveSystem.ref.bind(reactiveSystem);
-          this.reactive = reactiveSystem.reactive.bind(reactiveSystem);
-          this.computed = reactiveSystem.computed.bind(reactiveSystem);
-
-          // 根据组件配置创建响应式变量
-          if (componentConfig._reactiveVariables) {
-            componentConfig._reactiveVariables.forEach(varInfo => {
-              if (varInfo.type === 'ref') {
-                // 创建响应式变量
-                const reactiveVar = this.ref(varInfo.initialValue);
-
-                // 创建与 data 对象同步的代理
-                const self = this;
-                Object.defineProperty(this, varInfo.name, {
-                  get() {
-                    return {
-                      get value() {
-                        return reactiveVar.value;
-                      },
-                      set value(newValue) {
-                        reactiveVar.value = newValue;
-                        // 同步到 data 对象
-                        const updateData = {};
-                        updateData[varInfo.name] = newValue;
-                        self.setData(updateData);
-                      }
-                    };
-                  },
-                  configurable: true
-                });
-              } else if (varInfo.type === 'reactive') {
-                // 创建响应式对象
-                const reactiveObj = this.reactive(varInfo.initialValue);
-                this[varInfo.name] = reactiveObj;
-
-                // 同步到 data 对象
-                const updateData = {};
-                updateData[varInfo.name] = varInfo.initialValue;
-                this.setData(updateData);
-              } else if (varInfo.type === 'computed') {
-                // computed 需要特殊处理，因为它需要 getter 函数
-                const computedVar = this.computed(() => varInfo.initialValue);
-                this[varInfo.name] = computedVar;
-
-                // 同步到 data 对象
-                const updateData = {};
-                updateData[varInfo.name] = computedVar.value;
-                this.setData(updateData);
-              }
-            });
-          }
-
-          // 初始化 Vue 上下文
-          this.vueContext = this.createVueContext(componentConfig);
-
-          if (self.config.debug) {
-            console.log('[Vue3MiniRuntime] 组件附加:', componentConfig);
-            console.log('[Vue3MiniRuntime] 响应式系统已初始化');
-            if (componentConfig._reactiveVariables) {
-              console.log('[Vue3MiniRuntime] 响应式变量已创建:', componentConfig._reactiveVariables.map(v => v.name));
-            }
-          }
-          if (componentConfig.attached) {
-            componentConfig.attached.apply(this, arguments);
-          }
-        }
-      };
-    }
-
-    // 创建 Vue 上下文
-    createVueContext(componentConfig) {
-      const context = {
-        data: {},
-        props: componentConfig.properties || {},
-        emit: (eventName, ...args) => {
-          this.triggerEvent(eventName, ...args);
-        }
-      };
-
-      // 添加响应式变量支持
-      if (componentConfig.data) {
-        const data = componentConfig.data();
-        Object.keys(data).forEach(key => {
-          context.data[key] = data[key];
-        });
-      }
-
-      return context;
-    }
-
-    // 创建 Vue 方法
-    createVueMethods(componentConfig) {
-      const methods = {};
-
-      // 包装组件方法，将 Vue 变量转换为小程序 API
-      if (componentConfig.methods) {
-        Object.entries(componentConfig.methods).forEach(([name, methodBody]) => {
-          methods[name] = function(...args) {
-            // 创建一个安全的执行环境
-            const context = {
-              // 小程序组件 API
-              properties: this.properties || {},
-              data: this.data || {},
-              triggerEvent: this.triggerEvent ? this.triggerEvent.bind(this) : () => {},
-              setData: this.setData ? this.setData.bind(this) : () => {},
-
-              // Vue 兼容 API
-              props: this.properties || {},
-              emit: (eventName, ...eventArgs) => {
-                if (this.triggerEvent) {
-                  this.triggerEvent(eventName, ...eventArgs);
-                }
-              },
-              showDetails: {
-                get value() {
-                  return context.data.showDetails || false;
-                },
-                set value(val) {
-                  if (context.setData) {
-                    context.setData({ showDetails: val });
-                  }
-                }
-              }
-            };
-
-            // 在全局临时设置 Vue 变量
-            const originalProps = global.props;
-            const originalEmit = global.emit;
-            const originalShowDetails = global.showDetails;
-
-            try {
-              global.props = context.props;
-              global.emit = context.emit;
-              global.showDetails = context.showDetails;
-
-              // 如果方法体是字符串，需要在正确的上下文中执行
-              if (typeof methodBody === 'string') {
-                // 创建一个函数来执行方法体
-                const func = new Function('props', 'emit', 'showDetails', 'wx', methodBody);
-                return func.call(this, context.props, context.emit, context.showDetails, global.wx || {});
-              } else if (typeof methodBody === 'function') {
-                return methodBody.apply(this, args);
-              }
-            } finally {
-              // 恢复全局变量
-              global.props = originalProps;
-              global.emit = originalEmit;
-              global.showDetails = originalShowDetails;
-            }
-          };
-        });
-      }
-
-      return methods;
-    }
-  }
-
-  // 添加到命名空间
-  Vue3MiniRuntime.Core = Vue3MiniRuntimeCore;
-
-  // 导出运行时库
-  if (typeof module !== 'undefined' && module.exports) {
-    module.exports = Vue3MiniRuntime;
-  } else {
-    global.Vue3MiniRuntime = Vue3MiniRuntime;
-  }
-
-  // 将运行时库类暴露到全局，供后续函数使用
-  global.Vue3MiniRuntimeCore = Vue3MiniRuntimeCore;
-
-})(typeof global !== 'undefined' ? global : this);
-
+// ===== 运行时注入层 =====
 
 // 运行时配置
 const RUNTIME_CONFIG = ${runtimeConfig};
@@ -551,24 +105,24 @@ async function initVue3Runtime(customConfig = {}) {
   try {
     const config = { ...RUNTIME_CONFIG, ...customConfig };
 
-    // 创建运行时实例（使用全局暴露的类）
-    runtimeInstance = new global.Vue3MiniRuntimeCore(config);
-    
+    // 使用打包的运行时库创建实例
+    runtimeInstance = Vue3MiniRuntime.createRuntime(config);
+
     // 初始化运行时
     await runtimeInstance.init();
-    
+
     isInitialized = true;
-    
+
     if (config.debug) {
       console.log('[Vue3Runtime] 运行时库初始化成功', {
         version: config.version,
-        modules: config.modules,
-        features: Object.keys(config.features).filter(key => 
-          Object.values(config.features[key]).some(Boolean)
+        modules: config.modules || [],
+        features: Object.keys(config.features || {}).filter(key =>
+          Object.values(config.features[key] || {}).some(Boolean)
         )
       });
     }
-    
+
     return runtimeInstance;
   } catch (error) {
     console.error('[Vue3Runtime] 运行时库初始化失败:', error);
@@ -590,98 +144,31 @@ function getRuntime() {
  * 创建页面
  */
 function createPage(pageConfig) {
-  // 如果运行时未初始化，返回延迟初始化的页面
+  // 如果运行时未初始化，使用延迟初始化策略
   if (!isInitialized) {
     return {
       ...pageConfig,
       onLoad() {
-        // 在页面加载时检查运行时是否已初始化
-        if (isInitialized) {
-          const runtime = getRuntime();
-
-          // 手动执行运行时的页面初始化逻辑
-          // 创建响应式系统
-          const reactiveSystem = runtime.createReactiveSystem(this);
-
-          // 将响应式 API 添加到页面实例
-          this.ref = reactiveSystem.ref.bind(reactiveSystem);
-          this.reactive = reactiveSystem.reactive.bind(reactiveSystem);
-          this.computed = reactiveSystem.computed.bind(reactiveSystem);
-
-          // 根据页面配置创建响应式变量
-          if (pageConfig._reactiveVariables) {
-            pageConfig._reactiveVariables.forEach(varInfo => {
-              if (varInfo.type === 'ref') {
-                // 创建响应式变量
-                const reactiveVar = this.ref(varInfo.initialValue);
-
-                // 创建与 data 对象同步的代理
-                const self = this;
-                Object.defineProperty(this, varInfo.name, {
-                  get() {
-                    return {
-                      get value() {
-                        return reactiveVar.value;
-                      },
-                      set value(newValue) {
-                        reactiveVar.value = newValue;
-                        // 同步到 data 对象
-                        const updateData = {};
-                        updateData[varInfo.name] = newValue;
-                        self.setData(updateData);
-                      }
-                    };
-                  },
-                  configurable: true
-                });
-              } else if (varInfo.type === 'reactive') {
-                // 创建响应式对象
-                const reactiveObj = this.reactive(varInfo.initialValue);
-                this[varInfo.name] = reactiveObj;
-
-                // 同步到 data 对象
-                const updateData = {};
-                updateData[varInfo.name] = varInfo.initialValue;
-                this.setData(updateData);
-              } else if (varInfo.type === 'computed') {
-                // computed 需要特殊处理，因为它需要 getter 函数
-                const computedVar = this.computed(() => varInfo.initialValue);
-                this[varInfo.name] = computedVar;
-
-                // 同步到 data 对象
-                const updateData = {};
-                updateData[varInfo.name] = computedVar.value;
-                this.setData(updateData);
-              }
-            });
-          }
+        // 在页面加载时初始化运行时（如果尚未初始化）
+        if (!isInitialized) {
+          initVue3Runtime().then(() => {
+            const runtime = getRuntime();
+            const runtimePage = runtime.createPage(pageConfig);
+            // 将运行时页面的方法绑定到当前页面实例
+            Object.assign(this, runtimePage);
+            // 调用运行时页面的 onLoad
+            if (runtimePage.onLoad) {
+              runtimePage.onLoad.apply(this, arguments);
+            }
+          }).catch(error => {
+            console.error('[Vue3Runtime] 页面运行时初始化失败:', error);
+          });
         } else {
-          // 如果运行时仍未初始化，手动创建响应式变量
-          if (pageConfig._reactiveVariables) {
-            pageConfig._reactiveVariables.forEach(varInfo => {
-              // 创建具有响应式能力的占位符
-              const self = this;
-              let currentValue = varInfo.initialValue;
-
-              this[varInfo.name] = {
-                get value() {
-                  return currentValue;
-                },
-                set value(newValue) {
-                  currentValue = newValue;
-                  // 调用 setData 更新界面
-                  const updateData = {};
-                  updateData[varInfo.name] = newValue;
-                  self.setData(updateData);
-                },
-                _isRef: true
-              };
-
-              // 初始化数据
-              const initData = {};
-              initData[varInfo.name] = varInfo.initialValue;
-              this.setData(initData);
-            });
+          const runtime = getRuntime();
+          const runtimePage = runtime.createPage(pageConfig);
+          // 调用运行时页面的 onLoad
+          if (runtimePage.onLoad) {
+            runtimePage.onLoad.apply(this, arguments);
           }
         }
 
@@ -701,98 +188,31 @@ function createPage(pageConfig) {
  * 创建组件
  */
 function createComponent(componentConfig) {
-  // 如果运行时未初始化，返回延迟初始化的组件
+  // 如果运行时未初始化，使用延迟初始化策略
   if (!isInitialized) {
     return {
       ...componentConfig,
       attached() {
-        // 在组件附加时检查运行时是否已初始化
-        if (isInitialized) {
-          const runtime = getRuntime();
-
-          // 手动执行运行时的组件初始化逻辑
-          // 创建响应式系统
-          const reactiveSystem = runtime.createReactiveSystem(this);
-
-          // 将响应式 API 添加到组件实例
-          this.ref = reactiveSystem.ref.bind(reactiveSystem);
-          this.reactive = reactiveSystem.reactive.bind(reactiveSystem);
-          this.computed = reactiveSystem.computed.bind(reactiveSystem);
-
-          // 根据组件配置创建响应式变量
-          if (componentConfig._reactiveVariables) {
-            componentConfig._reactiveVariables.forEach(varInfo => {
-              if (varInfo.type === 'ref') {
-                // 创建响应式变量
-                const reactiveVar = this.ref(varInfo.initialValue);
-
-                // 创建与 data 对象同步的代理
-                const self = this;
-                Object.defineProperty(this, varInfo.name, {
-                  get() {
-                    return {
-                      get value() {
-                        return reactiveVar.value;
-                      },
-                      set value(newValue) {
-                        reactiveVar.value = newValue;
-                        // 同步到 data 对象
-                        const updateData = {};
-                        updateData[varInfo.name] = newValue;
-                        self.setData(updateData);
-                      }
-                    };
-                  },
-                  configurable: true
-                });
-              } else if (varInfo.type === 'reactive') {
-                // 创建响应式对象
-                const reactiveObj = this.reactive(varInfo.initialValue);
-                this[varInfo.name] = reactiveObj;
-
-                // 同步到 data 对象
-                const updateData = {};
-                updateData[varInfo.name] = varInfo.initialValue;
-                this.setData(updateData);
-              } else if (varInfo.type === 'computed') {
-                // computed 需要特殊处理，因为它需要 getter 函数
-                const computedVar = this.computed(() => varInfo.initialValue);
-                this[varInfo.name] = computedVar;
-
-                // 同步到 data 对象
-                const updateData = {};
-                updateData[varInfo.name] = computedVar.value;
-                this.setData(updateData);
-              }
-            });
-          }
+        // 在组件附加时初始化运行时（如果尚未初始化）
+        if (!isInitialized) {
+          initVue3Runtime().then(() => {
+            const runtime = getRuntime();
+            const runtimeComponent = runtime.createComponent(componentConfig);
+            // 将运行时组件的方法绑定到当前组件实例
+            Object.assign(this, runtimeComponent);
+            // 调用运行时组件的 attached
+            if (runtimeComponent.attached) {
+              runtimeComponent.attached.apply(this, arguments);
+            }
+          }).catch(error => {
+            console.error('[Vue3Runtime] 组件运行时初始化失败:', error);
+          });
         } else {
-          // 如果运行时仍未初始化，手动创建响应式变量
-          if (componentConfig._reactiveVariables) {
-            componentConfig._reactiveVariables.forEach(varInfo => {
-              // 创建具有响应式能力的占位符
-              const self = this;
-              let currentValue = varInfo.initialValue;
-
-              this[varInfo.name] = {
-                get value() {
-                  return currentValue;
-                },
-                set value(newValue) {
-                  currentValue = newValue;
-                  // 调用 setData 更新界面
-                  const updateData = {};
-                  updateData[varInfo.name] = newValue;
-                  self.setData(updateData);
-                },
-                _isRef: true
-              };
-
-              // 初始化数据
-              const initData = {};
-              initData[varInfo.name] = varInfo.initialValue;
-              this.setData(initData);
-            });
+          const runtime = getRuntime();
+          const runtimeComponent = runtime.createComponent(componentConfig);
+          // 调用运行时组件的 attached
+          if (runtimeComponent.attached) {
+            runtimeComponent.attached.apply(this, arguments);
           }
         }
 
@@ -823,7 +243,7 @@ module.exports = {
   createPage,
   createComponent,
   createApp,
-  
+
   // 兼容性API
   definePage: createPage,
   defineComponent: createComponent,
@@ -900,11 +320,12 @@ App({
    * 生成页面代码
    */
   generatePageCode(pageData: any, pagePath: string): GeneratedFile {
-    // 只提取上下文，完全忽略小程序配置
+    // 提取上下文和小程序配置
     const context = pageData.context
+    const config = pageData.context ? null : pageData // 如果没有context，说明pageData就是配置
 
-    // 生成页面选项对象（只使用 Vue 上下文）
-    const pageOptions = this.generatePageOptions(context, null)
+    // 生成页面选项对象
+    const pageOptions = this.generatePageOptions(context, config)
 
     const content = `${this.generateFileHeader()}
 
@@ -989,32 +410,42 @@ Component(createComponent(componentOptions));
    * 生成页面选项对象
    */
   private generatePageOptions(context: any, config: any): string {
-    if (!context) {
-      // 如果没有上下文，返回空对象
+    const options: any = {}
+
+    // 如果有上下文，添加 Vue 相关选项
+    if (context) {
+      Object.assign(options, {
+        // Vue 组件数据
+        data: this.generateDataFunction(context.data),
+
+        // Vue 组件方法（页面方法直接放在根级别）
+        ...this.generateMethods(context.methods),
+
+        // Vue 计算属性
+        ...this.generateComputed(context.computed),
+
+        // Vue 监听器
+        ...this.generateWatchers(context.watch),
+
+        // Vue 生命周期
+        ...this.generateLifecycle(context.lifecycle)
+      })
+
+      // 添加响应式变量信息（供运行时使用）
+      if (context.reactiveVariables && context.reactiveVariables.size > 0) {
+        const reactiveVarsArray = Array.from(context.reactiveVariables.values())
+        options._reactiveVariables = reactiveVarsArray
+      }
+    }
+
+    // 如果有配置，添加小程序配置选项
+    if (config) {
+      Object.assign(options, config)
+    }
+
+    // 如果既没有上下文也没有配置，返回空对象
+    if (!context && !config) {
       return '{}'
-    }
-
-    const options: any = {
-      // Vue 组件数据
-      data: this.generateDataFunction(context.data),
-
-      // Vue 组件方法（页面方法直接放在根级别）
-      ...this.generateMethods(context.methods),
-
-      // Vue 计算属性
-      ...this.generateComputed(context.computed),
-
-      // Vue 监听器
-      ...this.generateWatchers(context.watch),
-
-      // Vue 生命周期
-      ...this.generateLifecycle(context.lifecycle)
-    }
-
-    // 添加响应式变量信息（供运行时使用）
-    if (context.reactiveVariables && context.reactiveVariables.size > 0) {
-      const reactiveVarsArray = Array.from(context.reactiveVariables.values())
-      options._reactiveVariables = reactiveVarsArray
     }
 
     // 过滤掉无效的属性
