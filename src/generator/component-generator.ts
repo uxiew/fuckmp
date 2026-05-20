@@ -5,6 +5,7 @@
 import type { TransformContext, GenerateResult, CompilerOptions } from '@/types/index.js'
 import type { ScriptTransformResult, TemplateTransformResult, StyleTransformResult } from '@/transformer/index.js'
 import { logger } from '@/utils/index.js'
+import { addScopeAttributes, generateScopeId, generateUsingComponents, removeCtxPrefixes } from './shared-generator-utils.js'
 
 /**
  * 组件生成器类
@@ -29,7 +30,7 @@ export class ComponentGenerator {
       logger.debug(`生成组件代码: ${context.filename}`)
 
       const result: GenerateResult = {
-        js: this.generateJS(scriptResult, context),
+        js: this.generateJS(scriptResult, templateResult, context),
         json: this.generateJSON(scriptResult, templateResult, context),
         wxml: this.generateWXML(templateResult, context),
         wxss: this.generateWXSS(styleResults, context)
@@ -47,7 +48,7 @@ export class ComponentGenerator {
   /**
    * 生成 JavaScript 代码
    */
-  private generateJS(scriptResult: ScriptTransformResult, context: TransformContext): string {
+  private generateJS(scriptResult: ScriptTransformResult, templateResult: TemplateTransformResult, context: TransformContext): string {
     // 使用脚本转换结果中的上下文数据
     const transformContext = scriptResult.context
     const { props, emits, data, methods, computed, lifecycle } = transformContext
@@ -81,7 +82,7 @@ ${this.generatePageLifetimes(lifecycle)}
 
   // 组件方法
   methods: {
-${this.generateAllMethods(methods, computed, emits, transformContext)}
+${this.generateAllMethods(methods, computed, emits, transformContext, templateResult)}
   }
 })`
 
@@ -98,7 +99,10 @@ ${this.generateAllMethods(methods, computed, emits, transformContext)}
   ): Record<string, any> {
     const config: any = {
       component: true,
-      usingComponents: this.generateUsingComponents(context.components),
+      usingComponents: generateUsingComponents(context.components, {
+        debugLabel: '组件引用',
+        errorLabel: '处理组件路径失败'
+      }),
       styleIsolation: 'isolated'
     }
 
@@ -119,12 +123,12 @@ ${this.generateAllMethods(methods, computed, emits, transformContext)}
     let wxml = templateResult.wxml
 
     // 移除所有的 _ctx. 前缀（后处理步骤）
-    wxml = this.removeCtxPrefixes(wxml)
+    wxml = removeCtxPrefixes(wxml)
 
     // 只有在使用了 scoped 样式时才添加作用域属性
     if (context.hasScoped && context.filename) {
-      const scopeId = this.generateScopeId(context.filename)
-      wxml = this.addScopeAttributes(wxml, scopeId)
+      const scopeId = generateScopeId(context.filename)
+      wxml = addScopeAttributes(wxml, scopeId)
     }
 
     return wxml
@@ -221,7 +225,8 @@ ${entries.join(',\n')}
     methods: Record<string, any>,
     computed: Record<string, any>,
     emits: string[],
-    context: TransformContext
+    context: TransformContext,
+    templateResult: TemplateTransformResult
   ): string {
     const methodParts: string[] = []
 
@@ -243,12 +248,10 @@ ${entries.join(',\n')}
       methodParts.push(emitMethods)
     }
 
-    // 事件处理器（仅在配置启用时生成）
-    if (!this.options.pureMode && this.options.component.eventHandlers) {
-      const eventHandlers = this.generateEventHandlers(context)
-      if (eventHandlers.trim()) {
-        methodParts.push(eventHandlers)
-      }
+    // 事件处理器（从模板转换结果生成）
+    const templateEventHandlers = this.generateTemplateEventHandlers(templateResult)
+    if (templateEventHandlers.trim()) {
+      methodParts.push(templateEventHandlers)
     }
 
     // 响应式系统设置（始终生成，支撑程序运行）
@@ -330,47 +333,69 @@ ${this.generateComputedUpdate(computed)}
   }
 
   /**
-   * 生成事件处理器
+   * 生成模板事件处理器
    */
-  private generateEventHandlers(context: TransformContext): string {
+  private generateTemplateEventHandlers(templateResult: TemplateTransformResult): string {
     const handlers: string[] = []
 
-    // 只有在配置启用输入处理器时才生成
-    if (!this.options.pureMode && this.options.component.inputHandlers) {
-      // v-model 输入处理器（仅为实际使用的数据属性生成）
-      Object.keys(context.data).forEach(key => {
-        const eventName = `update:${key}`
-        const methodName = `_emit${this.capitalize(eventName.replace(':', ''))}`
-
-        handlers.push(`    _handleInput_${key.replace(/\./g, '_')}(event) {
-        const value = event.detail.value
-        this.setData({
-          ${key}: value
-        })
-        this.${methodName}(value)
-      }`)
-
-        handlers.push(`    _handleNumberInput_${key.replace(/\./g, '_')}(event) {
-        const value = parseFloat(event.detail.value) || 0
-        this.setData({
-          ${key}: value
-        })
-        this.${methodName}(value)
-      }`)
-
-        handlers.push(`    _handleTrimInput_${key.replace(/\./g, '_')}(event) {
-        const value = event.detail.value.trim()
-        this.setData({
-          ${key}: value
-        })
-        this.${methodName}(value)
-      }`)
+    // 从模板转换结果中生成事件处理器
+    templateResult.eventHandlers.forEach((handlerCode, handlerName) => {
+      // 根据处理器名称生成不同类型的处理器
+      if (handlerName.startsWith('_handleInput_')) {
+        const fieldName = handlerName.replace('_handleInput_', '')
+        handlers.push(`    ${handlerName}(event) {
+      const value = event.detail.value
+      this.setData({
+        ${fieldName}: value
       })
-    }
-
-    if (handlers.length === 0) {
-      return ''
-    }
+    }`)
+      } else if (handlerName.startsWith('_handleNumberInput_')) {
+        const fieldName = handlerName.replace('_handleNumberInput_', '')
+        handlers.push(`    ${handlerName}(event) {
+      const value = parseFloat(event.detail.value) || 0
+      this.setData({
+        ${fieldName}: value
+      })
+    }`)
+      } else if (handlerName.startsWith('_handleTrimInput_')) {
+        const fieldName = handlerName.replace('_handleTrimInput_', '')
+        handlers.push(`    ${handlerName}(event) {
+      const value = event.detail.value.trim()
+      this.setData({
+        ${fieldName}: value
+      })
+    }`)
+      } else if (handlerName.startsWith('_handleRadio_')) {
+        const fieldName = handlerName.replace('_handleRadio_', '')
+        handlers.push(`    ${handlerName}(event) {
+      const value = event.detail.value
+      this.setData({
+        ${fieldName}: value
+      })
+    }`)
+      } else if (handlerName.startsWith('_handleCheckbox_')) {
+        const fieldName = handlerName.replace('_handleCheckbox_', '')
+        handlers.push(`    ${handlerName}(event) {
+      const value = event.detail.value
+      this.setData({
+        ${fieldName}: value
+      })
+    }`)
+      } else if (handlerName.startsWith('_handlePicker_')) {
+        const fieldName = handlerName.replace('_handlePicker_', '')
+        handlers.push(`    ${handlerName}(event) {
+      const value = event.detail.value
+      this.setData({
+        ${fieldName}: value
+      })
+    }`)
+      } else {
+        // 通用事件处理器
+        handlers.push(`    ${handlerName}(event) {
+      ${handlerCode}
+    }`)
+      }
+    })
 
     return handlers.join(',\n\n')
   }
@@ -412,83 +437,10 @@ ${updates.join(',\n')}
   }
 
   /**
-   * 生成使用的组件配置
-   */
-  private generateUsingComponents(components: Map<string, string>, fromFile?: string): Record<string, string> {
-    const usingComponents: Record<string, string> = {}
-
-    components.forEach((importPath, name) => {
-      try {
-        // 简单的路径处理，实际的路径解析在编译器层面处理
-        const componentPath = importPath.replace(/\.vue$/, '').replace(/^\.\//, '')
-        usingComponents[this.kebabCase(name)] = componentPath
-        logger.debug(`组件引用: ${name} -> ${componentPath}`)
-      } catch (error) {
-        logger.error(`处理组件路径失败: ${name} -> ${importPath}`, error as Error)
-        usingComponents[this.kebabCase(name)] = importPath.replace(/\.vue$/, '')
-      }
-    })
-
-    return usingComponents
-  }
-
-  /**
    * 检查是否有插槽
    */
   private hasSlots(templateResult: TemplateTransformResult): boolean {
     return templateResult.wxml.includes('<slot')
-  }
-
-  /**
-   * 移除所有的 _ctx. 前缀
-   */
-  private removeCtxPrefixes(wxml: string): string {
-    // 移除事件绑定中的 _ctx. 前缀
-    wxml = wxml.replace(/bind:(\w+)="_ctx\.([^"]+)"/g, 'bind:$1="$2"')
-
-    // 移除条件渲染中的 _ctx. 前缀
-    wxml = wxml.replace(/wx:(if|elif)="{{_ctx\.([^}]+)}}"/g, 'wx:$1="{{$2}}"')
-
-    // 移除属性绑定中的 _ctx. 前缀
-    wxml = wxml.replace(/(\w+)="{{_ctx\.([^}]+)}}"/g, '$1="{{$2}}"')
-
-    // 移除其他可能的 _ctx. 前缀
-    wxml = wxml.replace(/_ctx\./g, '')
-
-    return wxml
-  }
-
-  /**
-   * 添加作用域属性
-   */
-  private addScopeAttributes(wxml: string, scopeId: string): string {
-    return wxml.replace(/<(\w+)([^>]*?)(\s*\/?)>/g, (match, tag, attrs, selfClosing) => {
-      if (attrs.includes('data-v-')) {
-        return match
-      }
-
-      // 修复：只有当 selfClosing 包含 '/' 时才是真正的自闭合标签
-      const isSelfClosing = selfClosing.includes('/')
-
-      if (isSelfClosing) {
-        return `<${tag}${attrs} data-v-${scopeId} />`
-      } else {
-        return `<${tag}${attrs} data-v-${scopeId}>`
-      }
-    })
-  }
-
-  /**
-   * 生成作用域 ID
-   */
-  private generateScopeId(filename: string): string {
-    let hash = 0
-    for (let i = 0; i < filename.length; i++) {
-      const char = filename.charCodeAt(i)
-      hash = ((hash << 5) - hash) + char
-      hash = hash & hash
-    }
-    return Math.abs(hash).toString(36).substring(0, 8)
   }
 
   /**
@@ -535,12 +487,5 @@ ${code}`
    */
   private capitalize(str: string): string {
     return str.charAt(0).toUpperCase() + str.slice(1)
-  }
-
-  /**
-   * 转换为 kebab-case
-   */
-  private kebabCase(str: string): string {
-    return str.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '')
   }
 }

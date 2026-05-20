@@ -5,6 +5,7 @@
 import type { TransformContext, GenerateResult, CompilerOptions } from '@/types/index.js'
 import type { ScriptTransformResult, TemplateTransformResult, StyleTransformResult } from '@/transformer/index.js'
 import { logger } from '@/utils/index.js'
+import { addScopeAttributes, generateScopeId, generateUsingComponents, removeCtxPrefixes } from './shared-generator-utils.js'
 
 /**
  * 页面生成器类
@@ -147,7 +148,10 @@ ${parts.join(',\n\n')}
     context: TransformContext
   ): Record<string, any> {
     const config: any = {
-      usingComponents: this.generateUsingComponents(context.components),
+      usingComponents: generateUsingComponents(context.components, {
+        debugLabel: '页面组件引用',
+        errorLabel: '处理页面组件路径失败'
+      }),
       navigationBarTitleText: this.getPageTitle(context),
       enablePullDownRefresh: this.hasRefreshHandler(context),
       onReachBottomDistance: 50
@@ -169,7 +173,7 @@ ${parts.join(',\n\n')}
     let wxml = templateResult.wxml
 
     // 移除所有的 _ctx. 前缀（后处理步骤）
-    wxml = this.removeCtxPrefixes(wxml)
+    wxml = removeCtxPrefixes(wxml)
 
     // 添加页面容器（仅在配置启用时）
     if (!this.options.pureMode && this.options.page.baseStyles) {
@@ -191,8 +195,8 @@ ${parts.join(',\n\n')}
 
     // 只有在使用了 scoped 样式时才添加作用域属性
     if (context.hasScoped && context.filename) {
-      const scopeId = this.generateScopeId(context.filename)
-      wxml = this.addScopeAttributes(wxml, scopeId)
+      const scopeId = generateScopeId(context.filename)
+      wxml = addScopeAttributes(wxml, scopeId)
     }
 
     return wxml
@@ -665,27 +669,6 @@ ${updates.join(',\n')}
   }
 
   /**
-   * 生成使用的组件配置
-   */
-  private generateUsingComponents(components: Map<string, string>, fromFile?: string): Record<string, string> {
-    const usingComponents: Record<string, string> = {}
-
-    components.forEach((importPath, name) => {
-      try {
-        // 简单的路径处理，实际的路径解析在编译器层面处理
-        const componentPath = importPath.replace(/\.vue$/, '').replace(/^\.\//, '')
-        usingComponents[this.kebabCase(name)] = componentPath
-        logger.debug(`页面组件引用: ${name} -> ${componentPath}`)
-      } catch (error) {
-        logger.error(`处理页面组件路径失败: ${name} -> ${importPath}`, error as Error)
-        usingComponents[this.kebabCase(name)] = importPath.replace(/\.vue$/, '')
-      }
-    })
-
-    return usingComponents
-  }
-
-  /**
    * 获取页面标题
    */
   private getPageTitle(context: TransformContext): string {
@@ -716,58 +699,6 @@ ${updates.join(',\n')}
   }
 
   /**
-   * 移除所有的 _ctx. 前缀
-   */
-  private removeCtxPrefixes(wxml: string): string {
-    // 移除事件绑定中的 _ctx. 前缀
-    wxml = wxml.replace(/bind:(\w+)="_ctx\.([^"]+)"/g, 'bind:$1="$2"')
-
-    // 移除条件渲染中的 _ctx. 前缀
-    wxml = wxml.replace(/wx:(if|elif)="{{_ctx\.([^}]+)}}"/g, 'wx:$1="{{$2}}"')
-
-    // 移除属性绑定中的 _ctx. 前缀
-    wxml = wxml.replace(/(\w+)="{{_ctx\.([^}]+)}}"/g, '$1="{{$2}}"')
-
-    // 移除其他可能的 _ctx. 前缀
-    wxml = wxml.replace(/_ctx\./g, '')
-
-    return wxml
-  }
-
-  /**
-   * 添加作用域属性
-   */
-  private addScopeAttributes(wxml: string, scopeId: string): string {
-    return wxml.replace(/<(\w+)([^>]*?)(\s*\/?)>/g, (match, tag, attrs, selfClosing) => {
-      if (attrs.includes('data-v-')) {
-        return match
-      }
-
-      // 修复：只有当 selfClosing 包含 '/' 时才是真正的自闭合标签
-      const isSelfClosing = selfClosing.includes('/')
-
-      if (isSelfClosing) {
-        return `<${tag}${attrs} data-v-${scopeId} />`
-      } else {
-        return `<${tag}${attrs} data-v-${scopeId}>`
-      }
-    })
-  }
-
-  /**
-   * 生成作用域 ID
-   */
-  private generateScopeId(filename: string): string {
-    let hash = 0
-    for (let i = 0; i < filename.length; i++) {
-      const char = filename.charCodeAt(i)
-      hash = ((hash << 5) - hash) + char
-      hash = hash & hash
-    }
-    return Math.abs(hash).toString(36).substring(0, 8)
-  }
-
-  /**
    * 添加文件头部注释
    */
   private addHeader(code: string, context: TransformContext): string {
@@ -777,12 +708,5 @@ ${updates.join(',\n')}
 // 生成时间: ${new Date().toISOString()}
 
 ${code}`
-  }
-
-  /**
-   * 转换为 kebab-case
-   */
-  private kebabCase(str: string): string {
-    return str.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '')
   }
 }
