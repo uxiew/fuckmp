@@ -5,6 +5,7 @@
 
 import type { Vue3FeatureUsage, RuntimeInjectionConfig } from './runtime-injector'
 import type { BundleResult } from './runtime-bundler'
+import { ObjectLiteralSerializer } from './codegen/object-serializer'
 import { logger } from '@/utils/logger'
 
 /**
@@ -41,6 +42,7 @@ export interface GeneratedFile {
 export class CodeGenerator {
   private config: RuntimeInjectionConfig
   private options: CodeGenerationOptions
+  private serializer = new ObjectLiteralSerializer()
 
   constructor(config: RuntimeInjectionConfig, options: Partial<CodeGenerationOptions> = {}) {
     this.config = config
@@ -73,6 +75,7 @@ export class CodeGenerator {
    * 生成运行时注入代码
    */
   private generateRuntimeInjectionCode(bundleResult: BundleResult, featureUsage: Vue3FeatureUsage): string {
+    // 根据检测到的特性使用情况生成运行时配置
     const runtimeConfig = JSON.stringify({
       ...this.config.runtimeConfig,
       features: featureUsage,
@@ -82,8 +85,8 @@ export class CodeGenerator {
 
     return `${this.generateFileHeader()}
 
-// ===== 打包的运行时库代码 =====
-${bundleResult.code}
+// ===== 自包含运行时库 =====
+${this.generateSelfContainedRuntime(featureUsage)}
 
 // ===== 运行时注入层 =====
 
@@ -109,7 +112,7 @@ async function initVue3Runtime(customConfig = {}) {
     runtimeInstance = Vue3MiniRuntime.createRuntime(config);
 
     // 初始化运行时
-    await runtimeInstance.init();
+    await runtimeInstance.initialize();
 
     isInitialized = true;
 
@@ -144,88 +147,60 @@ function getRuntime() {
  * 创建页面
  */
 function createPage(pageConfig) {
-  // 如果运行时未初始化，使用延迟初始化策略
-  if (!isInitialized) {
-    return {
-      ...pageConfig,
-      onLoad() {
-        // 在页面加载时初始化运行时（如果尚未初始化）
-        if (!isInitialized) {
-          initVue3Runtime().then(() => {
-            const runtime = getRuntime();
-            const runtimePage = runtime.createPage(pageConfig);
-            // 将运行时页面的方法绑定到当前页面实例
-            Object.assign(this, runtimePage);
-            // 调用运行时页面的 onLoad
-            if (runtimePage.onLoad) {
-              runtimePage.onLoad.apply(this, arguments);
-            }
-          }).catch(error => {
-            console.error('[Vue3Runtime] 页面运行时初始化失败:', error);
-          });
-        } else {
-          const runtime = getRuntime();
-          const runtimePage = runtime.createPage(pageConfig);
-          // 调用运行时页面的 onLoad
-          if (runtimePage.onLoad) {
-            runtimePage.onLoad.apply(this, arguments);
-          }
-        }
+  // 处理页面的响应式变量
+  if (pageConfig._reactiveVariables) {
+    const originalOnLoad = pageConfig.onLoad || function() {};
 
-        // 调用原始的 onLoad
-        if (pageConfig.onLoad) {
-          pageConfig.onLoad.apply(this, arguments);
-        }
+    pageConfig.onLoad = function() {
+      // 创建响应式变量
+      if (pageConfig._reactiveVariables) {
+        pageConfig._reactiveVariables.forEach(varInfo => {
+          if (varInfo.type === 'ref') {
+            this[varInfo.name] = ref(varInfo.initialValue);
+          } else if (varInfo.type === 'reactive') {
+            this[varInfo.name] = reactive(varInfo.initialValue);
+          } else if (varInfo.type === 'computed') {
+            this[varInfo.name] = computed(varInfo.getter);
+          }
+        });
       }
+
+      // 调用原始的 onLoad 方法
+      originalOnLoad.call(this, ...arguments);
     };
   }
 
-  const runtime = getRuntime();
-  return runtime.createPage(pageConfig);
+  return pageConfig;
 }
 
 /**
  * 创建组件
  */
 function createComponent(componentConfig) {
-  // 如果运行时未初始化，使用延迟初始化策略
-  if (!isInitialized) {
-    return {
-      ...componentConfig,
-      attached() {
-        // 在组件附加时初始化运行时（如果尚未初始化）
-        if (!isInitialized) {
-          initVue3Runtime().then(() => {
-            const runtime = getRuntime();
-            const runtimeComponent = runtime.createComponent(componentConfig);
-            // 将运行时组件的方法绑定到当前组件实例
-            Object.assign(this, runtimeComponent);
-            // 调用运行时组件的 attached
-            if (runtimeComponent.attached) {
-              runtimeComponent.attached.apply(this, arguments);
-            }
-          }).catch(error => {
-            console.error('[Vue3Runtime] 组件运行时初始化失败:', error);
-          });
-        } else {
-          const runtime = getRuntime();
-          const runtimeComponent = runtime.createComponent(componentConfig);
-          // 调用运行时组件的 attached
-          if (runtimeComponent.attached) {
-            runtimeComponent.attached.apply(this, arguments);
-          }
-        }
+  // 处理组件的响应式变量
+  if (componentConfig._reactiveVariables) {
+    const originalAttached = componentConfig.attached || function() {};
 
-        // 调用原始的 attached
-        if (componentConfig.attached) {
-          componentConfig.attached.apply(this, arguments);
-        }
+    componentConfig.attached = function() {
+      // 创建响应式变量
+      if (componentConfig._reactiveVariables) {
+        componentConfig._reactiveVariables.forEach(varInfo => {
+          if (varInfo.type === 'ref') {
+            this[varInfo.name] = ref(varInfo.initialValue);
+          } else if (varInfo.type === 'reactive') {
+            this[varInfo.name] = reactive(varInfo.initialValue);
+          } else if (varInfo.type === 'computed') {
+            this[varInfo.name] = computed(varInfo.getter);
+          }
+        });
       }
+
+      // 调用原始的 attached 方法
+      originalAttached.call(this, ...arguments);
     };
   }
 
-  const runtime = getRuntime();
-  return runtime.createComponent(componentConfig);
+  return componentConfig;
 }
 
 /**
@@ -242,12 +217,7 @@ module.exports = {
   getRuntime,
   createPage,
   createComponent,
-  createApp,
-
-  // 兼容性API
-  definePage: createPage,
-  defineComponent: createComponent,
-  defineApp: createApp
+  createApp
 };
 
 // 全局注册（可选）
@@ -403,7 +373,7 @@ Component(createComponent(componentOptions));
     }
 
     // 过滤掉无效的属性
-    return this.stringifyWithFunctions(this.filterInvalidOptions(options))
+    return this.serializer.stringifyWithFunctions(this.filterInvalidOptions(options))
   }
 
   /**
@@ -449,7 +419,7 @@ Component(createComponent(componentOptions));
     }
 
     // 过滤掉无效的属性
-    return this.stringifyWithFunctions(this.filterInvalidOptions(options))
+    return this.serializer.stringifyWithFunctions(this.filterInvalidOptions(options))
   }
 
   /**
@@ -487,7 +457,7 @@ Component(createComponent(componentOptions));
       options._reactiveVariables = reactiveVarsArray
     }
 
-    return this.stringifyWithFunctions(options)
+    return this.serializer.stringifyWithFunctions(options)
   }
 
   /**
@@ -531,7 +501,7 @@ Component(createComponent(componentOptions));
     })
 
     // 创建一个包含实际数据的函数字符串，使用 stringifyObjectLiteral 生成正确的小程序格式
-    const dataStr = this.stringifyObjectLiteral(filteredData, 2)
+    const dataStr = this.serializer.stringifyObjectLiteral(filteredData, 2)
     return `${dataStr}`
   }
 
@@ -547,7 +517,7 @@ Component(createComponent(componentOptions));
     Object.entries(methods).forEach(([name, method]: [string, any]) => {
       if (method && typeof method.body === 'string') {
         // 检测并转换事件处理函数
-        const convertedBody = this.convertEventHandlerFunction(name, method.body)
+        const convertedBody = this.serializer.convertEventHandlerFunction(name, method.body)
         result[name] = convertedBody
       }
     })
@@ -701,290 +671,6 @@ Component(createComponent(componentOptions));
   }
 
   /**
-   * 将对象序列化为字符串，保留函数
-   */
-  private stringifyWithFunctions(obj: any): string {
-    const functionPlaceholders = new Map<string, string>()
-    let placeholderIndex = 0
-
-    // 第一步：将函数和函数字符串替换为占位符
-    const processedObj = JSON.parse(JSON.stringify(obj, (key, value) => {
-      if (typeof value === 'function') {
-        const placeholder = `__FUNCTION_PLACEHOLDER_${placeholderIndex++}__`
-        functionPlaceholders.set(placeholder, value.toString())
-        return placeholder
-      } else if (typeof value === 'string' && this.isFunctionString(value)) {
-        // 检查是否为函数字符串，并转换箭头函数为普通函数
-        const placeholder = `__FUNCTION_PLACEHOLDER_${placeholderIndex++}__`
-        const convertedFunction = this.convertArrowFunctionToRegular(value)
-        functionPlaceholders.set(placeholder, convertedFunction)
-        return placeholder
-      } else if (typeof value === 'string' && this.isExpressionString(value)) {
-        // 检查是否为表达式字符串（如 new Date(), 对象字面量等）
-        const placeholder = `__EXPRESSION_PLACEHOLDER_${placeholderIndex++}__`
-        functionPlaceholders.set(placeholder, value)
-        return placeholder
-      } else if (typeof value === 'string' && ['String', 'Number', 'Boolean', 'Object', 'Array'].includes(value)) {
-        // 特殊处理小程序类型构造函数，避免被JSON.stringify包装成字符串
-        const placeholder = `__TYPE_PLACEHOLDER_${placeholderIndex++}__`
-        functionPlaceholders.set(placeholder, value)
-        return placeholder
-      }
-      return value
-    }))
-
-    // 第二步：序列化对象，使用自定义格式
-    let result = this.stringifyObjectLiteral(processedObj, 2)
-
-    // 第三步：恢复函数
-    for (const [placeholder, functionCode] of functionPlaceholders) {
-      result = result.replace(`"${placeholder}"`, functionCode)
-    }
-
-    // 第四步：转换所有剩余的箭头函数为普通函数
-    result = this.convertAllArrowFunctions(result)
-
-    return result
-  }
-
-  /**
-   * 检查字符串是否为函数代码
-   */
-  private isFunctionString(str: string): boolean {
-    if (!str || typeof str !== 'string') return false
-
-    // 检查是否为箭头函数
-    if (str.includes('=>')) return true
-
-    // 检查是否为普通函数
-    if (str.startsWith('function')) return true
-
-    // 检查是否为函数体（包含大括号和return等关键字）
-    if (str.includes('{') && str.includes('}')) {
-      return str.includes('return') || str.includes('if') || str.includes('for') || str.includes('while')
-    }
-
-    return false
-  }
-
-  /**
-   * 将对象序列化为 JavaScript 对象字面量格式（不给属性名加引号）
-   */
-  private stringifyObjectLiteral(obj: any, indent: number = 0): string {
-    if (obj === null) return 'null'
-    if (obj === undefined) return 'undefined'
-    if (typeof obj === 'boolean') return obj.toString()
-    if (typeof obj === 'number') return obj.toString()
-    if (typeof obj === 'string') {
-      // 检查是否为表达式字符串，如果是则不添加引号
-      if (this.isExpressionString(obj)) {
-        return obj
-      }
-      return JSON.stringify(obj)
-    }
-
-    if (Array.isArray(obj)) {
-      const items = obj.map(item => this.stringifyObjectLiteral(item, indent + 2))
-      return `[${items.join(', ')}]`
-    }
-
-    if (typeof obj === 'object') {
-      const spaces = ' '.repeat(indent)
-      const nextSpaces = ' '.repeat(indent + 2)
-      const entries = Object.entries(obj).map(([key, value]) => {
-        const valueStr = this.stringifyObjectLiteral(value, indent + 2)
-        return `${nextSpaces}${key}: ${valueStr}`
-      })
-
-      if (entries.length === 0) {
-        return '{}'
-      }
-
-      return `{\n${entries.join(',\n')}\n${spaces}}`
-    }
-
-    return String(obj)
-  }
-
-  /**
-   * 检查字符串是否为表达式代码
-   */
-  private isExpressionString(str: string): boolean {
-    if (!str || typeof str !== 'string') return false
-
-    // 检查是否为布尔值
-    if (str === 'true' || str === 'false') return true
-
-    // 检查是否为数字
-    if (/^\d+(\.\d+)?$/.test(str)) return true
-
-    // 检查是否为小程序类型构造函数（不加引号）
-    if (['String', 'Number', 'Boolean', 'Object', 'Array'].includes(str)) return true
-
-    // 检查是否为 new 表达式（但不包含this的表达式，因为在data中不能使用this）
-    if (str.startsWith('new ') && !str.includes('this.')) return true
-
-    // 检查是否为对象字面量
-    if (str.startsWith('{') && str.endsWith('}') && !str.includes('this.')) return true
-
-    // 检查是否为数组字面量
-    if (str.startsWith('[') && str.endsWith(']') && !str.includes('this.')) return true
-
-    // 检查是否为计算表达式（但不包含this）
-    if (str.includes('(') && str.includes(')') && !str.includes('=>') && !str.startsWith('function') && !str.includes('this.')) {
-      return true
-    }
-
-    // 不允许this.开头的表达式在data中使用
-    if (str.startsWith('this.')) return false
-
-    // 检查是否为函数调用（但不包含this）
-    if (/^\w+\(.*\)$/.test(str) && !str.includes('this.')) return true
-
-    return false
-  }
-
-  /**
-   * 将箭头函数转换为普通函数
-   */
-  private convertArrowFunctionToRegular(functionStr: string): string {
-    if (!functionStr || typeof functionStr !== 'string') {
-      return functionStr
-    }
-
-    // 检查是否为箭头函数
-    if (!functionStr.includes('=>')) {
-      return functionStr
-    }
-
-    // 简单的箭头函数转换
-    // 匹配 (参数) => { 函数体 } 或 参数 => { 函数体 }
-    const arrowFunctionRegex = /^(\([^)]*\)|[^=]+)\s*=>\s*(.+)$/s
-    const match = functionStr.match(arrowFunctionRegex)
-
-    if (match && match[1] && match[2]) {
-      let params = match[1].trim()
-      const body = match[2].trim()
-
-      // 移除参数周围的括号（如果只有一个参数且没有括号）
-      if (params.startsWith('(') && params.endsWith(')')) {
-        params = params.slice(1, -1)
-      }
-
-      // 如果函数体不是以 { 开始，说明是表达式，需要添加 return
-      if (!body.startsWith('{')) {
-        return `function(${params}) { return ${body} }`
-      } else {
-        return `function(${params}) ${body}`
-      }
-    }
-
-    return functionStr
-  }
-
-  /**
-   * 检测并转换事件处理函数，使其能够从dataset中获取参数
-   */
-  private convertEventHandlerFunction(functionName: string, functionStr: string): string {
-    if (!functionStr || typeof functionStr !== 'string') {
-      return functionStr
-    }
-
-    // 检测是否为事件处理器
-    if (!this.isEventHandlerName(functionName)) {
-      return functionStr
-    }
-
-    // 检测普通函数格式: function(params) { body }
-    const functionRegex = /^function\s*\(\s*([^)]+)\s*\)\s*\{([\s\S]*)\}$/
-    const functionMatch = functionStr.match(functionRegex)
-
-    if (functionMatch && functionMatch[1] && functionMatch[2]) {
-      const params = functionMatch[1].trim()
-      const body = functionMatch[2].trim()
-
-      // 如果函数只有一个参数，则转换它
-      if (params && !params.includes(',')) {
-        const paramName = params.trim()
-
-        // 在函数体开头添加从dataset获取参数的代码
-        const newBody = `
-    // 从事件对象的dataset中获取参数
-    const ${paramName} = event.currentTarget.dataset.arg0;
-    ${body}`
-
-        return `function(event) {${newBody}
-  }`
-      }
-    }
-
-    // 检测箭头函数格式: (params) => { body } 或 params => { body }
-    const arrowRegex = /^(\([^)]*\)|[^=]+)\s*=>\s*\{([\s\S]*)\}$/
-    const arrowMatch = functionStr.match(arrowRegex)
-
-    if (arrowMatch && arrowMatch[1] && arrowMatch[2]) {
-      let params = arrowMatch[1].trim()
-      const body = arrowMatch[2].trim()
-
-      // 移除参数周围的括号（如果存在）
-      if (params.startsWith('(') && params.endsWith(')')) {
-        params = params.slice(1, -1)
-      }
-
-      // 如果函数只有一个参数，则转换它
-      if (params && !params.includes(',')) {
-        const paramName = params.trim()
-
-        // 在函数体开头添加从dataset获取参数的代码
-        const newBody = `
-    // 从事件对象的dataset中获取参数
-    const ${paramName} = event.currentTarget.dataset.arg0;
-    ${body}`
-
-        return `function(event) {${newBody}
-  }`
-      }
-    }
-
-    return functionStr
-  }
-
-  /**
-   * 判断函数名是否看起来像事件处理器
-   */
-  private isEventHandlerName(functionName: string): boolean {
-    const eventHandlerPatterns = [
-      /^handle/i,      // handleClick, handleMenuClick
-      /^on[A-Z]/,      // onClick, onSubmit
-      /Click$/,        // menuClick, buttonClick
-      /Tap$/,          // menuTap, itemTap
-      /Press$/,        // longPress
-      /Touch$/,        // touchStart, touchEnd
-    ]
-
-    return eventHandlerPatterns.some(pattern => pattern.test(functionName))
-  }
-
-  /**
-   * 转换字符串中的所有箭头函数为普通函数
-   */
-  private convertAllArrowFunctions(str: string): string {
-    // 匹配对象方法中的箭头函数：  "methodName": (params) => { body }
-    // 更精确的正则表达式，处理多行函数体
-    const methodArrowRegex = /("[\w]+"):\s*(\([^)]*\)|\w*)\s*=>\s*\{([\s\S]*?)\}/g
-
-    return str.replace(methodArrowRegex, (match, methodName, params, body) => {
-      // 移除参数周围的括号（如果存在）
-      let cleanParams = params.trim()
-      if (cleanParams.startsWith('(') && cleanParams.endsWith(')')) {
-        cleanParams = cleanParams.slice(1, -1)
-      }
-
-      return `${methodName}: function(${cleanParams}) {${body}}`
-    })
-  }
-
-  /**
    * 生成文件头部注释
    */
   private generateFileHeader(): string {
@@ -994,6 +680,318 @@ Component(createComponent(componentOptions));
 // 运行时版本: ${this.config.runtimeVersion}
 // 目标平台: ${this.options.target}
 ${this.options.strict ? "'use strict';" : ''}
+`
+  }
+
+  /**
+   * 生成自包含的运行时库
+   */
+  private generateSelfContainedRuntime(featureUsage: Vue3FeatureUsage): string {
+    const parts: string[] = []
+
+    // 基础工具函数
+    parts.push(this.generateUtilityFunctions())
+
+    // 根据特性使用情况生成对应的模块
+    if (this.needsReactivity(featureUsage)) {
+      parts.push(this.generateReactivityModule())
+    }
+
+    // 主运行时类
+    parts.push(this.generateMainRuntimeClass())
+
+    return parts.join('\n\n')
+  }
+
+  /**
+   * 检查是否需要响应式模块
+   */
+  private needsReactivity(usage: Vue3FeatureUsage): boolean {
+    return usage.reactivity.ref ||
+      usage.reactivity.reactive ||
+      usage.reactivity.computed ||
+      usage.reactivity.watch ||
+      usage.reactivity.watchEffect ||
+      usage.composition.setup
+  }
+
+  /**
+   * 生成工具函数
+   */
+  private generateUtilityFunctions(): string {
+    return `
+// ===== 工具函数 =====
+const logger = {
+  info: (msg, ...args) => console.log('[Vue3MP]', msg, ...args),
+  warn: (msg, ...args) => console.warn('[Vue3MP]', msg, ...args),
+  error: (msg, ...args) => console.error('[Vue3MP]', msg, ...args)
+};
+`
+  }
+
+  /**
+   * 生成响应式模块
+   */
+  private generateReactivityModule(): string {
+    return `
+// ===== 响应式系统 =====
+
+// 创建 ref (基于 Proxy 的实现)
+function ref(value, context) {
+  const key = \`ref_\${Math.random().toString(36).substr(2, 9)}\`;
+
+  const target = {
+    _isRef: true,
+    _key: key,
+    _value: value,
+    _context: context
+  };
+
+  const refProxy = new Proxy(target, {
+    get(target, prop) {
+      if (prop === 'value') return target._value;
+      if (prop === '_isRef' || prop === '_key') return target[prop];
+      return target[prop];
+    },
+    set(target, prop, newValue) {
+      if (prop === 'value') {
+        const oldValue = target._value;
+        if (newValue !== oldValue) {
+          target._value = newValue;
+          if (target._context && typeof target._context.setData === 'function') {
+            target._context.setData({ [target._key]: newValue });
+          }
+        }
+        return true;
+      }
+      if (prop === '_isRef' || prop === '_key') {
+        console.warn(\`尝试修改 ref 的只读属性: \${String(prop)}\`);
+        return false;
+      }
+      target[prop] = newValue;
+      return true;
+    },
+    has(target, prop) {
+      return prop === 'value' || prop === '_isRef' || prop === '_key' || prop in target;
+    },
+    ownKeys(target) {
+      return ['value', '_isRef', '_key'];
+    },
+    getOwnPropertyDescriptor(target, prop) {
+      if (prop === 'value') {
+        return {
+          enumerable: true,
+          configurable: true,
+          writable: prop === 'value'
+        };
+      }
+      if (prop === '_isRef' || prop === '_key') {
+        return {
+          enumerable: true,
+          configurable: true,
+          writable: false
+        };
+      }
+      return Reflect.getOwnPropertyDescriptor(target, prop);
+    }
+  });
+
+  if (context && typeof context.setData === 'function') {
+    context.setData({ [key]: value });
+  }
+
+  return refProxy;
+}
+
+// 创建 reactive (优化的 Proxy 实现)
+function reactive(obj, context) {
+  const proxyCache = new WeakMap();
+  const key = \`reactive_\${Math.random().toString(36).substr(2, 9)}\`;
+
+  function createProxy(target, path = []) {
+    if (!target || typeof target !== 'object') return target;
+
+    if (proxyCache.has(target)) {
+      return proxyCache.get(target);
+    }
+
+    const proxy = new Proxy(target, {
+      get(target, prop) {
+        const value = target[prop];
+        if (value && typeof value === 'object' && typeof prop === 'string') {
+          return createProxy(value, [...path, prop]);
+        }
+        return value;
+      },
+      set(target, prop, newValue) {
+        if (typeof prop === 'string') {
+          const oldValue = target[prop];
+          if (newValue !== oldValue) {
+            target[prop] = newValue;
+            if (context && typeof context.setData === 'function') {
+              const fullPath = path.length > 0
+                ? \`\${key}.\${[...path, prop].join('.')}\`
+                : \`\${key}.\${prop}\`;
+              context.setData({ [fullPath]: newValue });
+            }
+          }
+        }
+        return true;
+      },
+      deleteProperty(target, prop) {
+        if (prop in target) {
+          delete target[prop];
+          if (context && typeof context.setData === 'function') {
+            const fullPath = path.length > 0
+              ? \`\${key}.\${[...path, prop].join('.')}\`
+              : \`\${key}.\${prop}\`;
+            context.setData({ [fullPath]: undefined });
+          }
+        }
+        return Reflect.deleteProperty(target, prop);
+      },
+      ownKeys(target) {
+        return Reflect.ownKeys(target);
+      },
+      getOwnPropertyDescriptor(target, prop) {
+        return Reflect.getOwnPropertyDescriptor(target, prop);
+      }
+    });
+
+    proxyCache.set(target, proxy);
+    return proxy;
+  }
+
+  const result = createProxy(obj);
+
+  if (context && typeof context.setData === 'function') {
+    context.setData({ [key]: obj });
+  }
+
+  return result;
+}
+
+// 创建 computed (基于 Proxy 的实现)
+function computed(getter, context) {
+  const key = \`computed_\${Math.random().toString(36).substr(2, 9)}\`;
+  let _value;
+  let _dirty = true;
+  let _computing = false; // 防止循环计算
+
+  const target = {
+    _isComputed: true,
+    _key: key,
+    _getter: getter,
+    _dirty: _dirty,
+    _computing: false,
+    _context: context
+  };
+
+  const computedProxy = new Proxy(target, {
+    get(target, prop) {
+      if (prop === 'value') {
+        if (target._computing) {
+          console.error(\`检测到计算属性 \${target._key} 的循环依赖\`);
+          return undefined;
+        }
+
+        if (target._dirty) {
+          target._computing = true;
+          try {
+            _value = target._getter();
+            target._dirty = false;
+            if (target._context && typeof target._context.setData === 'function') {
+              target._context.setData({ [target._key]: _value });
+            }
+          } catch (error) {
+            console.error(\`计算属性 \${target._key} 计算失败:\`, error);
+            _value = undefined;
+          } finally {
+            target._computing = false;
+          }
+        }
+        return _value;
+      }
+      if (prop === '_isComputed' || prop === '_key') return target[prop];
+      return target[prop];
+    },
+    set(target, prop, newValue) {
+      if (prop === 'value') {
+        console.warn(\`计算属性 \${target._key} 的 value 是只读的\`);
+        return false;
+      }
+      if (prop === '_isComputed' || prop === '_key') {
+        console.warn(\`尝试修改 computed 的只读属性: \${String(prop)}\`);
+        return false;
+      }
+      target[prop] = newValue;
+      return true;
+    },
+    has(target, prop) {
+      return prop === 'value' || prop === '_isComputed' || prop === '_key' || prop in target;
+    },
+    ownKeys(target) {
+      return ['value', '_isComputed', '_key'];
+    },
+    getOwnPropertyDescriptor(target, prop) {
+      if (prop === 'value') {
+        return {
+          enumerable: true,
+          configurable: true,
+          writable: false // computed value 是只读的
+        };
+      }
+      if (prop === '_isComputed' || prop === '_key') {
+        return {
+          enumerable: true,
+          configurable: true,
+          writable: false
+        };
+      }
+      return Reflect.getOwnPropertyDescriptor(target, prop);
+    }
+  });
+
+  return computedProxy;
+}
+`
+  }
+
+  /**
+   * 生成主运行时类
+   */
+  private generateMainRuntimeClass(): string {
+    return `
+// ===== 主运行时类 =====
+class Vue3MiniRuntime {
+  constructor(config = {}) {
+    this.config = config;
+    this.initialized = false;
+  }
+
+  static createRuntime(config) {
+    return new Vue3MiniRuntime(config);
+  }
+
+  async initialize() {
+    if (this.initialized) return;
+    this.initialized = true;
+    logger.info('Vue3 小程序运行时初始化完成');
+  }
+
+  createPage(options) {
+    return createPage(options);
+  }
+
+  createComponent(options) {
+    return createComponent(options);
+  }
+
+  createApp(options) {
+    // 直接返回应用配置，避免循环调用
+    return options || {};
+  }
+}
 `
   }
 
