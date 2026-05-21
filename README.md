@@ -404,6 +404,19 @@ await compiler.watch()
 | Teleport | ❌ | 小程序不支持 |
 | Suspense | ❌ | 小程序不支持 |
 
+### 最新 Vue 3.5 Native-first 边界
+
+| 能力 | 当前状态 | 验证 |
+|------|---------|------|
+| `defineModel` / `withDefaults` / 响应式 props 解构 | 已原生映射 | `tests/e2e/native-v-model.test.ts`、`tests/e2e/with-defaults-props.test.ts`、`tests/e2e/reactive-props-destructure.test.ts` |
+| 基础 slots / named slots | 已原生映射 | `tests/e2e/slots-provide-inject-boundary.test.ts` |
+| `defineExpose` / `defineOptions` / `defineSlots` | 明确降级 | `tests/e2e/define-expose-degrade.test.ts`、`tests/e2e/define-options-degrade.test.ts`、`tests/e2e/define-slots-degrade.test.ts` |
+| `watch` / `watchEffect` / `onWatcherCleanup` | 明确降级 | `tests/e2e/watcher-degrade.test.ts` |
+| `useTemplateRef` / `useId` | 明确降级 | `tests/e2e/use-template-ref-degrade.test.ts`、`tests/e2e/use-id-degrade.test.ts` |
+| `provide` / `inject` | 明确降级 | `tests/e2e/slots-provide-inject-boundary.test.ts` |
+
+完整能力矩阵见 `docs/latest-platform-baseline.md`，runtime 边界见 `docs/native-first-runtime-boundary.md`。
+
 ## 贡献
 
 欢迎提交 Issue 和 Pull Request！
