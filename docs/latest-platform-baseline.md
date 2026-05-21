@@ -22,8 +22,11 @@
 - `defineModel`
 - `withDefaults`
 - `defineExpose`
+- `defineOptions`
+- `defineSlots`
 - 响应式 props 解构（Vue 3.5+）
 - `useTemplateRef`（Vue 3.5+）
+- `watch` / `watchEffect` / `onWatcherCleanup`（Vue 3.5+ watcher cleanup）
 
 `tests/parser/sfc-parser-latest-vue.test.ts` 用于确认这些宏可以通过 `@vue/compiler-sfc` 的 `compileScript` 入口处理。该测试只证明“最新 Vue SFC 编译入口兼容”；原生小程序语义转换必须以对应 e2e/回归测试为准。
 
@@ -37,6 +40,7 @@
 | `defineExpose` | 明确降级 | 微信原生目标无 Vue template ref public instance 等价语义；产物输出降级注释和 exposed keys，不生成运行时桥接 | `tests/e2e/define-expose-degrade.test.ts` |
 | `defineOptions` | 明确降级 | 微信原生目标无完整 Vue component options 合并等价语义；产物输出降级注释和 option keys，不生成运行时桥接 | `tests/e2e/define-options-degrade.test.ts` |
 | `defineSlots` | 类型宏擦除 / 明确降级 | 当前不暴露 Vue slots 对象桥接；产物输出降级注释并擦除 `defineSlots()` 变量，不生成运行时桥接 | `tests/e2e/define-slots-degrade.test.ts` |
+| `watch` / `watchEffect` / `onWatcherCleanup` | 明确降级 | Vue watcher 副作用调度与 Vue 3.5 watcher cleanup 依赖 Vue runtime；产物输出降级注释，不生成 watcher runtime 桥接 | `tests/e2e/watcher-degrade.test.ts` |
 | `useTemplateRef` | 明确降级 | 微信原生目标无 Vue template ref / DOM 或组件实例等价桥接；产物输出降级注释和 template refs，不生成运行时代理 | `tests/e2e/use-template-ref-degrade.test.ts` |
 
 ## 原生微信小程序输出约束
@@ -56,10 +60,11 @@
 4. 已完成：`defineExpose` 在微信原生目标下明确降级。
 5. 已完成：`defineOptions` 在微信原生目标下明确降级。
 6. 已完成：`defineSlots` 在微信原生目标下类型宏擦除 / 明确降级。
-7. 已完成：Vue 3.5 `useTemplateRef` 在微信原生目标下明确降级。
-8. 待评估：`watch/watchEffect` / `onWatcherCleanup` 只有真实实现后才允许进入 thin runtime 白名单。
+7. 已完成：`watch/watchEffect` / `onWatcherCleanup` 在微信原生目标下明确降级。
+8. 已完成：Vue 3.5 `useTemplateRef` 在微信原生目标下明确降级。
+9. 待评估：`useId` / SSR 相关能力边界。
 
-补充约束：不得用旧版页面内联 `watch` 轮询 helper 代替 Vue 3.5 语义；在真实实现前，`watch/watchEffect` 仍保持未支持/待评估状态。
+补充约束：不得用旧版页面内联 `watch` 轮询 helper 代替 Vue 3.5 语义；除非真实实现 Vue watcher 调度与 cleanup 语义，否则 `watch/watchEffect/onWatcherCleanup` 不得进入 thin runtime 白名单。
 
 ## 参考链接
 

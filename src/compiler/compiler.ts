@@ -108,6 +108,7 @@ export class Vue3MiniprogramCompiler {
         expose: {},
         defineOptions: {},
         defineSlots: {},
+        watcherEffects: {},
         templateRefs: {},
         data: {},
         methods: {},
@@ -296,6 +297,10 @@ export class Vue3MiniprogramCompiler {
 
         if (scriptContext.defineSlots) {
           context.defineSlots = scriptContext.defineSlots
+        }
+
+        if (scriptContext.watcherEffects) {
+          context.watcherEffects = scriptContext.watcherEffects
         }
 
         if (scriptContext.templateRefs) {

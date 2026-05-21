@@ -78,6 +78,16 @@ FuckMP 的目标是把 Vue3 SFC 编译为原生微信小程序工程，而不是
 
 验证测试：`tests/e2e/define-slots-degrade.test.ts`。
 
+### `watch` / `watchEffect` / `onWatcherCleanup`
+
+`watch` 与 `watchEffect` 是 Vue runtime 副作用调度 API；Vue 3.5 `onWatcherCleanup` 还要求在 `watch` 回调或 `watchEffect` effect 的同步执行期间注册清理函数。当前微信原生 thin runtime 不提供等价 watcher 调度、失效重跑和 cleanup 桥接，因此当前处理为**明确降级**：
+
+- 编译产物输出 `watch/watchEffect 降级` 注释。
+- 擦除 `watch()`、`watchEffect()` 与 `onWatcherCleanup()` 调用，不生成 watcher runtime 桥接。
+- 不恢复旧版页面内联 `setInterval` 轮询式 `watch` helper。
+
+验证测试：`tests/e2e/watcher-degrade.test.ts`。
+
 ### `useTemplateRef`
 
 Vue 3.5 `useTemplateRef` 用于获取模板 ref 对应的 DOM 或组件实例引用。微信原生小程序目标没有 Vue DOM/component instance 等价桥接，因此当前处理为**明确降级**：
@@ -92,7 +102,6 @@ Vue 3.5 `useTemplateRef` 用于获取模板 ref 对应的 DOM 或组件实例引
 
 以下能力可以在源码中被识别，但不能仅靠 runtime 模块名宣称支持：
 
-- `watch / watchEffect / onWatcherCleanup`
 - `provide / inject`
 - slots / scoped slots
 - transition / keep-alive
@@ -104,7 +113,7 @@ Vue 3.5 `useTemplateRef` 用于获取模板 ref 对应的 DOM 或组件实例引
 当前测试已固化以下边界：
 
 - `RuntimeBundler.getRequiredModules()` 只返回 `core` 或 `core + reactivity`。
-- 模板指令、事件、生命周期、props/emits、`defineModel`、`withDefaults`、响应式 props 解构、`defineExpose` 降级、`defineOptions` 降级、`defineSlots` 降级、`useTemplateRef` 降级、slots、provide/inject 不会引入 `template/event/lifecycle/component/di` 等伪模块。
+- 模板指令、事件、生命周期、props/emits、`defineModel`、`withDefaults`、响应式 props 解构、`defineExpose` 降级、`defineOptions` 降级、`defineSlots` 降级、`watch/watchEffect/onWatcherCleanup` 降级、`useTemplateRef` 降级、slots、provide/inject 不会引入 `template/event/lifecycle/component/di` 等伪模块。
 - `RuntimeInjectionGenerator` 不会因为 `<script setup>` 本身生成 `ref/reactive/computed` runtime。
 - `PageGenerator` 不会给静态页面内联旧版响应式 runtime，也不会输出 `setInterval` 轮询式 `watch` 占位。
 
@@ -119,6 +128,7 @@ Vue 3.5 `useTemplateRef` 用于获取模板 ref 对应的 DOM 或组件实例引
 - `tests/e2e/define-expose-degrade.test.ts`
 - `tests/e2e/define-options-degrade.test.ts`
 - `tests/e2e/define-slots-degrade.test.ts`
+- `tests/e2e/watcher-degrade.test.ts`
 - `tests/e2e/use-template-ref-degrade.test.ts`
 
 ## 后续开发顺序

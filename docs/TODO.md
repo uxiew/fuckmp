@@ -13,7 +13,7 @@
 - [x] 运行时注入：支持按特性生成自包含 `runtime-injection.js`，Proxy ref/reactive/computed 已有回归测试覆盖。
 - [x] 错误处理：输入目录不存在时返回结构化失败结果，不再静默成功。
 - [x] 类型检查基线：`pnpm type-check` 当前通过，范围限定为源码 `src/**/*`。
-- [x] 测试基线：`pnpm test:run` 当前通过 28 个测试文件、跳过 1 个显式 opt-in 真机测试文件；139 个测试通过、5 个真机测试跳过。
+- [x] 测试基线：`pnpm test:run` 当前通过 29 个测试文件、跳过 1 个显式 opt-in 真机测试文件；140 个测试通过、5 个真机测试跳过。
 - [x] 构建基线：`pnpm build` 当前通过，DTS 生成通过。
 - [x] Sass 弃用告警：运行时代码使用 Dart Sass namespace import，测试 SCSS 使用 `sass:color` 模块函数。
 - [x] 旧运行时兼容层：删除无引用旧文件和 `setupRuntime/cleanupRuntime` 兼容导出，当前保留 `src/runtime/core/*`。
@@ -36,6 +36,7 @@
 - [x] `defineExpose` 原生目标降级：微信原生目标无 Vue template ref public instance 等价语义，产物输出降级注释和 exposed keys，不生成 runtime 桥接；覆盖 `tests/e2e/define-expose-degrade.test.ts`。
 - [x] `defineOptions` 原生目标降级：微信原生目标无完整 Vue component options 合并等价语义，产物输出降级注释和 option keys，不生成 runtime 桥接；覆盖 `tests/e2e/define-options-degrade.test.ts`。
 - [x] `defineSlots` 类型宏擦除 / 原生目标降级：当前不暴露 Vue slots 对象桥接，产物输出降级注释并避免 `defineSlots()` 落入 data；覆盖 `tests/e2e/define-slots-degrade.test.ts`。
+- [x] `watch/watchEffect/onWatcherCleanup` 原生目标降级：当前不提供 Vue watcher 副作用调度与 Vue 3.5 cleanup 等价桥接，产物输出降级注释且不恢复旧版轮询 watch helper；覆盖 `tests/e2e/watcher-degrade.test.ts`。
 - [x] Vue 3.5 `useTemplateRef` 原生目标降级：微信原生目标无 Vue template ref / DOM 或组件实例等价桥接，产物输出降级注释和 template refs，不生成 runtime 代理；覆盖 `tests/e2e/use-template-ref-degrade.test.ts`。
 - [x] 单文件行数约束：当前 `src/**/*` 未超过 800 行硬上限；当前最大源码文件为 `src/transformer/vue-template-transformer.ts` 765 行。
 - [x] 默认测试输出：Browserslist 过期提示已在 Vitest 环境中静默；真机测试默认跳过，需 `FUCKMP_REAL_DEVICE_TESTS=1` 显式启用。
@@ -49,5 +50,5 @@
 
 1. 需要真实小程序端验收时，配置微信开发者工具 CLI 后运行 opt-in 真机测试。
 2. 如需继续做维护性瘦身，优先评估 `src/transformer/vue-template-transformer.ts`、`src/transformer/script-transformer.ts`、`src/generator/page-generator.ts`、`src/compiler/compiler.ts` 这类 700 行以上模块。
-3. `watch/watchEffect/onWatcherCleanup` 尚未进入支持状态；只有真实实现或明确原生编译方案落地后，才允许更新 runtime 白名单或能力矩阵。
-4. 继续补齐最新 Vue 3.5 能力矩阵时，优先评估剩余 watcher / id / DI / slots 运行时语义：能稳定落到原生配置就原生映射，否则必须明确降级。
+3. `watch/watchEffect/onWatcherCleanup` 已明确降级；只有真实实现 Vue watcher 调度与 cleanup 语义后，才允许进入 runtime 白名单。
+4. 继续补齐最新 Vue 3.5 能力矩阵时，优先评估剩余 `useId` / SSR / DI / slots 运行时语义：能稳定落到原生配置就原生映射，否则必须明确降级。

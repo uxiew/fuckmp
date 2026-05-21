@@ -22,6 +22,7 @@ export const VUE3_MACROS = {
   computed: 'computed',
   watch: 'watch',
   watchEffect: 'watchEffect',
+  onWatcherCleanup: 'onWatcherCleanup',
   onMounted: 'onMounted',
   onUnmounted: 'onUnmounted',
   onUpdated: 'onUpdated',

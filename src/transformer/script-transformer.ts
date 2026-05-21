@@ -2,7 +2,7 @@
  * Script 转换器
  */
 
-import { traverseAST, generateCode, isCallExpression, isIdentifier, isVariableDeclaration, PathResolver, createPathResolver, createDefineExposeDegradeRecord, createDefineOptionsDegradeRecord, createDefineSlotsDegradeRecord, createUseTemplateRefDegradeRecord, mergeUseTemplateRefDegradeRecord } from '@/utils/index.js'
+import { traverseAST, generateCode, isCallExpression, isIdentifier, isVariableDeclaration, PathResolver, createPathResolver, createDefineExposeDegradeRecord, createDefineOptionsDegradeRecord, createDefineSlotsDegradeRecord, createUseTemplateRefDegradeRecord, createWatcherDegradeRecord, mergeUseTemplateRefDegradeRecord } from '@/utils/index.js'
 import { VUE3_MACROS } from '@/types/index.js'
 import type { TransformContext, MacroHandler } from '@/types/index.js'
 import type { ScriptParseResult } from '@/parser/index.js'
@@ -93,6 +93,7 @@ export class ScriptTransformer {
         expose: {},
         defineOptions: {},
         defineSlots: {},
+        watcherEffects: {},
         templateRefs: {},
         data: {},
         methods: {},
@@ -178,6 +179,10 @@ export class ScriptTransformer {
         macroCalls.forEach(macroCall => this.processDefineOptionsMacro(macroCall, context))
         return
       }
+      if (['watch', 'watchEffect', 'onWatcherCleanup'].includes(macroName)) {
+        macroCalls.forEach(macroCall => this.processWatcherMacro(macroCall, context))
+        return
+      }
 
       const handler = this.macroHandlers.get(macroName)
       if (handler) {
@@ -218,6 +223,16 @@ export class ScriptTransformer {
     context.defineOptions = createDefineOptionsDegradeRecord(macroCall.arguments?.[0], previousKeys)
 
     logger.warn(`defineOptions 已在原生小程序目标下降级: ${context.filename}`)
+  }
+
+  /**
+   * watch/watchEffect/onWatcherCleanup 依赖 Vue watcher 调度与 cleanup 语义，原生目标暂不伪造等价支持。
+   */
+  private processWatcherMacro(macroCall: any, context: TransformContext): void {
+    const previousApis = Array.isArray(context.watcherEffects?.apis) ? context.watcherEffects.apis : []
+    context.watcherEffects = createWatcherDegradeRecord(macroCall.name, previousApis)
+
+    logger.warn(`${macroCall.name} 已在原生小程序目标下降级: ${context.filename}`)
   }
 
   /**
@@ -433,191 +448,6 @@ export class ScriptTransformer {
       json: {}, // 由 generator 生成
       context
     }
-  }
-
-  /**
-   * 生成页面代码
-   */
-  private generatePageCode(context: TransformContext): ScriptTransformResult {
-    const js = `Page({
-  data: ${JSON.stringify(context.data, null, 2)},
-
-  ${this.generateLifecycleCode(context.lifecycle, true)},
-
-  ${this.generateMethodsCode(context.methods)},
-
-  ${this.generateComputedMethodsCode(context.computed)},
-
-  ${this.generateWatchMethodsCode(context.watch)}
-})`
-
-    const json = {
-      usingComponents: this.generateUsingComponents(context.components)
-    }
-
-    return {
-      js,
-      json,
-      context
-    }
-  }
-
-  /**
-   * 生成组件代码
-   */
-  private generateComponentCode(context: TransformContext): ScriptTransformResult {
-    const js = `Component({
-  properties: ${this.generatePropertiesCode(context.props)},
-
-  data: ${JSON.stringify(context.data, null, 2)},
-
-  ${this.generateLifecycleCode(context.lifecycle, false)},
-
-  methods: {
-    ${this.generateMethodsCode(context.methods)},
-
-    ${this.generateComputedMethodsCode(context.computed)},
-
-    ${this.generateWatchMethodsCode(context.watch)},
-
-    ${this.generateEmitMethodsCode(context.emits)}
-  }
-})`
-
-    const json = {
-      component: true,
-      usingComponents: this.generateUsingComponents(context.components)
-    }
-
-    return {
-      js,
-      json,
-      context
-    }
-  }
-
-  /**
-   * 生成属性代码
-   */
-  private generatePropertiesCode(props: Record<string, any>): string {
-    if (Object.keys(props).length === 0) {
-      return '{}'
-    }
-
-    const entries = Object.entries(props).map(([key, value]) => {
-      return `    ${key}: {
-      type: ${this.getTypeString(value)},
-      value: ${JSON.stringify(this.getDefaultValue(value))}
-    }`
-    })
-
-    return `{
-${entries.join(',\n')}
-  }`
-  }
-
-  /**
-   * 生成生命周期代码
-   */
-  private generateLifecycleCode(lifecycle: Record<string, string>, isPage: boolean): string {
-    const hooks: string[] = []
-
-    Object.entries(lifecycle).forEach(([hookName, code]) => {
-      if (code.trim()) {
-        hooks.push(`  ${hookName}(${isPage ? 'options' : ''}) {
-    ${code.trim()}
-  }`)
-      }
-    })
-
-    return hooks.join(',\n\n')
-  }
-
-  /**
-   * 生成方法代码
-   */
-  private generateMethodsCode(methods: Record<string, any>): string {
-    const methodEntries = Object.entries(methods).map(([name, func]) => {
-      if (typeof func === 'function') {
-        return `    ${name}${func.toString().substring(8)}`
-      } else {
-        return `    ${name}() {
-      // 方法实现
-    }`
-      }
-    })
-
-    return methodEntries.join(',\n\n')
-  }
-
-  /**
-   * 生成计算属性方法代码
-   */
-  private generateComputedMethodsCode(computed: Record<string, any>): string {
-    const computedEntries = Object.entries(computed).map(([name, config]) => {
-      return `    _computed_${name}() {
-      ${config.getter || 'return null'}
-    }`
-    })
-
-    return computedEntries.join(',\n\n')
-  }
-
-  /**
-   * 生成监听器方法代码
-   */
-  private generateWatchMethodsCode(watch: Record<string, any>): string {
-    const watchEntries = Object.entries(watch).map(([name, config]) => {
-      return `    _watch_${name}(newVal, oldVal) {
-      ${config.callback || '// 监听器回调'}
-    }`
-    })
-
-    return watchEntries.join(',\n\n')
-  }
-
-  /**
-   * 生成事件发射方法代码
-   */
-  private generateEmitMethodsCode(emits: string[]): string {
-    const emitMethods = emits.map(eventName => {
-      const methodName = `_emit${this.capitalize(eventName)}`
-      return `    ${methodName}(payload) {
-      this.triggerEvent('${eventName}', payload)
-    }`
-    })
-
-    return emitMethods.join(',\n\n')
-  }
-
-  /**
-   * 生成使用的组件配置
-   */
-  private generateUsingComponents(components: Map<string, string>, fromFile?: string): Record<string, string> {
-    const usingComponents: Record<string, string> = {}
-
-    components.forEach((importPath, name) => {
-      try {
-        let componentPath: string
-
-        if (this.pathResolver && fromFile) {
-          // 使用路径解析器计算正确的相对路径
-          componentPath = this.pathResolver.resolveComponentPath(fromFile, importPath)
-        } else {
-          // 后备方案：简单的路径处理
-          componentPath = importPath.replace(/\.vue$/, '').replace(/^\.\//, '')
-        }
-
-        usingComponents[this.kebabCase(name)] = componentPath
-        logger.debug(`组件引用: ${name} -> ${componentPath}`)
-      } catch (error) {
-        logger.error(`解析组件路径失败: ${name} -> ${importPath}`, error as Error)
-        // 使用原始路径作为后备
-        usingComponents[this.kebabCase(name)] = importPath.replace(/\.vue$/, '')
-      }
-    })
-
-    return usingComponents
   }
 
   /**

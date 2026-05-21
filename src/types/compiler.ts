@@ -150,6 +150,8 @@ export interface TransformContext {
   defineOptions?: Record<string, any>
   /** 原生目标下降级的 defineSlots 类型宏 */
   defineSlots?: Record<string, any>
+  /** 原生目标下降级的 watcher 副作用 API */
+  watcherEffects?: Record<string, any>
   /** 原生目标下降级的模板引用 */
   templateRefs?: Record<string, any>
   /** 响应式数据 */
