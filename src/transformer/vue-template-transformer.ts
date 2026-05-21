@@ -8,7 +8,14 @@ import { recordUnsupportedTemplateCapabilities, logger } from '@/utils/index.js'
 import type { TransformContext } from '@/types/index.js'
 import type { TemplateParseResult } from '@/parser/index.js'
 import { applyPropAccessMappingsToTemplate } from './prop-access-mapping.js'
-import { EVENT_MAP, TAG_MAP } from './template-constants.js'
+import {
+  mapVueTemplateEventName,
+  transformVueTemplateClassBinding,
+  transformVueTemplateEventHandler,
+  transformVueTemplateFallbackString,
+  transformVueTemplateTagName,
+  transformVueTemplateVModel
+} from './vue-template-node-utils.js'
 
 // 导入标准的转换结果类型
 import type { TemplateTransformResult } from './template-transformer.js'
@@ -58,7 +65,7 @@ export class VueTemplateTransformer {
       } else {
         // 如果没有 AST，回退到字符串处理
         logger.warn(`无法获取 AST，使用字符串处理: ${context.filename}`)
-        result.wxml = this.fallbackStringTransform(parseResult.source)
+        result.wxml = transformVueTemplateFallbackString(parseResult.source)
       }
 
       // 收集组件信息
@@ -271,13 +278,7 @@ export class VueTemplateTransformer {
    * 转换标签名
    */
   private transformTagName(tagName: string): string {
-    // 处理 Vue 组件（大写开头）转换为 kebab-case
-    if (/^[A-Z]/.test(tagName)) {
-      return this.toKebabCase(tagName)
-    }
-
-    // HTML 标签映射
-    return TAG_MAP[tagName.toLowerCase() as keyof typeof TAG_MAP] || tagName
+    return transformVueTemplateTagName(tagName)
   }
 
   /**
@@ -318,7 +319,7 @@ export class VueTemplateTransformer {
 
     // 处理 class 绑定
     if (staticClass || dynamicClass) {
-      const classAttr = this.transformClassBinding(staticClass, dynamicClass)
+      const classAttr = transformVueTemplateClassBinding(staticClass, dynamicClass)
       if (classAttr) {
         attrs.push(classAttr)
       }
@@ -344,8 +345,8 @@ export class VueTemplateTransformer {
         return `${arg}="{{${exp}}}"`
 
       case 'on':
-        const eventName = this.mapEventName(arg)
-        return this.transformEventHandler(eventName, exp, result)
+        const eventName = mapVueTemplateEventName(arg)
+        return transformVueTemplateEventHandler(eventName, exp, result)
 
       case 'if':
         return `wx:if="{{${exp}}}"`
@@ -368,7 +369,7 @@ export class VueTemplateTransformer {
         const modifiers = (directive.modifiers || []).map((mod: any) =>
           typeof mod === 'string' ? mod : mod.content || mod
         )
-        return this.transformVModel(exp, result, modifiers, tagName, arg)
+        return transformVueTemplateVModel(exp, result, modifiers, tagName, arg)
 
       default:
         logger.warn(`未处理的指令: v-${name}`)
@@ -406,306 +407,13 @@ export class VueTemplateTransformer {
   }
 
   /**
-   * 转换 class 绑定
-   */
-  private transformClassBinding(staticClass: string, dynamicClass: string): string {
-    if (!staticClass && !dynamicClass) return ''
-
-    // 如果只有静态 class，直接返回静态值，不需要 {{}}
-    if (staticClass && !dynamicClass) {
-      return `class="${staticClass}"`
-    }
-
-    // 如果有动态 class，需要使用 {{}} 包裹表达式
-    let classExpression = ''
-
-    if (dynamicClass) {
-      // 处理动态 class 表达式
-      let dynamicExpression = ''
-
-      // 处理对象语法：{ online: isOnline, active: isActive }
-      if (dynamicClass.trim().startsWith('{') && dynamicClass.trim().endsWith('}')) {
-        const objectContent = dynamicClass.trim().slice(1, -1)
-        const classConditions = objectContent.split(',').map((condition: string) => {
-          const [className, expression] = condition.split(':').map((s: string) => s.trim())
-          const cleanClassName = (className || '').replace(/['"]/g, '')
-          const cleanExpression = (expression || '').trim()
-          return `${cleanExpression} ? '${cleanClassName}' : ''`
-        }).filter((condition: string) => !condition.includes("'' ? '' : ''"))
-
-        if (classConditions.length === 1) {
-          dynamicExpression = classConditions[0] || ''
-        } else if (classConditions.length > 1) {
-          dynamicExpression = `(${classConditions.join(' + " " + ')})`
-        } else {
-          dynamicExpression = ''
-        }
-      } else if (dynamicClass.trim().startsWith('[') && dynamicClass.trim().endsWith(']')) {
-        // 处理数组语法：['class1', 'class2', condition ? 'class3' : '']
-        dynamicExpression = dynamicClass.trim().slice(1, -1)
-      } else {
-        // 处理简单表达式
-        dynamicExpression = dynamicClass
-      }
-
-      // 合并静态和动态 class
-      if (staticClass && dynamicExpression) {
-        classExpression = `'${staticClass}' + ' ' + (${dynamicExpression})`
-      } else if (dynamicExpression) {
-        classExpression = dynamicExpression
-      } else {
-        // 如果动态表达式为空，只返回静态 class
-        classExpression = `'${staticClass}'`
-      }
-    }
-
-    return `class="{{${classExpression}}}"`
-  }
-
-  /**
-   * 映射事件名
-   */
-  private mapEventName(eventName: string): string {
-    return EVENT_MAP[eventName as keyof typeof EVENT_MAP] || eventName
-  }
-
-  /**
-   * 转换事件处理器，正确处理带参数的函数调用
-   */
-  private transformEventHandler(eventName: string, expression: string, result: TemplateTransformResult): string | string[] {
-    // 检查是否为带参数的函数调用，如 handleMenuClick('about')
-    const functionCallMatch = expression.match(/^(\w+)\s*\(\s*(.+)\s*\)$/)
-
-    if (functionCallMatch) {
-      const [, functionName, argsString] = functionCallMatch
-
-      // 确保函数名和参数字符串存在
-      if (!functionName || !argsString) {
-        result.eventHandlers.set(expression, expression)
-        return `bind:${eventName}="${expression}"`
-      }
-
-      // 解析参数
-      const args = this.parseEventArguments(argsString)
-
-      // 生成 data-* 属性和事件绑定
-      const dataAttrs: string[] = []
-      args.forEach((arg, index) => {
-        // 移除引号并生成 data 属性
-        const cleanArg = arg.replace(/^['"]|['"]$/g, '')
-        dataAttrs.push(`data-arg${index}="${cleanArg}"`)
-      })
-
-      // 记录事件处理器
-      result.eventHandlers.set(functionName, functionName)
-
-      // 返回事件绑定和数据属性
-      const eventBinding = `bind:${eventName}="${functionName}"`
-
-      if (dataAttrs.length > 0) {
-        return [eventBinding, ...dataAttrs]
-      } else {
-        return eventBinding
-      }
-    } else {
-      // 简单的函数名，直接绑定
-      result.eventHandlers.set(expression, expression)
-      return `bind:${eventName}="${expression}"`
-    }
-  }
-
-  /**
-   * 解析事件参数
-   */
-  private parseEventArguments(argsString: string): string[] {
-    const args: string[] = []
-    let current = ''
-    let inQuotes = false
-    let quoteChar = ''
-    let depth = 0
-
-    for (let i = 0; i < argsString.length; i++) {
-      const char = argsString[i]
-
-      if (!inQuotes && (char === '"' || char === "'")) {
-        inQuotes = true
-        quoteChar = char
-        current += char
-      } else if (inQuotes && char === quoteChar) {
-        inQuotes = false
-        current += char
-      } else if (!inQuotes && char === '(') {
-        depth++
-        current += char
-      } else if (!inQuotes && char === ')') {
-        depth--
-        current += char
-      } else if (!inQuotes && char === ',' && depth === 0) {
-        args.push(current.trim())
-        current = ''
-      } else {
-        current += char
-      }
-    }
-
-    if (current.trim()) {
-      args.push(current.trim())
-    }
-
-    return args
-  }
-
-
-
-  /**
-   * 转换 v-for 指令
-   */
-  private transformVFor(expression: string): string[] {
-    const match = expression.match(/(\w+)(?:\s*,\s*(\w+))?\s+in\s+(.+)/)
-    if (match) {
-      const [, item, index, list] = match
-      return [
-        `wx:for="{{${list}}}"`,
-        `wx:for-item="${item}"`,
-        `wx:for-index="${index || 'index'}"`,
-        `wx:key="${item}"`
-      ]
-    }
-    return [`wx:for="{{${expression}}}"`]
-  }
-
-  /**
-   * 转换 v-model 指令
-   */
-  private transformVModel(expression: string, result: TemplateTransformResult, modifiers: string[] = [], elementType?: string, modelArg?: string): string[] {
-    if (this.isCustomComponentTag(elementType)) {
-      return this.transformComponentVModel(expression, result, modelArg)
-    }
-
-    // 根据元素类型和修饰符生成不同的处理函数名和事件类型
-    let handlerPrefix = '_handleInput'
-    let eventType = 'bindinput'
-
-    // 根据元素类型选择事件类型
-    if (elementType === 'radio-group') {
-      handlerPrefix = '_handleRadio'
-      eventType = 'bindchange'
-    } else if (elementType === 'checkbox-group') {
-      handlerPrefix = '_handleCheckbox'
-      eventType = 'bindchange'
-    } else if (elementType === 'picker') {
-      handlerPrefix = '_handlePicker'
-      eventType = 'bindchange'
-    } else {
-      // 对于 input/textarea，根据修饰符选择处理函数
-      if (modifiers.includes('number')) {
-        handlerPrefix = '_handleNumberInput'
-      } else if (modifiers.includes('trim')) {
-        handlerPrefix = '_handleTrimInput'
-      }
-    }
-
-    const inputHandler = `${handlerPrefix}_${expression.replace(/\./g, '_')}`
-
-    // 记录事件处理器
-    result.eventHandlers.set(inputHandler, inputHandler)
-
-    return [
-      `value="{{${expression}}}"`,
-      `${eventType}="${inputHandler}"`
-    ]
-  }
-
-
-  /**
-   * 转换自定义组件 v-model 为原生属性绑定与 update 事件监听。
-   */
-  private transformComponentVModel(expression: string, result: TemplateTransformResult, modelArg?: string): string[] {
-    const propName = modelArg || 'modelValue'
-    const attrName = propName === 'modelValue' ? 'model-value' : this.toKebabCase(propName)
-    const updateEvent = propName === 'modelValue' ? 'update:modelValue' : `update:${propName}`
-    const handlerName = `_handleUpdate_${expression.replace(/\./g, '_')}`
-
-    result.eventHandlers.set(handlerName, handlerName)
-
-    return [
-      `${attrName}="{{${expression}}}"`,
-      `bind:${updateEvent}="${handlerName}"`
-    ]
-  }
-
-  /**
-   * 判断是否为自定义组件标签。
-   */
-  private isCustomComponentTag(tagName?: string): boolean {
-    if (!tagName) return false
-    const nativeModelTags = new Set([
-      'input',
-      'textarea',
-      'radio-group',
-      'checkbox-group',
-      'picker',
-      'switch',
-      'slider'
-    ])
-    if (nativeModelTags.has(tagName)) return false
-    return /^[A-Z]/.test(tagName) || tagName.includes('-')
-  }
-
-  /**
-   * 转换为 kebab-case
-   */
-  private toKebabCase(str: string): string {
-    return str.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '')
-  }
-
-  /**
-   * 回退到字符串处理
-   */
-  private fallbackStringTransform(source: string): string {
-    logger.warn(`使用字符串回退处理`)
-
-    let wxml = source
-
-    // 基本的标签替换
-    const tagReplacements = [
-      ['<div', '<view'],
-      ['</div>', '</view>'],
-      ['<span', '<text'],
-      ['</span>', '</text>'],
-      ['<img', '<image'],
-      ['<p', '<text'],
-      ['</p>', '</text>']
-    ]
-
-    tagReplacements.forEach(([from, to]) => {
-      wxml = wxml.replace(new RegExp(from as string, 'g'), to as string)
-    })
-
-    // 基本的指令替换
-    wxml = wxml.replace(/\sv-if=/g, ' wx:if=')
-    wxml = wxml.replace(/\sv-else-if=/g, ' wx:elif=')
-    wxml = wxml.replace(/\sv-else\b/g, ' wx:else')
-    wxml = wxml.replace(/\sv-for=/g, ' wx:for=')
-    wxml = wxml.replace(/\sv-show=/g, ' hidden=')
-
-    // 事件绑定
-    wxml = wxml.replace(/@(\w+)=/g, 'bind:$1=')
-
-    // 属性绑定
-    wxml = wxml.replace(/:(\w+)=/g, '$1=')
-
-    return wxml
-  }
-
-  /**
    * 完全回退的转换方法
    */
   private async fallbackTransform(parseResult: TemplateParseResult, context: TransformContext): Promise<TemplateTransformResult> {
     logger.warn(`使用完全回退处理: ${context.filename}`)
 
     const result: TemplateTransformResult = {
-      wxml: this.fallbackStringTransform(parseResult.source),
+      wxml: transformVueTemplateFallbackString(parseResult.source),
       components: new Set(),
       eventHandlers: new Map()
     }
