@@ -1,14 +1,14 @@
 # FuckMP
 
-🚀 **FuckMP** - 强大的 Vue3 微信小程序编译器，支持完整的 Vue3 语法和 SCSS 导入功能。
+🚀 **FuckMP** - Vue3 微信小程序编译器，按 Native-first 原则逐步支持 Vue3 SFC 与 SCSS 导入功能。
 
 将 Vue3 单文件组件编译为原生微信小程序代码，让你用熟悉的 Vue3 语法开发小程序。
 
 ## ✨ 特性
 
-- 🎯 **完整的 Vue3 语法支持**: Composition API、`<script setup>`、TypeScript
+- 🎯 **Vue3 SFC 语法支持**: Composition API 基础能力、`<script setup>`、TypeScript
 - 🔄 **智能转换**: 自动将 Vue3 语法转换为小程序语法
-- 🧩 **组件系统**: 支持组件导入、Props、Emits、插槽
+- 🧩 **组件系统**: 支持组件导入、Props、Emits 基础转换，插槽按小程序能力继续补齐
 - 🎨 **强大的样式处理**:
   - 支持 SCSS/Sass 预处理器
   - **JavaScript 导入样式**: `import './styles.scss'`
@@ -130,7 +130,7 @@ const handleClick = () => {
 
 ```vue
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed } from 'vue'
 
 // ref
 const message = ref('Hello World')
@@ -146,10 +146,7 @@ const displayName = computed(() => {
   return `${state.user.name} (${state.user.age}岁)`
 })
 
-// watch
-watch(message, (newVal, oldVal) => {
-  console.log(`消息从 ${oldVal} 变为 ${newVal}`)
-})
+// watch / watchEffect 后续按能力矩阵补齐
 </script>
 ```
 
@@ -370,6 +367,13 @@ await compiler.compileFile('src/pages/index/index.vue')
 await compiler.watch()
 ```
 
+架构边界：
+
+- 项目目标是 **Native-first + Thin Runtime**：优先输出原生微信小程序 `wxml / wxss / js / json`，运行时只保留必要桥接。
+- 模板指令、事件、props/emits、生命周期和样式默认走原生编译输出，不允许用伪 runtime 模块占位。
+- 当前运行时白名单仅包含 `core` 与按需 `reactivity`；`ref/reactive/computed` 触发响应式桥接，`<script setup>` 本身不触发响应式运行时。
+- 详细边界见 `docs/native-first-runtime-boundary.md`。
+
 导入边界：
 
 - 当前 public surface 是包根入口 `fuckmp` 与 CLI 命令 `fuckmp` / `fmp`。
@@ -381,15 +385,15 @@ await compiler.watch()
 
 | 特性 | 支持状态 | 说明 |
 |------|---------|------|
-| `<script setup>` | ✅ | 完整支持 |
-| Composition API | ✅ | ref, reactive, computed, watch 等 |
+| `<script setup>` | ✅ | 基础解析与编译已覆盖，复杂宏按矩阵继续补齐 |
+| Composition API | 🚧 | 当前运行时桥接白名单为 ref, reactive, computed；watch/watchEffect 待补 |
 | TypeScript | ✅ | 原生支持 |
-| Props/Emits | ✅ | defineProps, defineEmits |
-| 生命周期 | ✅ | 自动映射到小程序生命周期 |
-| 模板语法 | ✅ | v-if, v-for, v-model, 事件处理 |
+| Props/Emits | 🚧 | defineProps, defineEmits 基础转换，继续按原生输出矩阵补齐 |
+| 生命周期 | ✅ | 映射到小程序生命周期，不依赖 lifecycle runtime |
+| 模板语法 | 🚧 | v-if, v-for, v-model, 事件处理按原生 WXML/JS 输出逐步补齐 |
 | 样式 | ✅ | CSS, SCSS, 作用域样式 |
 | **SCSS 导入** | ✅ | **JavaScript 导入和 @import 语句** |
-| 插槽 | ✅ | 默认插槽和具名插槽 |
+| 插槽 | 🚧 | 需要按小程序 slot 能力降级验证 |
 | Provide/Inject | 🚧 | 计划支持 |
 | Teleport | ❌ | 小程序不支持 |
 | Suspense | ❌ | 小程序不支持 |

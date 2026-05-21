@@ -200,10 +200,7 @@ if (typeof global !== 'undefined') {
   private needsReactivity(usage: Vue3FeatureUsage): boolean {
     return usage.reactivity.ref ||
       usage.reactivity.reactive ||
-      usage.reactivity.computed ||
-      usage.reactivity.watch ||
-      usage.reactivity.watchEffect ||
-      usage.composition.setup
+      usage.reactivity.computed
   }
 
   /**

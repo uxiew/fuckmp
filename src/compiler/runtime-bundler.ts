@@ -77,56 +77,6 @@ export class RuntimeBundler {
       isCore: false
     })
 
-    // 生命周期模块
-    this.registerModule({
-      name: 'lifecycle',
-      path: 'runtime/core/lifecycle.ts',
-      size: 3072,
-      dependencies: ['core'],
-      code: '',
-      isCore: false
-    })
-
-    // 模板引擎模块
-    this.registerModule({
-      name: 'template',
-      path: 'runtime/core/template.ts',
-      size: 5120,
-      dependencies: ['core', 'reactivity'],
-      code: '',
-      isCore: false
-    })
-
-    // 依赖注入模块
-    this.registerModule({
-      name: 'di',
-      path: 'runtime/core/di.ts',
-      size: 2560,
-      dependencies: ['core', 'reactivity'],
-      code: '',
-      isCore: false
-    })
-
-    // 事件系统模块
-    this.registerModule({
-      name: 'event',
-      path: 'runtime/core/event.ts',
-      size: 3584,
-      dependencies: ['core'],
-      code: '',
-      isCore: false
-    })
-
-    // 组件管理器模块
-    this.registerModule({
-      name: 'component',
-      path: 'runtime/core/component.ts',
-      size: 4608,
-      dependencies: ['core', 'lifecycle', 'reactivity'],
-      code: '',
-      isCore: false
-    })
-
     logger.info(`已注册 ${this.availableModules.size} 个运行时模块`)
   }
 
@@ -151,26 +101,6 @@ export class RuntimeBundler {
       requiredModules.add('reactivity')
     }
 
-    if (this.needsLifecycle(featureUsage)) {
-      requiredModules.add('lifecycle')
-    }
-
-    if (this.needsTemplate(featureUsage)) {
-      requiredModules.add('template')
-    }
-
-    if (this.needsDI(featureUsage)) {
-      requiredModules.add('di')
-    }
-
-    if (this.needsEvent(featureUsage)) {
-      requiredModules.add('event')
-    }
-
-    if (this.needsComponent(featureUsage)) {
-      requiredModules.add('component')
-    }
-
     // 解析依赖关系
     const resolvedModules = this.resolveDependencies(Array.from(requiredModules))
 
@@ -184,52 +114,7 @@ export class RuntimeBundler {
   private needsReactivity(usage: Vue3FeatureUsage): boolean {
     return usage.reactivity.ref ||
       usage.reactivity.reactive ||
-      usage.reactivity.computed ||
-      usage.reactivity.watch ||
-      usage.reactivity.watchEffect ||
-      usage.composition.setup
-  }
-
-  /**
-   * 检查是否需要生命周期模块
-   */
-  private needsLifecycle(usage: Vue3FeatureUsage): boolean {
-    return Object.values(usage.lifecycle).some(used => used) ||
-      usage.composition.setup
-  }
-
-  /**
-   * 检查是否需要模板引擎模块
-   */
-  private needsTemplate(usage: Vue3FeatureUsage): boolean {
-    return usage.directives.vIf ||
-      usage.directives.vFor ||
-      usage.directives.vShow ||
-      usage.advanced.slots
-  }
-
-  /**
-   * 检查是否需要依赖注入模块
-   */
-  private needsDI(usage: Vue3FeatureUsage): boolean {
-    return usage.composition.provide || usage.composition.inject
-  }
-
-  /**
-   * 检查是否需要事件系统模块
-   */
-  private needsEvent(usage: Vue3FeatureUsage): boolean {
-    return usage.directives.vOn || usage.directives.vModel
-  }
-
-  /**
-   * 检查是否需要组件管理器模块
-   */
-  private needsComponent(usage: Vue3FeatureUsage): boolean {
-    return usage.composition.setup ||
-      usage.composition.defineProps ||
-      usage.composition.defineEmits ||
-      usage.composition.defineExpose
+      usage.reactivity.computed
   }
 
   /**

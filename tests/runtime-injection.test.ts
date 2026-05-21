@@ -133,9 +133,9 @@ describe('运行时注入功能', () => {
   })
 
   describe('运行时打包器', () => {
-    it('应该根据特性使用情况确定需要的模块', () => {
+    it('应该只为已实现的薄运行时能力选择模块', () => {
       const bundler = new RuntimeBundler(runtimeInjector.getConfig())
-      
+
       const featureUsage: Vue3FeatureUsage = {
         reactivity: { ref: true, reactive: false, computed: false, watch: false, watchEffect: false },
         composition: { setup: true, defineProps: false, defineEmits: false, defineExpose: false, provide: false, inject: false },
@@ -146,27 +146,29 @@ describe('运行时注入功能', () => {
 
       const requiredModules = bundler.getRequiredModules(featureUsage)
 
-      expect(requiredModules).toContain('core')
-      expect(requiredModules).toContain('reactivity')
-      expect(requiredModules).toContain('template') // v-if 需要模板引擎
+      expect(requiredModules).toEqual(['core', 'reactivity'])
     })
 
-    it('应该正确解析模块依赖关系', () => {
+    it('原生可编译特性不应该引入伪运行时模块', () => {
       const bundler = new RuntimeBundler(runtimeInjector.getConfig())
-      
+
       const featureUsage: Vue3FeatureUsage = {
         reactivity: { ref: false, reactive: false, computed: false, watch: false, watchEffect: false },
-        composition: { setup: false, defineProps: false, defineEmits: false, defineExpose: false, provide: true, inject: true },
-        directives: { vIf: false, vFor: false, vModel: false, vShow: false, vOn: false, vBind: false },
-        lifecycle: { onMounted: false, onUnmounted: false, onUpdated: false, onBeforeMount: false, onBeforeUnmount: false, onBeforeUpdate: false },
-        advanced: { slots: false, teleport: false, suspense: false, keepAlive: false, transition: false }
+        composition: { setup: true, defineProps: true, defineEmits: true, defineExpose: false, provide: true, inject: true },
+        directives: { vIf: true, vFor: true, vModel: true, vShow: true, vOn: true, vBind: true },
+        lifecycle: { onMounted: true, onUnmounted: true, onUpdated: false, onBeforeMount: false, onBeforeUnmount: false, onBeforeUpdate: false },
+        advanced: { slots: true, teleport: false, suspense: false, keepAlive: false, transition: false }
       }
 
       const requiredModules = bundler.getRequiredModules(featureUsage)
 
-      expect(requiredModules).toContain('core')
-      expect(requiredModules).toContain('di') // provide/inject 需要依赖注入模块
-      expect(requiredModules).toContain('reactivity') // di 模块依赖 reactivity
+      expect(requiredModules).toEqual(['core'])
+      expect(requiredModules).not.toContain('template')
+      expect(requiredModules).not.toContain('event')
+      expect(requiredModules).not.toContain('lifecycle')
+      expect(requiredModules).not.toContain('component')
+      expect(requiredModules).not.toContain('di')
+      expect(requiredModules).not.toContain('reactivity')
     })
   })
 

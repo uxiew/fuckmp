@@ -27,6 +27,7 @@
 - [x] 最终生成 JS 语法级验证：真实项目 e2e 已解析 `runtime-injection` 覆盖后的 `app.js`、页面 JS、组件 JS，覆盖生命周期嵌套箭头函数和多行字符串字面量语法风险。
 - [x] `TemplateTransformer` 字符串后处理工具拆分：Vue 绑定/事件、自闭合标签、三花括号与空白清理已抽离到 `src/transformer/template-string-utils.ts`，新增定向单测覆盖。
 - [x] `ScriptParser` AST 代码生成工具拆分：表达式/语句代码片段生成已抽离到 `src/parser/script-codegen-utils.ts`，新增定向单测覆盖。
+- [x] Native-first runtime 边界：正式记录 `docs/native-first-runtime-boundary.md`，并用测试约束 runtime 只返回 `core` 或 `core + reactivity`，不再为模板/事件/生命周期/组件语义注入伪模块。
 - [x] 单文件行数约束：当前 `src/**/*` 未超过 800 行硬上限；`script-parser.ts` 已降至 327 行，当前最大源码文件为 `page-generator.ts` 712 行。
 - [x] 默认测试输出：Browserslist 过期提示已在 Vitest 环境中静默；真机测试默认跳过，需 `FUCKMP_REAL_DEVICE_TESTS=1` 显式启用。
 

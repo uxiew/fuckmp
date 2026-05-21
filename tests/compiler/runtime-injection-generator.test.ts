@@ -94,22 +94,28 @@ describe('RuntimeInjectionGenerator', () => {
     expect(content).toContain('module.exports = {')
   })
 
-  it('只有使用响应式或 setup 特性时才生成响应式 runtime 模块', () => {
+  it('只有使用已实现的响应式 API 时才生成响应式 runtime 模块', () => {
     const generator = new RuntimeInjectionGenerator(baseConfig)
     const plainContent = generator.generateRuntimeInjectionCode(
       bundleResult,
       createUsage(),
       '// fixed header'
     )
-    const reactiveContent = generator.generateRuntimeInjectionCode(
+    const setupOnlyContent = generator.generateRuntimeInjectionCode(
       bundleResult,
       createUsage({ composition: { setup: true } }),
       '// fixed header'
     )
+    const reactiveContent = generator.generateRuntimeInjectionCode(
+      bundleResult,
+      createUsage({ reactivity: { ref: true } }),
+      '// fixed header'
+    )
 
     expect(plainContent).not.toContain('function ref(value, context)')
-    expect(plainContent).not.toContain('function reactive(obj, context)')
-    expect(plainContent).not.toContain('function computed(getter, context)')
+    expect(setupOnlyContent).not.toContain('function ref(value, context)')
+    expect(setupOnlyContent).not.toContain('function reactive(obj, context)')
+    expect(setupOnlyContent).not.toContain('function computed(getter, context)')
     expect(reactiveContent).toContain('function ref(value, context)')
     expect(reactiveContent).toContain('function reactive(obj, context)')
     expect(reactiveContent).toContain('function computed(getter, context)')
