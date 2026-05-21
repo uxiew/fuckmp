@@ -5,6 +5,7 @@
 import type { TransformContext, GenerateResult, CompilerOptions } from '@/types/index.js'
 import type { ScriptTransformResult, TemplateTransformResult, StyleTransformResult } from '@/transformer/index.js'
 import { generateDefineExposeDegradeComment, generateDefineOptionsDegradeComment, generateDefineSlotsDegradeComment, generateProvideInjectDegradeComment, generateUseIdNativeComment, generateUseTemplateRefDegradeComment, generateUnsupportedTemplateDegradeComment, generateWatcherDegradeComment, logger } from '@/utils/index.js'
+import { generatePageWXSS } from './page-generator-utils.js'
 import { addScopeAttributes, generateScopeId, generateUsingComponents, removeCtxPrefixes } from './shared-generator-utils.js'
 
 /**
@@ -33,7 +34,7 @@ export class PageGenerator {
         js: this.generateJS(scriptResult, templateResult, context),
         json: this.generateJSON(scriptResult, templateResult, context),
         wxml: this.generateWXML(templateResult, context),
-        wxss: this.generateWXSS(styleResults, context)
+        wxss: this.generateWXSS(styleResults)
       }
 
       logger.debug(`页面代码生成完成: ${context.filename}`)
@@ -209,66 +210,10 @@ ${parts.join(',\n\n')}
   /**
    * 生成 WXSS 样式
    */
-  private generateWXSS(styleResults: StyleTransformResult | StyleTransformResult[], context: TransformContext): string {
-    let finalStyles = ''
-
-    // 添加页面基础样式（仅在配置启用时）
-    if (!this.options.pureMode && this.options.page.baseStyles) {
-      const baseStyles = `/* 页面基础样式 */
-.page-container {
-  min-height: 100vh;
-  background-color: #f5f5f5;
-}
-
-/* 加载状态样式 */
-.loading-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-}
-
-.loading-spinner {
-  width: 60rpx;
-  height: 60rpx;
-  border: 4rpx solid #e0e0e0;
-  border-top: 4rpx solid #1976d2;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-.loading-text {
-  margin-top: 20rpx;
-  color: #666;
-  font-size: 28rpx;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* 用户自定义样式 */`
-      finalStyles = baseStyles
-    }
-
-    if (!styleResults) {
-      return finalStyles
-    }
-
-    // 如果是单个样式结果，直接返回
-    if (!Array.isArray(styleResults)) {
-      return finalStyles ? finalStyles + '\n' + styleResults.wxss : styleResults.wxss
-    }
-
-    // 如果是多个样式结果，合并它们
-    const allStyles = styleResults
-      .filter(result => result && result.wxss)
-      .map(result => result.wxss)
-      .join('\n\n')
-
-    return finalStyles ? finalStyles + '\n' + allStyles : allStyles
+  private generateWXSS(styleResults: StyleTransformResult | StyleTransformResult[]): string {
+    return generatePageWXSS(styleResults, {
+      includeBaseStyles: !this.options.pureMode && this.options.page.baseStyles
+    })
   }
 
   /**
