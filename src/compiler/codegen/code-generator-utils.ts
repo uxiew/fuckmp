@@ -37,3 +37,63 @@ export function getRelativeRuntimePath(filePath: string): string {
   const prefix = depth > 0 ? '../'.repeat(depth) : './'
   return `${prefix}runtime-injection.js`
 }
+
+/**
+ * 映射 Vue prop 类型到小程序类型构造函数名。
+ */
+export function mapVueTypeToMiniProgram(vueType: any): string {
+  if (!vueType) return 'Object'
+
+  if (typeof vueType === 'string') {
+    return mapTypeName(vueType)
+  }
+
+  if (typeof vueType === 'function') {
+    return mapTypeName(vueType.name)
+  }
+
+  return 'Object'
+}
+
+/**
+ * 过滤小程序选项中的空值和无效生命周期占位。
+ */
+export function filterInvalidOptions(options: any): any {
+  const filtered: any = {}
+
+  Object.entries(options).forEach(([key, value]) => {
+    if (
+      ['attached', 'onReady', 'onShow', 'onHide', 'onUnload'].includes(key) &&
+      typeof value === 'string' &&
+      value.includes('无效的回调函数')
+    ) {
+      return
+    }
+
+    if ((value !== null && value !== undefined && value !== '') || Array.isArray(value)) {
+      filtered[key] = value
+    }
+  })
+
+  return filtered
+}
+
+/**
+ * 将类型名规整为小程序类型构造函数名。
+ */
+function mapTypeName(typeName: string): string {
+  switch (typeName.toLowerCase()) {
+    case 'string':
+      return 'String'
+    case 'number':
+      return 'Number'
+    case 'boolean':
+      return 'Boolean'
+    case 'array':
+      return 'Array'
+    case 'object':
+      return 'Object'
+    default:
+      return 'Object'
+  }
+}

@@ -7,7 +7,7 @@ import type { Vue3FeatureUsage, RuntimeInjectionConfig } from './runtime-injecto
 import type { BundleResult } from './runtime-bundler'
 import { ObjectLiteralSerializer } from './codegen/object-serializer'
 import { RuntimeInjectionGenerator } from './codegen/runtime-injection-generator'
-import { generateCodeFileHeader, getRelativeRuntimePath } from './codegen/code-generator-utils'
+import { filterInvalidOptions, generateCodeFileHeader, getRelativeRuntimePath, mapVueTypeToMiniProgram } from './codegen/code-generator-utils'
 import { logger } from '@/utils/logger'
 
 /**
@@ -226,7 +226,7 @@ Component(createComponent(componentOptions));
     }
 
     // 过滤掉无效的属性
-    return this.serializer.stringifyWithFunctions(this.filterInvalidOptions(options))
+    return this.serializer.stringifyWithFunctions(filterInvalidOptions(options))
   }
 
   /**
@@ -272,7 +272,7 @@ Component(createComponent(componentOptions));
     }
 
     // 过滤掉无效的属性
-    return this.serializer.stringifyWithFunctions(this.filterInvalidOptions(options))
+    return this.serializer.stringifyWithFunctions(filterInvalidOptions(options))
   }
 
   /**
@@ -460,67 +460,11 @@ Component(createComponent(componentOptions));
     const result: any = {}
     Object.entries(props).forEach(([name, prop]: [string, any]) => {
       result[name] = {
-        type: this.mapVueTypeToMiniProgram(prop.type),
+        type: mapVueTypeToMiniProgram(prop.type),
         value: prop.default
       }
     })
     return result
-  }
-
-  /**
-   * 映射 Vue 类型到小程序类型（返回构造函数而不是字符串）
-   */
-  private mapVueTypeToMiniProgram(vueType: any): string {
-    if (!vueType) return 'Object'  // 默认为 Object 而不是 null
-
-    if (typeof vueType === 'string') {
-      switch (vueType.toLowerCase()) {
-        case 'string': return 'String'
-        case 'number': return 'Number'
-        case 'boolean': return 'Boolean'
-        case 'array': return 'Array'
-        case 'object': return 'Object'
-        default: return 'Object'  // 未知类型默认为 Object
-      }
-    }
-
-    // 如果是构造函数，尝试推断类型
-    if (typeof vueType === 'function') {
-      switch (vueType.name) {
-        case 'String': return 'String'
-        case 'Number': return 'Number'
-        case 'Boolean': return 'Boolean'
-        case 'Array': return 'Array'
-        case 'Object': return 'Object'
-        default: return 'Object'
-      }
-    }
-
-    return 'Object'
-  }
-
-  /**
-   * 过滤掉无效的选项属性
-   */
-  private filterInvalidOptions(options: any): any {
-    const filtered: any = {}
-
-    Object.entries(options).forEach(([key, value]) => {
-
-
-      // 过滤掉无效的生命周期方法
-      if (['attached', 'onReady', 'onShow', 'onHide', 'onUnload'].includes(key) &&
-        typeof value === 'string' && value.includes('无效的回调函数')) {
-        return
-      }
-
-      // 过滤掉空值或无效值，但保留数组（即使是空数组）
-      if (value !== null && value !== undefined && value !== '' || Array.isArray(value)) {
-        filtered[key] = value
-      }
-    })
-
-    return filtered
   }
 
   /**
