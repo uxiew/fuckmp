@@ -6,6 +6,7 @@ import { SFCParser, ScriptParser, TemplateParser, StyleParser } from '@/parser/i
 import { ScriptTransformer, TemplateTransformer, StyleTransformer } from '@/transformer/index.js'
 import { ComponentGenerator, PageGenerator, ConfigGenerator } from '@/generator/index.js'
 import { ConfigManager } from './options.js'
+import { generateAppStyles } from './app-styles.js'
 import { createInitialTransformContext } from './transform-context.js'
 import { PluginManager, createDefaultPluginManager } from '@/plugins/index.js'
 import { UserConfigManager } from '@/config/user-config.js'
@@ -209,7 +210,7 @@ export class Vue3MiniprogramCompiler {
       await this.generateAppConfig(result.success)
 
       // 生成应用样式
-      await this.generateAppStyles(options.output)
+      await generateAppStyles(options.output)
 
       // 执行运行时注入
       await this.performRuntimeInjection(options.output)
@@ -631,29 +632,6 @@ export class Vue3MiniprogramCompiler {
     logger.debug(`最终页面路径:`, pages)
 
     await this.configGenerator.generateAppConfig(pages, options.output)
-  }
-
-  /**
-   * 生成应用样式
-   */
-  private async generateAppStyles(outputDir: string): Promise<void> {
-    try {
-      logger.debug('生成应用样式文件')
-
-      // 只生成空的 app.wxss 文件，不添加任何不必要的样式
-      const appStyles = `/* Vue3 微信小程序编译器生成的应用样式文件 */
-/* 如需添加全局样式，请在此文件中编写 */
-`
-
-      const appStylesPath = path.join(outputDir, 'app.wxss')
-      await writeFile(appStylesPath, appStyles)
-
-      logger.debug('应用样式文件生成完成')
-
-    } catch (error) {
-      logger.error('应用样式文件生成失败', error as Error)
-      throw error
-    }
   }
 
   /**
