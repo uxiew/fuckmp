@@ -9,3 +9,9 @@ node_modules
 *.log
 .env.local
 .env.*.local
+.tmp
+debug-*.js
+analyze-wxml.js
+test-debug.html
+test-config*.json
+test-report.md
