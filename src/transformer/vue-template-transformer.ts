@@ -405,7 +405,7 @@ export class VueTemplateTransformer {
         const modifiers = (directive.modifiers || []).map((mod: any) =>
           typeof mod === 'string' ? mod : mod.content || mod
         )
-        return this.transformVModel(exp, result, modifiers, tagName)
+        return this.transformVModel(exp, result, modifiers, tagName, arg)
 
       default:
         logger.warn(`未处理的指令: v-${name}`)
@@ -607,7 +607,11 @@ export class VueTemplateTransformer {
   /**
    * 转换 v-model 指令
    */
-  private transformVModel(expression: string, result: TemplateTransformResult, modifiers: string[] = [], elementType?: string): string[] {
+  private transformVModel(expression: string, result: TemplateTransformResult, modifiers: string[] = [], elementType?: string, modelArg?: string): string[] {
+    if (this.isCustomComponentTag(elementType)) {
+      return this.transformComponentVModel(expression, result, modelArg)
+    }
+
     // 根据元素类型和修饰符生成不同的处理函数名和事件类型
     let handlerPrefix = '_handleInput'
     let eventType = 'bindinput'
@@ -640,6 +644,42 @@ export class VueTemplateTransformer {
       `value="{{${expression}}}"`,
       `${eventType}="${inputHandler}"`
     ]
+  }
+
+
+  /**
+   * 转换自定义组件 v-model 为原生属性绑定与 update 事件监听。
+   */
+  private transformComponentVModel(expression: string, result: TemplateTransformResult, modelArg?: string): string[] {
+    const propName = modelArg || 'modelValue'
+    const attrName = propName === 'modelValue' ? 'model-value' : this.toKebabCase(propName)
+    const updateEvent = propName === 'modelValue' ? 'update:modelValue' : `update:${propName}`
+    const handlerName = `_handleUpdate_${expression.replace(/\./g, '_')}`
+
+    result.eventHandlers.set(handlerName, handlerName)
+
+    return [
+      `${attrName}="{{${expression}}}"`,
+      `bind:${updateEvent}="${handlerName}"`
+    ]
+  }
+
+  /**
+   * 判断是否为自定义组件标签。
+   */
+  private isCustomComponentTag(tagName?: string): boolean {
+    if (!tagName) return false
+    const nativeModelTags = new Set([
+      'input',
+      'textarea',
+      'radio-group',
+      'checkbox-group',
+      'picker',
+      'switch',
+      'slider'
+    ])
+    if (nativeModelTags.has(tagName)) return false
+    return /^[A-Z]/.test(tagName) || tagName.includes('-')
   }
 
   /**

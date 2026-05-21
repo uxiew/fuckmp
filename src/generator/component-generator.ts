@@ -249,7 +249,7 @@ ${entries.join(',\n')}
     }
 
     // 事件处理器（从模板转换结果生成）
-    const templateEventHandlers = this.generateTemplateEventHandlers(templateResult)
+    const templateEventHandlers = this.generateTemplateEventHandlers(templateResult, emits)
     if (templateEventHandlers.trim()) {
       methodParts.push(templateEventHandlers)
     }
@@ -319,7 +319,7 @@ ${this.generateComputedUpdate(computed)}
    */
   private generateEmitMethods(emits: string[]): string {
     const methods = emits.map(eventName => {
-      const methodName = `_emit${this.capitalize(eventName)}`
+      const methodName = `_emit${this.toSafeMethodSuffix(eventName)}`
       return `    ${methodName}(detail) {
       this.triggerEvent('${eventName}', detail)
     }`
@@ -335,7 +335,7 @@ ${this.generateComputedUpdate(computed)}
   /**
    * 生成模板事件处理器
    */
-  private generateTemplateEventHandlers(templateResult: TemplateTransformResult): string {
+  private generateTemplateEventHandlers(templateResult: TemplateTransformResult, emits: string[]): string {
     const handlers: string[] = []
 
     // 从模板转换结果中生成事件处理器
@@ -347,7 +347,7 @@ ${this.generateComputedUpdate(computed)}
       const value = event.detail.value
       this.setData({
         ${fieldName}: value
-      })
+      })${this.generateModelTrigger(fieldName, emits)}
     }`)
       } else if (handlerName.startsWith('_handleNumberInput_')) {
         const fieldName = handlerName.replace('_handleNumberInput_', '')
@@ -355,7 +355,7 @@ ${this.generateComputedUpdate(computed)}
       const value = parseFloat(event.detail.value) || 0
       this.setData({
         ${fieldName}: value
-      })
+      })${this.generateModelTrigger(fieldName, emits)}
     }`)
       } else if (handlerName.startsWith('_handleTrimInput_')) {
         const fieldName = handlerName.replace('_handleTrimInput_', '')
@@ -363,7 +363,7 @@ ${this.generateComputedUpdate(computed)}
       const value = event.detail.value.trim()
       this.setData({
         ${fieldName}: value
-      })
+      })${this.generateModelTrigger(fieldName, emits)}
     }`)
       } else if (handlerName.startsWith('_handleRadio_')) {
         const fieldName = handlerName.replace('_handleRadio_', '')
@@ -371,7 +371,7 @@ ${this.generateComputedUpdate(computed)}
       const value = event.detail.value
       this.setData({
         ${fieldName}: value
-      })
+      })${this.generateModelTrigger(fieldName, emits)}
     }`)
       } else if (handlerName.startsWith('_handleCheckbox_')) {
         const fieldName = handlerName.replace('_handleCheckbox_', '')
@@ -379,7 +379,7 @@ ${this.generateComputedUpdate(computed)}
       const value = event.detail.value
       this.setData({
         ${fieldName}: value
-      })
+      })${this.generateModelTrigger(fieldName, emits)}
     }`)
       } else if (handlerName.startsWith('_handlePicker_')) {
         const fieldName = handlerName.replace('_handlePicker_', '')
@@ -387,6 +387,13 @@ ${this.generateComputedUpdate(computed)}
       const value = event.detail.value
       this.setData({
         ${fieldName}: value
+      })${this.generateModelTrigger(fieldName, emits)}
+    }`)
+      } else if (handlerName.startsWith('_handleUpdate_')) {
+        const fieldName = handlerName.replace('_handleUpdate_', '')
+        handlers.push(`    ${handlerName}(event) {
+      this.setData({
+        ${fieldName}: event.detail
       })
     }`)
       } else {
@@ -398,6 +405,17 @@ ${this.generateComputedUpdate(computed)}
     })
 
     return handlers.join(',\n\n')
+  }
+
+  /**
+   * 为 defineModel 对应的输入处理器补充 update:* 事件。
+   */
+  private generateModelTrigger(fieldName: string, emits: string[]): string {
+    const eventName = `update:${fieldName}`
+    if (!emits.includes(eventName)) {
+      return ''
+    }
+    return `\n      this.triggerEvent('${eventName}', value)`
   }
 
   /**
@@ -447,12 +465,13 @@ ${updates.join(',\n')}
    * 获取属性类型
    */
   private getPropertyType(prop: any): string {
-    if (typeof prop === 'function') {
-      if (prop === String) return 'String'
-      if (prop === Number) return 'Number'
-      if (prop === Boolean) return 'Boolean'
-      if (prop === Array) return 'Array'
-      if (prop === Object) return 'Object'
+    const propType = prop && typeof prop === 'object' && 'type' in prop ? prop.type : prop
+    if (typeof propType === 'function') {
+      if (propType === String) return 'String'
+      if (propType === Number) return 'Number'
+      if (propType === Boolean) return 'Boolean'
+      if (propType === Array) return 'Array'
+      if (propType === Object) return 'Object'
     }
     return 'String'
   }
@@ -461,12 +480,17 @@ ${updates.join(',\n')}
    * 获取属性默认值
    */
   private getPropertyDefault(prop: any): any {
-    if (typeof prop === 'function') {
-      if (prop === String) return ''
-      if (prop === Number) return 0
-      if (prop === Boolean) return false
-      if (prop === Array) return []
-      if (prop === Object) return {}
+    if (prop && typeof prop === 'object' && 'default' in prop && prop.default !== undefined) {
+      return prop.default
+    }
+
+    const propType = prop && typeof prop === 'object' && 'type' in prop ? prop.type : prop
+    if (typeof propType === 'function') {
+      if (propType === String) return ''
+      if (propType === Number) return 0
+      if (propType === Boolean) return false
+      if (propType === Array) return []
+      if (propType === Object) return {}
     }
     return null
   }
@@ -480,6 +504,18 @@ ${updates.join(',\n')}
 // 生成时间: ${new Date().toISOString()}
 
 ${code}`
+  }
+
+
+  /**
+   * 将事件名转换为安全的方法名后缀。
+   */
+  private toSafeMethodSuffix(eventName: string): string {
+    return eventName
+      .split(/[^a-zA-Z0-9]+/)
+      .filter(Boolean)
+      .map(part => this.capitalize(part))
+      .join('')
   }
 
   /**

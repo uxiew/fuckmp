@@ -4,6 +4,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { join } from 'path'
+import { parse } from '@babel/parser'
 import { Vue3MiniprogramCompiler } from '@/compiler/compiler.js'
 import { createTestFile, getTestDir, readTestFile, removeTestFile } from '../setup.js'
 
@@ -35,7 +36,7 @@ describe('defineModel + v-model 原生闭环', () => {
     testFiles = []
   })
 
-  it.fails('应该把 defineModel 与组件 v-model 编译为 properties、update 事件和原生 handler', async () => {
+  it('应该把 defineModel 与组件 v-model 编译为 properties、update 事件和原生 handler', async () => {
     const childContent = `<template>
   <view class="model-input">
     <input v-model="modelValue" />
@@ -73,6 +74,9 @@ const title = ref('initial title')
     const childWxml = await readTestFile('output/components/ModelInput.wxml')
     const pageJs = await readTestFile('output/pages/ModelPage.js')
     const pageWxml = await readTestFile('output/pages/ModelPage.wxml')
+
+    expect(() => parse(childJs, { sourceType: 'script' })).not.toThrow()
+    expect(() => parse(pageJs, { sourceType: 'script' })).not.toThrow()
 
     // 子组件 defineModel 应生成原生 properties，而不是落入 data 或伪 runtime。
     expect(childJs).toContain('modelValue: {')

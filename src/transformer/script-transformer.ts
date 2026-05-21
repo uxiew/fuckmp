@@ -196,7 +196,9 @@ export class ScriptTransformer {
     }
 
     parseResult.variables.forEach((variable, name) => {
-      if (variable.isReactive) {
+      if (variable.macroType === 'defineModel') {
+        this.processDefineModelVariable(variable, context)
+      } else if (variable.isReactive) {
         // 响应式变量
         if (variable.macroType === 'computed') {
           // 计算属性 - 转换 getter 中的响应式变量访问
@@ -244,6 +246,46 @@ export class ScriptTransformer {
         }
       }
     })
+  }
+
+
+  /**
+   * 将 defineModel 编译为原生小程序 property 与 update 事件。
+   */
+  private processDefineModelVariable(variable: any, context: TransformContext): void {
+    const modelInfo = variable.init || {}
+    const propName = modelInfo.property || 'modelValue'
+    const propType = this.getConstructorFromTypeName(modelInfo.type)
+
+    context.props[propName] = {
+      type: propType,
+      default: modelInfo.default,
+      required: Boolean(modelInfo.required)
+    }
+
+    const updateEvent = `update:${propName}`
+    if (!context.emits.includes(updateEvent)) {
+      context.emits.push(updateEvent)
+    }
+  }
+
+  /**
+   * 将类型名称映射为小程序 property 构造函数。
+   */
+  private getConstructorFromTypeName(typeName: string): any {
+    switch (typeName) {
+      case 'Number':
+        return Number
+      case 'Boolean':
+        return Boolean
+      case 'Array':
+        return Array
+      case 'Object':
+        return Object
+      case 'String':
+      default:
+        return String
+    }
   }
 
   /**

@@ -30,7 +30,7 @@ export class PageGenerator {
       logger.debug(`生成页面代码: ${context.filename}`)
 
       const result: GenerateResult = {
-        js: this.generateJS(scriptResult, context),
+        js: this.generateJS(scriptResult, templateResult, context),
         json: this.generateJSON(scriptResult, templateResult, context),
         wxml: this.generateWXML(templateResult, context),
         wxss: this.generateWXSS(styleResults, context)
@@ -48,7 +48,7 @@ export class PageGenerator {
   /**
    * 生成 JavaScript 代码
    */
-  private generateJS(scriptResult: ScriptTransformResult, context: TransformContext): string {
+  private generateJS(scriptResult: ScriptTransformResult, templateResult: TemplateTransformResult, context: TransformContext): string {
     const { data, methods, computed, lifecycle, reactiveVariables } = context
 
     // 生成页面定义的各个部分
@@ -77,6 +77,13 @@ ${lifecycleCode}`)
     if (methodsCode) {
       parts.push(`  // 页面方法
 ${methodsCode}`)
+    }
+
+    // 模板生成的必要事件处理器
+    const templateEventHandlers = this.generateTemplateEventHandlers(templateResult)
+    if (templateEventHandlers) {
+      parts.push(`  // 模板事件处理器
+${templateEventHandlers}`)
     }
 
     // 计算属性方法
@@ -546,6 +553,28 @@ ${parts.join(',\n\n')}
     return entries.join(',\n\n')
   }
 
+
+  /**
+   * 生成模板必须的事件处理器。
+   */
+  private generateTemplateEventHandlers(templateResult: TemplateTransformResult): string {
+    const handlers: string[] = []
+
+    templateResult.eventHandlers.forEach((handlerCode, handlerName) => {
+      if (handlerName.startsWith('_handleUpdate_')) {
+        const fieldName = handlerName.replace('_handleUpdate_', '')
+        handlers.push(`  ${handlerName}(event) {
+    this.setData({
+      ${fieldName}: event.detail
+    })
+    this._updateComputed()
+  }`)
+      }
+    })
+
+    return handlers.join(',\n\n')
+  }
+
   /**
    * 生成事件处理器
    */
@@ -613,6 +642,7 @@ ${parts.join(',\n\n')}
 
     return handlers.join(',\n\n')
   }
+
 
   /**
    * 生成响应式设置

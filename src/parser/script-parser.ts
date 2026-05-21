@@ -213,7 +213,7 @@ export class ScriptParser {
         let isReactive = false
         let macroType: string | undefined
 
-        // 检查是否为响应式变量
+        // 检查是否为响应式变量或 <script setup> 编译宏变量
         let initValue: any = undefined
         if (declarator.init && isCallExpression(declarator.init) && isIdentifier(declarator.init.callee)) {
           const calleeName = declarator.init.callee.name
@@ -224,6 +224,9 @@ export class ScriptParser {
             if (declarator.init.arguments.length > 0) {
               initValue = extractArgumentValue(declarator.init.arguments[0], result.variables)
             }
+          } else if (calleeName === 'defineModel') {
+            macroType = calleeName
+            initValue = this.extractDefineModelInfo(declarator.init, name, result)
           } else {
             initValue = extractArgumentValue(declarator.init, result.variables)
           }
@@ -242,6 +245,47 @@ export class ScriptParser {
         result.variables.set(name, variableInfo)
       }
     })
+  }
+
+
+  /**
+   * 提取 defineModel 变量信息。
+   */
+  private extractDefineModelInfo(node: CallExpression, variableName: string, result: ScriptParseResult): Record<string, any> {
+    const firstArg = node.arguments[0]
+    const secondArg = node.arguments[1]
+    const hasNamedModel = firstArg?.type === 'StringLiteral'
+    const optionsNode = hasNamedModel ? secondArg : firstArg
+    const options = optionsNode ? extractArgumentValue(optionsNode, result.variables) : {}
+
+    return {
+      property: hasNamedModel ? (firstArg as any).value : 'modelValue',
+      variable: variableName,
+      type: this.extractDefineModelType(node),
+      default: options && typeof options === 'object' && 'default' in options ? options.default : undefined,
+      required: options && typeof options === 'object' && 'required' in options ? options.required : false
+    }
+  }
+
+  /**
+   * 从 defineModel 泛型或默认值中推断小程序 property 类型。
+   */
+  private extractDefineModelType(node: CallExpression): string {
+    const typeParam = (node as any).typeParameters?.params?.[0]
+    switch (typeParam?.type) {
+      case 'TSNumberKeyword':
+        return 'Number'
+      case 'TSBooleanKeyword':
+        return 'Boolean'
+      case 'TSArrayType':
+        return 'Array'
+      case 'TSTypeLiteral':
+      case 'TSTypeReference':
+        return 'Object'
+      case 'TSStringKeyword':
+      default:
+        return 'String'
+    }
   }
 
   /**
