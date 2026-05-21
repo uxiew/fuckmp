@@ -501,8 +501,7 @@ class ReactiveInstance {
       // 如果设置了 immediate，立即执行一次
       if ((watcherDef as WatcherDef).immediate) {
         try {
-          const currentValue = this.getValue(key)
-            ; (watcherDef as WatcherDef).callback(currentValue, undefined)
+          (watcherDef as WatcherDef).callback(this.getValue(key), undefined)
         } catch (error) {
           logger.error(`监听器 ${key} 立即执行失败:`, error)
         }

@@ -45,17 +45,17 @@
 - [x] Vue 3.5 `useId` 原生目标映射：非 SSR 微信原生目标下生成稳定 `data` id，组件实例 `attached` 时追加唯一后缀，不生成 ID runtime；覆盖 `tests/e2e/use-id-native.test.ts`。
 - [x] Vue 3.5 `useTemplateRef` 原生目标降级：微信原生目标无 Vue template ref / DOM 或组件实例等价桥接，产物输出降级注释和 template refs，不生成 runtime 代理；覆盖 `tests/e2e/use-template-ref-degrade.test.ts`。
 - [x] Vue 3.5 Native-first 文档一致性审计：README、TODO、latest baseline 与 runtime boundary 中的测试引用必须存在，公开矩阵必须覆盖核心 Vue 3.5 能力测试面；覆盖 `tests/quality/vue35-docs-consistency.test.ts`。
-- [x] 单文件行数约束：当前 `src/**/*` 未超过 720 行维护阈值；`src/transformer/vue-template-transformer.ts` 已拆出无状态节点转换 helper 并降至 423 行，`src/compiler/compiler.ts` 已拆出脚本上下文合并 helper 并降至 648 行，当前最大源码文件为 `src/compiler/compiler.ts` 648 行，并由 `tests/quality/source-size.test.ts` 固化。
+- [x] 单文件行数约束：当前 `src/**/*` 未超过 640 行维护阈值；`src/transformer/vue-template-transformer.ts` 已拆出无状态节点转换 helper 并降至 423 行，`src/compiler/compiler.ts` 已拆出上下文合并和 runtime 注入映射 helper 并降至 631 行，当前最大源码文件为 `src/runtime/core/reactivity.ts` 639 行，并由 `tests/quality/source-size.test.ts` 固化。
 - [x] 默认测试输出：Browserslist 过期提示已在 Vitest 环境中静默；真机测试默认跳过，需 `FUCKMP_REAL_DEVICE_TESTS=1` 显式启用。
 
 ## 后续约束 / 可选验收
 
 - [x] 真机测试可用性边界已核查（2026-05-21）：本机 `/Applications/wechatwebdevtools.app/Contents/MacOS/cli` 存在且可执行，`FUCKMP_REAL_DEVICE_TESTS=1 WECHAT_IDE_CLI=/Applications/wechatwebdevtools.app/Contents/MacOS/cli pnpm vitest run tests/e2e/real-device.test.ts` 当前无法完成；进一步执行 `cli auto --project /Users/bing/Projects/vue3-wx/test-output --auto-port 9420 --trust-project` 返回 `AppID 不合法, invalid appid`，原因是当前 `test-output/project.config.json` 使用测试占位 appid `test-miniprogram`。真实验收需要配置合法微信小程序 AppID / 项目并开启自动化 HTTP 端口后重跑，不将该环境失败伪造成通过。
-- [x] 维护性后续边界已记录：当前已无超过 700 行的源码文件；后续继续扩展接近门禁的模块时，优先拆分明确边界，避免重新逼近 720 行维护阈值。
+- [x] 维护性后续边界已记录：当前已无超过 640 行的源码文件；后续继续扩展接近门禁的模块时，优先拆分明确边界，避免重新逼近 640 行维护阈值。
 
 ## 后续优先任务
 
 1. 需要真实小程序端验收时，配置合法微信小程序 AppID / 项目、确认微信开发者工具自动化 HTTP 端口可用后，运行 opt-in 真机测试。
-2. 如需继续做维护性瘦身，优先评估源码行数门禁是否可从 720 继续收紧；重点关注 `src/compiler/compiler.ts` 与 `src/runtime/core/reactivity.ts` 等 600 行以上模块。
+2. 如需继续做维护性瘦身，重点关注 `src/runtime/core/reactivity.ts`、`src/compiler/compiler.ts`、`src/transformer/template-transformer.ts` 与 `src/compiler/code-generator.ts` 等 600 行以上模块。
 3. `watch/watchEffect/onWatcherCleanup` 已明确降级；只有真实实现 Vue watcher 调度与 cleanup 语义后，才允许进入 runtime 白名单。
 4. 继续补齐最新 Vue 3.5 能力矩阵时，基础 slots 已原生映射；scoped/dynamic slots 与 `Transition` / `KeepAlive` 已明确降级；更复杂 DI 语义仍需真实方案或继续明确降级。

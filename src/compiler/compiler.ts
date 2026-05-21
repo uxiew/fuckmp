@@ -9,6 +9,7 @@ import { ConfigManager } from './options.js'
 import { generateAppStyles } from './app-styles.js'
 import { createInitialTransformContext } from './transform-context.js'
 import { mergeScriptTransformContext } from './compiler-context-utils.js'
+import { buildRuntimeInjectionEntries } from './compiler-runtime-utils.js'
 import { PluginManager, createDefaultPluginManager } from '@/plugins/index.js'
 import { UserConfigManager } from '@/config/user-config.js'
 import { RuntimeInjector } from './runtime-injector'
@@ -508,27 +509,9 @@ export class Vue3MiniprogramCompiler {
     try {
       logger.info('开始执行运行时注入...')
 
-      // 准备页面配置（包含配置和上下文）
-      const pages = new Map<string, any>()
-      for (const [filePath, pageData] of this.compiledPages) {
-        const relativePath = getRelativePath(this.configManager.getOptions().input, filePath)
-          .replace(/\.vue$/, '')
-        pages.set(relativePath, {
-          config: pageData.config,
-          context: pageData.context
-        })
-      }
-
-      // 准备组件配置（包含配置和上下文）
-      const components = new Map<string, any>()
-      for (const [filePath, componentData] of this.compiledComponents) {
-        const relativePath = getRelativePath(this.configManager.getOptions().input, filePath)
-          .replace(/\.vue$/, '')
-        components.set(relativePath, {
-          config: componentData.config,
-          context: componentData.context
-        })
-      }
+      const inputRoot = this.configManager.getOptions().input
+      const pages = buildRuntimeInjectionEntries(this.compiledPages, inputRoot)
+      const components = buildRuntimeInjectionEntries(this.compiledComponents, inputRoot)
 
       // 执行运行时注入
       await this.runtimeInjector.injectRuntime(
