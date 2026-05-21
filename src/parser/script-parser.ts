@@ -291,7 +291,7 @@ export class ScriptParser {
   private generateCodeString(node: any): string {
     switch (node.type) {
       case 'StringLiteral':
-        return `'${node.value}'`
+        return this.quoteStringLiteral(node.value)
       case 'NumericLiteral':
         return String(node.value)
       case 'BooleanLiteral':
@@ -705,6 +705,19 @@ export class ScriptParser {
 
     result += '`'
     return result
+  }
+
+  /**
+   * 生成单引号字符串字面量，并转义会破坏最终 JS 语法的字符。
+   */
+  private quoteStringLiteral(value: string): string {
+    return `'${value
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/\r/g, '\\r')
+      .replace(/\n/g, '\\n')
+      .replace(/\u2028/g, '\\u2028')
+      .replace(/\u2029/g, '\\u2029')}'`
   }
 
   /**

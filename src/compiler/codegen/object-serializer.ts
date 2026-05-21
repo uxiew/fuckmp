@@ -189,15 +189,22 @@ export class ObjectLiteralSerializer {
       return functionStr
     }
 
-    // 检查是否为箭头函数
-    if (!functionStr.includes('=>')) {
+    const trimmed = functionStr.trim()
+
+    // 只转换顶层箭头函数。普通 function 内部可能包含嵌套箭头函数，
+    // 不能把整个函数字符串误判为箭头函数参数。
+    if (trimmed.startsWith('function')) {
       return functionStr
     }
 
-    // 简单的箭头函数转换
+    const topLevelArrowStart = /^(?:async\s*)?(\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>/s
+    if (!topLevelArrowStart.test(trimmed)) {
+      return functionStr
+    }
+
     // 匹配 (参数) => { 函数体 } 或 参数 => { 函数体 }
-    const arrowFunctionRegex = /^(\([^)]*\)|[^=]+)\s*=>\s*(.+)$/s
-    const match = functionStr.match(arrowFunctionRegex)
+    const arrowFunctionRegex = /^(?:async\s*)?(\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>\s*(.+)$/s
+    const match = trimmed.match(arrowFunctionRegex)
 
     if (match && match[1] && match[2]) {
       let params = match[1].trim()

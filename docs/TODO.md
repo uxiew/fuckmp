@@ -13,7 +13,7 @@
 - [x] 运行时注入：支持按特性生成自包含 `runtime-injection.js`，Proxy ref/reactive/computed 已有回归测试覆盖。
 - [x] 错误处理：输入目录不存在时返回结构化失败结果，不再静默成功。
 - [x] 类型检查基线：`pnpm type-check` 当前通过，范围限定为源码 `src/**/*`。
-- [x] 测试基线：`pnpm test:run` 当前通过 17 个测试文件、跳过 1 个显式 opt-in 真机测试文件；118 个测试通过、5 个真机测试跳过。
+- [x] 测试基线：`pnpm test:run` 当前通过 17 个测试文件、跳过 1 个显式 opt-in 真机测试文件；119 个测试通过、5 个真机测试跳过。
 - [x] 构建基线：`pnpm build` 当前通过，DTS 生成通过。
 - [x] Sass 弃用告警：运行时代码使用 Dart Sass namespace import，测试 SCSS 使用 `sass:color` 模块函数。
 - [x] 旧运行时兼容层：删除无引用旧文件和 `setupRuntime/cleanupRuntime` 兼容导出，当前保留 `src/runtime/core/*`。
@@ -24,15 +24,16 @@
 - [x] `CodeGenerator` runtime 注入模板拆分：自包含 runtime 与注入层生成已抽离到 `src/compiler/codegen/runtime-injection-generator.ts`，`code-generator.ts` 已降至 607 行。
 - [x] 页面/组件生成器首轮精简：共享 WXML 后处理、scoped hash 与组件引用 helper 已抽离到 `src/generator/shared-generator-utils.ts`，组件旧版未调用事件 handler 已删除；`page-generator.ts` 已降至 712 行。
 - [x] runtime 子路径 public surface 决策：当前包配置只声明根入口 `fuckmp` 与 CLI，构建产物只发布根入口/CLI；`fuckmp/runtime` 非 public surface，运行时对外能力仅通过根入口命名导出，编译产物运行时使用生成的 `runtime-injection.js`。
+- [x] 最终生成 JS 语法级验证：真实项目 e2e 已解析 `runtime-injection` 覆盖后的 `app.js`、页面 JS、组件 JS，覆盖生命周期嵌套箭头函数和多行字符串字面量语法风险。
+- [x] 单文件行数约束：当前 `src/**/*` 未超过 800 行硬上限；`template-transformer.ts` 为 800 行、`script-parser.ts` 为 795 行，后续扩展前需优先拆分。
 - [x] 默认测试输出：Browserslist 过期提示已在 Vitest 环境中静默；真机测试默认跳过，需 `FUCKMP_REAL_DEVICE_TESTS=1` 显式启用。
 
-## 当前不完整 / 待收敛
+## 后续约束 / 可选验收
 
-- [ ] `src/transformer/template-transformer.ts` 当前 800 行，已触及单文件硬上限；最终 Review 前需确认是否拆分或至少防止继续增长。
-- [ ] 最终验收前补充生成 JS 语法级验证，覆盖 `runtime-injection` 覆盖后的页面/组件最终产物。
 - [ ] 真机测试默认不跑；需要真实验收时设置 `FUCKMP_REAL_DEVICE_TESTS=1`，必要时设置 `WECHAT_IDE_CLI`。
+- [ ] `src/transformer/template-transformer.ts` 当前 800 行、`src/parser/script-parser.ts` 当前 795 行；后续改动前必须先拆分或删除等量代码。
 
 ## 后续优先任务
 
-1. 为最终生成的页面/组件 JS 增加语法级验证，避免仅靠字符串包含断言遗漏生成代码语法问题。
-2. 需要真实小程序端验收时，配置微信开发者工具 CLI 后运行 opt-in 真机测试。
+1. 需要真实小程序端验收时，配置微信开发者工具 CLI 后运行 opt-in 真机测试。
+2. 如需继续扩展模板转换能力，先拆分 `src/transformer/template-transformer.ts`，避免超过 800 行硬上限。

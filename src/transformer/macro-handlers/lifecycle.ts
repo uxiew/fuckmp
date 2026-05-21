@@ -225,7 +225,7 @@ function generateExpressionCode(expr: any): string {
       const rightBin = generateExpressionCode(expr.right)
       return `${leftBin} ${expr.operator} ${rightBin}`
     case 'StringLiteral':
-      return `'${expr.value}'`
+      return quoteStringLiteral(expr.value)
     case 'NumericLiteral':
       return expr.value.toString()
     case 'BooleanLiteral':
@@ -283,6 +283,19 @@ function generateIfStatement(stmt: any): string {
  */
 function generateLoopStatement(stmt: any): string {
   return `// 循环语句暂不支持转换: ${stmt.type}`
+}
+
+/**
+ * 生成单引号字符串字面量，并转义会破坏最终 JS 语法的字符。
+ */
+function quoteStringLiteral(value: string): string {
+  return `'${value
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')}'`
 }
 
 /**

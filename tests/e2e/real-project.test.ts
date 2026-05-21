@@ -5,6 +5,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { Vue3MiniprogramCompiler } from '@/compiler/compiler.js'
 import { PerformanceTest } from '../setup.js'
+import { parse } from '@babel/parser'
 import { join } from 'path'
 
 describe('真实项目编译测试', () => {
@@ -144,6 +145,25 @@ describe('真实项目编译测试', () => {
       expect(userCardWxmlContent).toContain('bind:tap')
       
       console.log('✅ Vue3 语法转换正确')
+    })
+
+    it('应该生成语法有效的最终 JS 产物', async () => {
+      await compiler.compile()
+
+      const { readFile } = await import('@/utils/index.js')
+      const outputDir = join(process.cwd(), 'test-output')
+      const jsFiles = [
+        'app.js',
+        'runtime-injection.js',
+        'pages/index/index.js',
+        'pages/profile.js',
+        'components/UserCard.js'
+      ]
+
+      for (const file of jsFiles) {
+        const content = await readFile(join(outputDir, file))
+        expect(() => parse(content, { sourceType: 'script' }), file).not.toThrow()
+      }
     })
 
     it('应该正确转换样式', async () => {
