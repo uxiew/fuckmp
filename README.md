@@ -408,7 +408,7 @@ await compiler.watch()
 
 | 能力 | 当前状态 | 验证 |
 |------|---------|------|
-| `defineProps` type-based（内联 / 本地类型 / 相对 import type）/ `defineModel` / `defineModel` tuple 修饰符 / `withDefaults` / 响应式 props 解构 | 已原生映射 | `tests/e2e/define-props-type-based.test.ts`、`tests/e2e/native-v-model.test.ts`、`tests/e2e/with-defaults-props.test.ts`、`tests/e2e/reactive-props-destructure.test.ts` |
+| `defineProps` type-based（内联 / 本地类型 / 相对 import type）/ `defineEmits` type-based（call signature / named tuple / 本地类型 / 相对 import type）/ `defineModel` / `defineModel` tuple 修饰符 / `withDefaults` / 响应式 props 解构 | 已原生映射 | `tests/e2e/define-props-type-based.test.ts`、`tests/e2e/typed-emits.test.ts`、`tests/e2e/native-v-model.test.ts`、`tests/e2e/with-defaults-props.test.ts`、`tests/e2e/reactive-props-destructure.test.ts` |
 | 基础 slots / named slots | 已原生映射 | `tests/e2e/slots-provide-inject-boundary.test.ts` |
 | `defineExpose` / `defineOptions` / `defineSlots` | 明确降级 | `tests/e2e/define-expose-degrade.test.ts`、`tests/e2e/define-options-degrade.test.ts`、`tests/e2e/define-slots-degrade.test.ts` |
 | `watch` / `watchEffect` / `onWatcherCleanup` | 明确降级 | `tests/e2e/watcher-degrade.test.ts` |
