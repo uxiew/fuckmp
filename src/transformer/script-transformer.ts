@@ -198,6 +198,8 @@ export class ScriptTransformer {
     parseResult.variables.forEach((variable, name) => {
       if (variable.macroType === 'defineModel') {
         this.processDefineModelVariable(variable, context)
+      } else if (variable.macroType === 'withDefaults') {
+        this.processWithDefaultsVariable(variable, context)
       } else if (variable.isReactive) {
         // 响应式变量
         if (variable.macroType === 'computed') {
@@ -248,6 +250,42 @@ export class ScriptTransformer {
     })
   }
 
+
+
+  /**
+   * 将 withDefaults 的默认值合并到 defineProps 生成的 properties。
+   */
+  private processWithDefaultsVariable(variable: any, context: TransformContext): void {
+    const defaults = variable.init?.defaults || {}
+
+    Object.entries(defaults).forEach(([propName, defaultValue]) => {
+      const existingProp = context.props[propName]
+      if (existingProp && typeof existingProp === 'object') {
+        context.props[propName] = {
+          ...existingProp,
+          default: defaultValue
+        }
+        return
+      }
+
+      context.props[propName] = {
+        type: this.inferConstructorFromValue(defaultValue),
+        default: defaultValue,
+        required: false
+      }
+    })
+  }
+
+  /**
+   * 从默认值推断属性类型。
+   */
+  private inferConstructorFromValue(value: any): any {
+    if (Array.isArray(value)) return Array
+    if (typeof value === 'number') return Number
+    if (typeof value === 'boolean') return Boolean
+    if (value && typeof value === 'object') return Object
+    return String
+  }
 
   /**
    * 将 defineModel 编译为原生小程序 property 与 update 事件。

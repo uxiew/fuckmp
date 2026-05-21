@@ -227,6 +227,9 @@ export class ScriptParser {
           } else if (calleeName === 'defineModel') {
             macroType = calleeName
             initValue = this.extractDefineModelInfo(declarator.init, name, result)
+          } else if (calleeName === 'withDefaults') {
+            macroType = calleeName
+            initValue = this.extractWithDefaultsInfo(declarator.init, result)
           } else {
             initValue = extractArgumentValue(declarator.init, result.variables)
           }
@@ -247,6 +250,55 @@ export class ScriptParser {
     })
   }
 
+
+
+  /**
+   * 提取 withDefaults(defineProps(), defaults) 中的默认值。
+   */
+  private extractWithDefaultsInfo(node: CallExpression, result: ScriptParseResult): Record<string, any> {
+    const defaultsNode = node.arguments[1]
+    return {
+      defaults: defaultsNode ? this.extractDefaultsObject(defaultsNode, result) : {}
+    }
+  }
+
+  /**
+   * 提取 withDefaults 的对象字面量默认值。
+   */
+  private extractDefaultsObject(node: any, result: ScriptParseResult): Record<string, any> {
+    if (!node || node.type !== 'ObjectExpression') {
+      return {}
+    }
+
+    const defaults: Record<string, any> = {}
+    node.properties.forEach((property: any) => {
+      if (property.type !== 'ObjectProperty') return
+
+      const key = property.key.type === 'Identifier' ? property.key.name : property.key.value
+      defaults[key] = this.extractDefaultValue(property.value, result)
+    })
+
+    return defaults
+  }
+
+  /**
+   * 提取单个 prop 默认值；数组/对象 factory 会取其返回的静态值。
+   */
+  private extractDefaultValue(node: any, result: ScriptParseResult): any {
+    if (!node) {
+      return undefined
+    }
+
+    if (node.type === 'ArrowFunctionExpression' || node.type === 'FunctionExpression') {
+      if (node.body?.type === 'BlockStatement') {
+        const returnStatement = node.body.body?.find((statement: any) => statement.type === 'ReturnStatement')
+        return returnStatement?.argument ? extractArgumentValue(returnStatement.argument, result.variables) : undefined
+      }
+      return extractArgumentValue(node.body, result.variables)
+    }
+
+    return extractArgumentValue(node, result.variables)
+  }
 
   /**
    * 提取 defineModel 变量信息。
