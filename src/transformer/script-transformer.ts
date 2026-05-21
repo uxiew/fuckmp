@@ -17,6 +17,7 @@ import {
 import { applyPropAccessMappingsToScript, hasPropAccessMappings, registerPropNamespace } from './prop-access-mapping.js'
 import { normalizeComputedGetter } from './computed-getter-utils.js'
 import { resolveTypeReferenceParameters } from './type-reference-resolver.js'
+import { createLiteralNodeFromValue, inferConstructorFromValue, parseScriptInitValue } from './script-value-utils.js'
 import { logger } from '@/utils/index.js'
 
 /**
@@ -204,7 +205,7 @@ export class ScriptTransformer {
             const node = {
               type: 'CallExpression',
               callee: { type: 'Identifier', name: macroName },
-              arguments: macroCall.arguments.map(arg => this.createLiteralNode(arg)),
+              arguments: macroCall.arguments.map(arg => createLiteralNodeFromValue(arg)),
               typeParameters: ['defineProps', 'defineEmits'].includes(macroName)
                 ? resolveTypeReferenceParameters(macroCall.typeParameters, parseResult, context.filename)
                 : macroCall.typeParameters // 传递 TypeScript 泛型参数
@@ -306,7 +307,7 @@ export class ScriptTransformer {
           })
         } else {
           // ref/reactive 变量 - 确保保持原始数据类型
-          const initialValue = this.parseInitValue(variable.init)
+          const initialValue = parseScriptInitValue(variable.init)
           context.data[name] = initialValue
           // 保存响应式变量信息
           context.reactiveVariables!.set(name, {
@@ -334,7 +335,7 @@ export class ScriptTransformer {
           }
         } else {
           // 普通数据 - 确保保持原始数据类型
-          context.data[name] = this.parseInitValue(initValue)
+          context.data[name] = parseScriptInitValue(initValue)
         }
       }
     })
@@ -381,22 +382,11 @@ export class ScriptTransformer {
       }
 
       context.props[propName] = {
-        type: this.inferConstructorFromValue(defaultValue),
+        type: inferConstructorFromValue(defaultValue),
         default: defaultValue,
         required: false
       }
     })
-  }
-
-  /**
-   * 从默认值推断属性类型。
-   */
-  private inferConstructorFromValue(value: any): any {
-    if (Array.isArray(value)) return Array
-    if (typeof value === 'number') return Number
-    if (typeof value === 'boolean') return Boolean
-    if (value && typeof value === 'object') return Object
-    return String
   }
 
   /**
@@ -588,142 +578,4 @@ export class ScriptTransformer {
     return applyPropAccessMappingsToScript(transformedGetter, context)
   }
 
-  /**
-   * 解析初始值，确保保持正确的数据类型
-   */
-  private parseInitValue(value: any): any {
-    // 如果已经是非字符串类型，直接返回
-    if (typeof value !== 'string') {
-      return value
-    }
-
-    const trimmedValue = value.trim()
-
-    // 检查是否为带引号的字符串
-    if ((trimmedValue.startsWith('"') && trimmedValue.endsWith('"')) ||
-      (trimmedValue.startsWith("'") && trimmedValue.endsWith("'"))) {
-      // 移除引号并返回字符串内容
-      return trimmedValue.slice(1, -1)
-    }
-
-    // 检查是否为数字字符串
-    if (/^-?\d+(\.\d+)?$/.test(trimmedValue)) {
-      return parseFloat(trimmedValue)
-    }
-
-    // 检查是否为布尔值字符串
-    if (trimmedValue === 'true') return true
-    if (trimmedValue === 'false') return false
-
-    // 检查是否为 null
-    if (trimmedValue === 'null') return null
-
-    // 检查是否为 undefined
-    if (trimmedValue === 'undefined') return undefined
-
-    // 检查是否为对象字符串（以 { 开头）
-    if (trimmedValue.startsWith('{') && trimmedValue.endsWith('}')) {
-      try {
-        // 尝试解析为对象
-        return JSON.parse(trimmedValue)
-      } catch {
-        // 如果 JSON.parse 失败，尝试使用 eval 解析（更宽松的语法）
-        try {
-          // 使用 Function 构造函数安全地解析对象字面量
-          return new Function('return ' + trimmedValue)()
-        } catch {
-          // 如果都失败，返回原字符串
-          return trimmedValue
-        }
-      }
-    }
-
-    // 检查是否为数组字符串（以 [ 开头）
-    if (trimmedValue.startsWith('[') && trimmedValue.endsWith(']')) {
-      try {
-        // 尝试解析为数组
-        return JSON.parse(trimmedValue)
-      } catch {
-        // 如果 JSON.parse 失败，尝试使用 eval 解析
-        try {
-          return new Function('return ' + trimmedValue)()
-        } catch {
-          // 如果都失败，返回原字符串
-          return trimmedValue
-        }
-      }
-    }
-
-    // 其他情况返回原字符串
-    return trimmedValue
-  }
-
-  /**
-   * 创建字面量节点
-   */
-  private createLiteralNode(value: any): any {
-    if (typeof value === 'string') {
-      return { type: 'StringLiteral', value }
-    } else if (typeof value === 'number') {
-      return { type: 'NumericLiteral', value }
-    } else if (typeof value === 'boolean') {
-      return { type: 'BooleanLiteral', value }
-    } else if (value === null) {
-      return { type: 'NullLiteral' }
-    } else if (Array.isArray(value)) {
-      return {
-        type: 'ArrayExpression',
-        elements: value.map(item => this.createLiteralNode(item))
-      }
-    } else if (typeof value === 'object') {
-      return {
-        type: 'ObjectExpression',
-        properties: Object.entries(value).map(([key, val]) => ({
-          type: 'ObjectProperty',
-          key: { type: 'Identifier', name: key },
-          value: this.createLiteralNode(val)
-        }))
-      }
-    }
-
-    return { type: 'Identifier', name: 'undefined' }
-  }
-
-  /**
-   * 获取类型字符串
-   */
-  private getTypeString(value: any): string {
-    if (typeof value === 'string') return 'String'
-    if (typeof value === 'number') return 'Number'
-    if (typeof value === 'boolean') return 'Boolean'
-    if (Array.isArray(value)) return 'Array'
-    if (typeof value === 'object') return 'Object'
-    return 'String'
-  }
-
-  /**
-   * 获取默认值
-   */
-  private getDefaultValue(value: any): any {
-    if (typeof value === 'string') return ''
-    if (typeof value === 'number') return 0
-    if (typeof value === 'boolean') return false
-    if (Array.isArray(value)) return []
-    if (typeof value === 'object') return {}
-    return null
-  }
-
-  /**
-   * 首字母大写
-   */
-  private capitalize(str: string): string {
-    return str.charAt(0).toUpperCase() + str.slice(1)
-  }
-
-  /**
-   * 转换为 kebab-case
-   */
-  private kebabCase(str: string): string {
-    return str.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '')
-  }
 }
