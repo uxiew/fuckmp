@@ -7,6 +7,7 @@ import type { Vue3FeatureUsage, RuntimeInjectionConfig } from './runtime-injecto
 import type { BundleResult } from './runtime-bundler'
 import { ObjectLiteralSerializer } from './codegen/object-serializer'
 import { RuntimeInjectionGenerator } from './codegen/runtime-injection-generator'
+import { generateCodeFileHeader, getRelativeRuntimePath } from './codegen/code-generator-utils'
 import { logger } from '@/utils/logger'
 
 /**
@@ -67,7 +68,7 @@ export class CodeGenerator {
     const content = this.runtimeInjectionGenerator.generateRuntimeInjectionCode(
       bundleResult,
       featureUsage,
-      this.generateFileHeader()
+      generateCodeFileHeader(this.config, this.options)
     )
 
     return {
@@ -87,7 +88,7 @@ export class CodeGenerator {
     const context = appData?.context
     const appOptions = context ? this.generateAppOptions(context) : '{}'
 
-    const content = `${this.generateFileHeader()}
+    const content = `${generateCodeFileHeader(this.config, this.options)}
 
 // 引入运行时
 const { initVue3Runtime, createApp } = require('./runtime-injection.js');
@@ -149,10 +150,10 @@ App({
     // 生成页面选项对象
     const pageOptions = this.generatePageOptions(context, config)
 
-    const content = `${this.generateFileHeader()}
+    const content = `${generateCodeFileHeader(this.config, this.options)}
 
 // 引入运行时
-const { createPage } = require('${this.getRelativeRuntimePath(pagePath)}');
+const { createPage } = require('${getRelativeRuntimePath(pagePath)}');
 
 // 页面选项
 const pageOptions = ${pageOptions};
@@ -179,10 +180,10 @@ Page(createPage(pageOptions));
     // 生成组件选项对象（不传递配置）
     const componentOptions = this.generateComponentOptions(context, null)
 
-    const content = `${this.generateFileHeader()}
+    const content = `${generateCodeFileHeader(this.config, this.options)}
 
 // 引入运行时
-const { createComponent } = require('${this.getRelativeRuntimePath(componentPath)}');
+const { createComponent } = require('${getRelativeRuntimePath(componentPath)}');
 
 // 组件选项
 const componentOptions = ${componentOptions};
@@ -520,29 +521,6 @@ Component(createComponent(componentOptions));
     })
 
     return filtered
-  }
-
-  /**
-   * 生成文件头部注释
-   */
-  private generateFileHeader(): string {
-    const timestamp = new Date().toISOString()
-    return `// 由 Vue3 微信小程序编译器自动生成
-// 编译时间: ${timestamp}
-// 运行时版本: ${this.config.runtimeVersion}
-// 目标平台: ${this.options.target}
-${this.options.strict ? "'use strict';" : ''}
-`
-  }
-
-
-  /**
-   * 获取相对运行时路径
-   */
-  private getRelativeRuntimePath(filePath: string): string {
-    const depth = filePath.split('/').length - 1
-    const prefix = depth > 0 ? '../'.repeat(depth) : './'
-    return `${prefix}runtime-injection.js`
   }
 
   /**

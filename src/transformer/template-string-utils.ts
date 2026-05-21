@@ -151,6 +151,18 @@ export function toKebabCase(str: string): string {
 }
 
 /**
+ * 合并静态 class 与动态 class 表达式。
+ */
+export function buildClassBindingExpression(staticClass: string, dynamicClass: string): string {
+  if (dynamicClass) {
+    const dynamicClassExpression = buildDynamicClassExpression(dynamicClass)
+    return staticClass ? `'${staticClass}' + ' ' + (${dynamicClassExpression})` : dynamicClassExpression
+  }
+
+  return staticClass ? `'${staticClass}'` : ''
+}
+
+/**
  * 根据 Vue `:class` 内容生成 WXML 表达式片段。
  */
 function buildDynamicClassExpression(dynamicClass: string): string {

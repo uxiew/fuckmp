@@ -8,6 +8,7 @@ import type { TransformContext, DirectiveTransformer } from '@/types/index.js'
 import { logger } from '@/utils/index.js'
 import { EnhancedTemplateTransformer } from './enhanced-template-transformer.js'
 import {
+  buildClassBindingExpression,
   cleanupWhitespace,
   fixSelfClosingTags,
   fixTripleBraces,
@@ -267,44 +268,7 @@ export class TemplateTransformer {
 
     // 处理类绑定
     if (staticClass || dynamicClass) {
-      let classExpression = ''
-
-      if (dynamicClass) {
-        // 处理动态类表达式
-        let dynamicClassExpression = ''
-
-        // 处理对象语法：{ online: isOnline, active: isActive }
-        if (dynamicClass.trim().startsWith('{') && dynamicClass.trim().endsWith('}')) {
-          const objectContent = dynamicClass.trim().slice(1, -1)
-          const classConditions = objectContent.split(',').map((condition: string) => {
-            const [className, expression] = condition.split(':').map((s: string) => s.trim())
-            const cleanClassName = (className || '').replace(/['"]/g, '')
-            const cleanExpression = (expression || '').trim()
-            return `${cleanExpression} ? '${cleanClassName}' : ''`
-          }).filter((condition: string) => !condition.includes("'' ? '' : ''")) // 过滤掉无效条件
-
-          // 生成更简洁的表达式，避免使用 .trim() 方法
-          if (classConditions.length === 1) {
-            dynamicClassExpression = classConditions[0] || ''
-          } else if (classConditions.length > 1) {
-            dynamicClassExpression = `(${classConditions.join(' + " " + ')})`
-          } else {
-            dynamicClassExpression = ''
-          }
-        } else {
-          dynamicClassExpression = dynamicClass
-        }
-
-        // 合并静态和动态类
-        if (staticClass) {
-          classExpression = `'${staticClass}' + ' ' + (${dynamicClassExpression})`
-        } else {
-          classExpression = dynamicClassExpression
-        }
-      } else {
-        classExpression = `'${staticClass}'`
-      }
-
+      const classExpression = buildClassBindingExpression(staticClass, dynamicClass)
       attrs.push(`class="{{${classExpression}}}"`)
     }
 

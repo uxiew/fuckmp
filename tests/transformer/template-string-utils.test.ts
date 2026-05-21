@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildClassBindingExpression,
   cleanupWhitespace,
   fixSelfClosingTags,
   fixTripleBraces,
@@ -21,6 +22,13 @@ describe('template-string-utils', () => {
 
     expect(result).toContain(`class="{{'status' + ' ' + (isOnline ? 'online' : '')}}"`)
     expect(result).not.toContain(':class=')
+  })
+
+  it('为 AST 属性转换生成 class 绑定表达式', () => {
+    expect(buildClassBindingExpression('status', '{ online: isOnline }')).toBe(
+      `'status' + ' ' + (isOnline ? 'online' : '')`
+    )
+    expect(buildClassBindingExpression('', 'dynamicClass')).toBe('dynamicClass')
   })
 
   it('转换属性绑定并跳过已处理的 class', () => {
