@@ -13,7 +13,7 @@
 - [x] 运行时注入：支持按特性生成自包含 `runtime-injection.js`，Proxy ref/reactive/computed 已有回归测试覆盖。
 - [x] 错误处理：输入目录不存在时返回结构化失败结果，不再静默成功。
 - [x] 类型检查基线：`pnpm type-check` 当前通过，范围限定为源码 `src/**/*`。
-- [x] 测试基线：`pnpm test:run` 当前通过 17 个测试文件、跳过 1 个显式 opt-in 真机测试文件；119 个测试通过、5 个真机测试跳过。
+- [x] 测试基线：`pnpm test:run` 当前通过 19 个测试文件、跳过 1 个显式 opt-in 真机测试文件；129 个测试通过、5 个真机测试跳过。
 - [x] 构建基线：`pnpm build` 当前通过，DTS 生成通过。
 - [x] Sass 弃用告警：运行时代码使用 Dart Sass namespace import，测试 SCSS 使用 `sass:color` 模块函数。
 - [x] 旧运行时兼容层：删除无引用旧文件和 `setupRuntime/cleanupRuntime` 兼容导出，当前保留 `src/runtime/core/*`。
@@ -26,15 +26,16 @@
 - [x] runtime 子路径 public surface 决策：当前包配置只声明根入口 `fuckmp` 与 CLI，构建产物只发布根入口/CLI；`fuckmp/runtime` 非 public surface，运行时对外能力仅通过根入口命名导出，编译产物运行时使用生成的 `runtime-injection.js`。
 - [x] 最终生成 JS 语法级验证：真实项目 e2e 已解析 `runtime-injection` 覆盖后的 `app.js`、页面 JS、组件 JS，覆盖生命周期嵌套箭头函数和多行字符串字面量语法风险。
 - [x] `TemplateTransformer` 字符串后处理工具拆分：Vue 绑定/事件、自闭合标签、三花括号与空白清理已抽离到 `src/transformer/template-string-utils.ts`，新增定向单测覆盖。
-- [x] 单文件行数约束：当前 `src/**/*` 未超过 800 行硬上限；`template-transformer.ts` 已降至 608 行，`script-parser.ts` 为 795 行，后续扩展解析能力前需优先拆分。
+- [x] `ScriptParser` AST 代码生成工具拆分：表达式/语句代码片段生成已抽离到 `src/parser/script-codegen-utils.ts`，新增定向单测覆盖。
+- [x] 单文件行数约束：当前 `src/**/*` 未超过 800 行硬上限；`script-parser.ts` 已降至 327 行，当前最大源码文件为 `page-generator.ts` 712 行。
 - [x] 默认测试输出：Browserslist 过期提示已在 Vitest 环境中静默；真机测试默认跳过，需 `FUCKMP_REAL_DEVICE_TESTS=1` 显式启用。
 
 ## 后续约束 / 可选验收
 
 - [ ] 真机测试默认不跑；需要真实验收时设置 `FUCKMP_REAL_DEVICE_TESTS=1`，必要时设置 `WECHAT_IDE_CLI`。
-- [ ] `src/parser/script-parser.ts` 当前 795 行；后续改动解析能力前必须先拆分或删除等量代码。
+- [ ] 后续继续扩展单文件超过 700 行的模块时，优先拆分明确边界，避免重新逼近 800 行硬上限。
 
 ## 后续优先任务
 
 1. 需要真实小程序端验收时，配置微信开发者工具 CLI 后运行 opt-in 真机测试。
-2. 如需继续扩展脚本解析能力，先拆分 `src/parser/script-parser.ts`，避免超过 800 行硬上限。
+2. 如需继续做维护性瘦身，优先评估 `src/generator/page-generator.ts`、`src/compiler/compiler.ts`、`src/transformer/vue-template-transformer.ts` 这类 700 行以上模块。
