@@ -392,15 +392,15 @@ await compiler.watch()
 | 特性 | 支持状态 | 说明 |
 |------|---------|------|
 | `<script setup>` | ✅ | 基础解析与编译已覆盖，复杂宏按矩阵继续补齐 |
-| Composition API | 🚧 | 当前运行时桥接白名单为 ref, reactive, computed；watch/watchEffect/onWatcherCleanup/useId 明确降级 |
+| Composition API | 🚧 | 当前运行时桥接白名单为 ref, reactive, computed；watch/watchEffect/onWatcherCleanup/useId/provide/inject 明确降级 |
 | TypeScript | ✅ | 原生支持 |
 | Props/Emits | 🚧 | defineProps, defineEmits 基础转换，继续按原生输出矩阵补齐 |
 | 生命周期 | ✅ | 映射到小程序生命周期，不依赖 lifecycle runtime |
 | 模板语法 | 🚧 | v-if, v-for, v-model, 事件处理按原生 WXML/JS 输出逐步补齐 |
 | 样式 | ✅ | CSS, SCSS, 作用域样式 |
 | **SCSS 导入** | ✅ | **JavaScript 导入和 @import 语句** |
-| 插槽 | 🚧 | 需要按小程序 slot 能力降级验证 |
-| Provide/Inject | 🚧 | 计划支持 |
+| 插槽 | 🚧 | 基础 slots / named slots 已原生映射；scoped/dynamic slots 不宣称支持 |
+| Provide/Inject | 明确降级 | 不生成 DI runtime 桥接，`inject()` 不落入 data |
 | Teleport | ❌ | 小程序不支持 |
 | Suspense | ❌ | 小程序不支持 |
 

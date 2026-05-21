@@ -4,7 +4,7 @@
 
 import type { TransformContext, GenerateResult, CompilerOptions } from '@/types/index.js'
 import type { ScriptTransformResult, TemplateTransformResult, StyleTransformResult } from '@/transformer/index.js'
-import { generateDefineExposeDegradeComment, generateDefineOptionsDegradeComment, generateDefineSlotsDegradeComment, generateUseIdDegradeComment, generateUseTemplateRefDegradeComment, generateWatcherDegradeComment, logger } from '@/utils/index.js'
+import { generateDefineExposeDegradeComment, generateDefineOptionsDegradeComment, generateDefineSlotsDegradeComment, generateProvideInjectDegradeComment, generateUseIdDegradeComment, generateUseTemplateRefDegradeComment, generateWatcherDegradeComment, logger } from '@/utils/index.js'
 import { addScopeAttributes, generateScopeId, generateUsingComponents, removeCtxPrefixes } from './shared-generator-utils.js'
 
 /**
@@ -63,7 +63,7 @@ export class ComponentGenerator {
     })
 
     // 生成组件定义
-    const componentCode = `${generateDefineExposeDegradeComment(transformContext.expose, '组件')}${generateDefineOptionsDegradeComment(transformContext.defineOptions || {}, '组件')}${generateDefineSlotsDegradeComment(transformContext.defineSlots || {}, '组件')}${generateWatcherDegradeComment(transformContext.watcherEffects || {}, '组件')}${generateUseTemplateRefDegradeComment(transformContext.templateRefs || {}, '组件')}${generateUseIdDegradeComment(transformContext.useIds || {}, '组件')}Component({
+    const componentCode = `${generateDefineExposeDegradeComment(transformContext.expose, '组件')}${generateDefineOptionsDegradeComment(transformContext.defineOptions || {}, '组件')}${generateDefineSlotsDegradeComment(transformContext.defineSlots || {}, '组件')}${generateWatcherDegradeComment(transformContext.watcherEffects || {}, '组件')}${generateUseTemplateRefDegradeComment(transformContext.templateRefs || {}, '组件')}${generateUseIdDegradeComment(transformContext.useIds || {}, '组件')}${generateProvideInjectDegradeComment(transformContext.provideInject || {}, '组件')}Component({
   // 组件属性定义
   properties: ${this.generateProperties(props)},
 

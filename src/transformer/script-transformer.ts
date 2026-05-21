@@ -2,7 +2,7 @@
  * Script 转换器
  */
 
-import { traverseAST, generateCode, isCallExpression, isIdentifier, isVariableDeclaration, PathResolver, createPathResolver, createDefineExposeDegradeRecord, createDefineOptionsDegradeRecord, createDefineSlotsDegradeRecord, createUseIdDegradeRecord, createUseTemplateRefDegradeRecord, createWatcherDegradeRecord, mergeUseTemplateRefDegradeRecord } from '@/utils/index.js'
+import { traverseAST, generateCode, isCallExpression, isIdentifier, isVariableDeclaration, PathResolver, createPathResolver, createDefineExposeDegradeRecord, createDefineOptionsDegradeRecord, createDefineSlotsDegradeRecord, createProvideInjectDegradeRecord, createUseIdDegradeRecord, createUseTemplateRefDegradeRecord, createWatcherDegradeRecord, mergeUseTemplateRefDegradeRecord } from '@/utils/index.js'
 import { VUE3_MACROS } from '@/types/index.js'
 import type { TransformContext, MacroHandler } from '@/types/index.js'
 import type { ScriptParseResult } from '@/parser/index.js'
@@ -96,6 +96,7 @@ export class ScriptTransformer {
         watcherEffects: {},
         templateRefs: {},
         useIds: {},
+        provideInject: {},
         data: {},
         methods: {},
         computed: {},
@@ -184,6 +185,10 @@ export class ScriptTransformer {
         macroCalls.forEach(macroCall => this.processWatcherMacro(macroCall, context))
         return
       }
+      if (['provide', 'inject'].includes(macroName)) {
+        macroCalls.forEach(macroCall => this.processProvideInjectMacro(macroCall, context))
+        return
+      }
 
       const handler = this.macroHandlers.get(macroName)
       if (handler) {
@@ -237,6 +242,20 @@ export class ScriptTransformer {
   }
 
   /**
+   * provide/inject 依赖 Vue 实例树注入上下文，原生目标暂不伪造等价支持。
+   */
+  private processProvideInjectMacro(macroCall: any, context: TransformContext): void {
+    context.provideInject = createProvideInjectDegradeRecord(
+      macroCall.name,
+      String(macroCall.arguments?.[0] || ''),
+      '',
+      context.provideInject || {}
+    )
+
+    logger.warn(`${macroCall.name} 已在原生小程序目标下降级: ${context.filename}`)
+  }
+
+  /**
    * 处理变量声明
    */
   private processVariables(parseResult: ScriptParseResult, context: TransformContext): void {
@@ -257,6 +276,8 @@ export class ScriptTransformer {
         this.processUseTemplateRefVariable(variable, context)
       } else if (variable.macroType === 'useId') {
         this.processUseIdVariable(variable, context)
+      } else if (variable.macroType === 'inject') {
+        this.processInjectVariable(variable, context)
       } else if (variable.isReactive) {
         // 响应式变量
         if (variable.macroType === 'computed') {
@@ -408,6 +429,20 @@ export class ScriptTransformer {
     context.useIds = createUseIdDegradeRecord(variable.init?.variable || variable.name, previousVariables)
 
     logger.warn(`useId 已在原生小程序目标下降级: ${context.filename}`)
+  }
+
+  /**
+   * inject 变量在原生目标下擦除，不落入 data。
+   */
+  private processInjectVariable(variable: any, context: TransformContext): void {
+    context.provideInject = createProvideInjectDegradeRecord(
+      'inject',
+      String(variable.init?.key || ''),
+      variable.init?.variable || variable.name,
+      context.provideInject || {}
+    )
+
+    logger.warn(`inject 已在原生小程序目标下降级: ${context.filename}`)
   }
 
   /**

@@ -68,6 +68,16 @@ FuckMP 的目标是把 Vue3 SFC 编译为原生微信小程序工程，而不是
 
 验证测试：`tests/e2e/define-options-degrade.test.ts`。
 
+### 基础 slots / named slots
+
+微信原生组件支持基础 slot 与 named slot。当前编译器对 `<slot>` 和 `<slot name=...>` 采用**原生映射**：
+
+- WXML 保留 `<slot>` / `<slot name="..."></slot>`。
+- 组件 JSON 在检测到 slot 时输出 `options.multipleSlots: true`。
+- 不引入 Vue slots 对象、scoped slot runtime 或 template runtime 模块。
+
+验证测试：`tests/e2e/slots-provide-inject-boundary.test.ts`。
+
 ### `defineSlots`
 
 `defineSlots` 主要用于 `<script setup>` 的 slot 类型提示，并在 Vue 中返回 slots 对象。当前微信原生输出不暴露 Vue slots 对象桥接，因此当前处理为**类型宏擦除 / 明确降级**：
@@ -77,6 +87,16 @@ FuckMP 的目标是把 Vue3 SFC 编译为原生微信小程序工程，而不是
 - 不生成 `__slots`、Vue slots 对象桥接或额外 runtime 模块。
 
 验证测试：`tests/e2e/define-slots-degrade.test.ts`。
+
+### `provide` / `inject`
+
+`provide` / `inject` 依赖 Vue component/app 实例树上的依赖注入解析。当前微信原生输出不提供 Vue DI 上下文桥接，因此当前处理为**明确降级**：
+
+- 编译产物输出 `provide/inject 降级` 注释、API 和 key。
+- 擦除 `provide()` / `inject()` 调用，不让 `inject()` 变量落入 `data`。
+- 不生成 `__provide`、`__inject` 或 `di` runtime 模块。
+
+验证测试：`tests/e2e/slots-provide-inject-boundary.test.ts`。
 
 ### `watch` / `watchEffect` / `onWatcherCleanup`
 
@@ -112,8 +132,7 @@ Vue 3.5 `useTemplateRef` 用于获取模板 ref 对应的 DOM 或组件实例引
 
 以下能力可以在源码中被识别，但不能仅靠 runtime 模块名宣称支持：
 
-- `provide / inject`
-- slots / scoped slots
+- scoped slots / dynamic slots
 - transition / keep-alive
 
 这些能力必须先有明确的原生编译方案或真实运行时实现，再更新支持状态。
@@ -123,7 +142,7 @@ Vue 3.5 `useTemplateRef` 用于获取模板 ref 对应的 DOM 或组件实例引
 当前测试已固化以下边界：
 
 - `RuntimeBundler.getRequiredModules()` 只返回 `core` 或 `core + reactivity`。
-- 模板指令、事件、生命周期、props/emits、`defineModel`、`withDefaults`、响应式 props 解构、`defineExpose` 降级、`defineOptions` 降级、`defineSlots` 降级、`watch/watchEffect/onWatcherCleanup` 降级、`useId` 降级、`useTemplateRef` 降级、slots、provide/inject 不会引入 `template/event/lifecycle/component/di` 等伪模块。
+- 模板指令、事件、生命周期、props/emits、`defineModel`、`withDefaults`、响应式 props 解构、`defineExpose` 降级、`defineOptions` 降级、`defineSlots` 降级、`watch/watchEffect/onWatcherCleanup` 降级、`useId` 降级、`useTemplateRef` 降级、基础 slots 映射、`provide/inject` 降级不会引入 `template/event/lifecycle/component/di` 等伪模块。
 - `RuntimeInjectionGenerator` 不会因为 `<script setup>` 本身生成 `ref/reactive/computed` runtime。
 - `PageGenerator` 不会给静态页面内联旧版响应式 runtime，也不会输出 `setInterval` 轮询式 `watch` 占位。
 
@@ -138,6 +157,7 @@ Vue 3.5 `useTemplateRef` 用于获取模板 ref 对应的 DOM 或组件实例引
 - `tests/e2e/define-expose-degrade.test.ts`
 - `tests/e2e/define-options-degrade.test.ts`
 - `tests/e2e/define-slots-degrade.test.ts`
+- `tests/e2e/slots-provide-inject-boundary.test.ts`
 - `tests/e2e/watcher-degrade.test.ts`
 - `tests/e2e/use-id-degrade.test.ts`
 - `tests/e2e/use-template-ref-degrade.test.ts`

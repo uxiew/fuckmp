@@ -111,6 +111,7 @@ export class Vue3MiniprogramCompiler {
         watcherEffects: {},
         templateRefs: {},
         useIds: {},
+        provideInject: {},
         data: {},
         methods: {},
         computed: {},
@@ -310,6 +311,10 @@ export class Vue3MiniprogramCompiler {
 
         if (scriptContext.useIds) {
           context.useIds = scriptContext.useIds
+        }
+
+        if (scriptContext.provideInject) {
+          context.provideInject = scriptContext.provideInject
         }
 
         // 合并props和emits

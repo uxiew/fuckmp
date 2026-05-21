@@ -253,6 +253,12 @@ export class ScriptParser {
           } else if (calleeName === 'useId') {
             macroType = calleeName
             initValue = { variable: name }
+          } else if (calleeName === 'inject') {
+            macroType = calleeName
+            initValue = {
+              variable: name,
+              key: declarator.init.arguments[0] ? extractArgumentValue(declarator.init.arguments[0], result.variables) : ''
+            }
           } else {
             initValue = extractArgumentValue(declarator.init, result.variables)
           }

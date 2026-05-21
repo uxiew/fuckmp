@@ -4,7 +4,7 @@
 
 import type { TransformContext, GenerateResult, CompilerOptions } from '@/types/index.js'
 import type { ScriptTransformResult, TemplateTransformResult, StyleTransformResult } from '@/transformer/index.js'
-import { generateDefineExposeDegradeComment, generateDefineOptionsDegradeComment, generateDefineSlotsDegradeComment, generateUseIdDegradeComment, generateUseTemplateRefDegradeComment, generateWatcherDegradeComment, logger } from '@/utils/index.js'
+import { generateDefineExposeDegradeComment, generateDefineOptionsDegradeComment, generateDefineSlotsDegradeComment, generateProvideInjectDegradeComment, generateUseIdDegradeComment, generateUseTemplateRefDegradeComment, generateWatcherDegradeComment, logger } from '@/utils/index.js'
 import { addScopeAttributes, generateScopeId, generateUsingComponents, removeCtxPrefixes } from './shared-generator-utils.js'
 
 /**
@@ -136,7 +136,7 @@ ${this.generateComputedUpdate(computed)}
     }
 
     // 生成页面定义
-    const pageCode = `${generateDefineExposeDegradeComment(context.expose, '页面')}${generateDefineOptionsDegradeComment(context.defineOptions || {}, '页面')}${generateDefineSlotsDegradeComment(context.defineSlots || {}, '页面')}${generateWatcherDegradeComment(context.watcherEffects || {}, '页面')}${generateUseTemplateRefDegradeComment(context.templateRefs || {}, '页面')}${generateUseIdDegradeComment(context.useIds || {}, '页面')}Page({
+    const pageCode = `${generateDefineExposeDegradeComment(context.expose, '页面')}${generateDefineOptionsDegradeComment(context.defineOptions || {}, '页面')}${generateDefineSlotsDegradeComment(context.defineSlots || {}, '页面')}${generateWatcherDegradeComment(context.watcherEffects || {}, '页面')}${generateUseTemplateRefDegradeComment(context.templateRefs || {}, '页面')}${generateUseIdDegradeComment(context.useIds || {}, '页面')}${generateProvideInjectDegradeComment(context.provideInject || {}, '页面')}Page({
 ${parts.join(',\n\n')}
 })`
 

@@ -24,6 +24,8 @@
 - `defineExpose`
 - `defineOptions`
 - `defineSlots`
+- 基础 slots / named slots
+- `provide` / `inject`
 - 响应式 props 解构（Vue 3.5+）
 - `useTemplateRef`（Vue 3.5+）
 - `useId`（Vue 3.5+）
@@ -41,6 +43,8 @@
 | `defineExpose` | 明确降级 | 微信原生目标无 Vue template ref public instance 等价语义；产物输出降级注释和 exposed keys，不生成运行时桥接 | `tests/e2e/define-expose-degrade.test.ts` |
 | `defineOptions` | 明确降级 | 微信原生目标无完整 Vue component options 合并等价语义；产物输出降级注释和 option keys，不生成运行时桥接 | `tests/e2e/define-options-degrade.test.ts` |
 | `defineSlots` | 类型宏擦除 / 明确降级 | 当前不暴露 Vue slots 对象桥接；产物输出降级注释并擦除 `defineSlots()` 变量，不生成运行时桥接 | `tests/e2e/define-slots-degrade.test.ts` |
+| 基础 slots / named slots | 已原生映射 | `<slot>` 与 `<slot name=...>` 保留为微信原生 slot；组件 JSON 自动启用 `options.multipleSlots` | `tests/e2e/slots-provide-inject-boundary.test.ts` |
+| `provide` / `inject` | 明确降级 | Vue 依赖注入依赖组件/app 实例树；产物输出降级注释，不生成 DI runtime 桥接，不让 `inject()` 落入 data | `tests/e2e/slots-provide-inject-boundary.test.ts` |
 | `watch` / `watchEffect` / `onWatcherCleanup` | 明确降级 | Vue watcher 副作用调度与 Vue 3.5 watcher cleanup 依赖 Vue runtime；产物输出降级注释，不生成 watcher runtime 桥接 | `tests/e2e/watcher-degrade.test.ts` |
 | `useId` | 明确降级 | Vue app 作用域稳定 ID、`app.config.idPrefix` 与 SSR hydration 稳定性无原生等价桥接；产物输出降级注释，不生成 ID runtime | `tests/e2e/use-id-degrade.test.ts` |
 | `useTemplateRef` | 明确降级 | 微信原生目标无 Vue template ref / DOM 或组件实例等价桥接；产物输出降级注释和 template refs，不生成运行时代理 | `tests/e2e/use-template-ref-degrade.test.ts` |
@@ -62,9 +66,10 @@
 4. 已完成：`defineExpose` 在微信原生目标下明确降级。
 5. 已完成：`defineOptions` 在微信原生目标下明确降级。
 6. 已完成：`defineSlots` 在微信原生目标下类型宏擦除 / 明确降级。
-7. 已完成：`watch/watchEffect` / `onWatcherCleanup` 在微信原生目标下明确降级。
-8. 已完成：Vue 3.5 `useId` / SSR 稳定 ID 语义在微信原生目标下明确降级。
-9. 已完成：Vue 3.5 `useTemplateRef` 在微信原生目标下明确降级。
+7. 已完成：基础 slots / named slots 原生映射，`provide/inject` 明确降级。
+8. 已完成：`watch/watchEffect` / `onWatcherCleanup` 在微信原生目标下明确降级。
+9. 已完成：Vue 3.5 `useId` / SSR 稳定 ID 语义在微信原生目标下明确降级。
+10. 已完成：Vue 3.5 `useTemplateRef` 在微信原生目标下明确降级。
 
 补充约束：不得用旧版页面内联 `watch` 轮询 helper 代替 Vue 3.5 语义；除非真实实现 Vue watcher 调度与 cleanup 语义，否则 `watch/watchEffect/onWatcherCleanup` 不得进入 thin runtime 白名单。
 

@@ -156,6 +156,8 @@ export interface TransformContext {
   templateRefs?: Record<string, any>
   /** 原生目标下降级的 useId 调用 */
   useIds?: Record<string, any>
+  /** 原生目标下降级的 provide/inject 调用 */
+  provideInject?: Record<string, any>
   /** 响应式数据 */
   data: Record<string, any>
   /** 方法定义 */
