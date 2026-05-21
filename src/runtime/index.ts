@@ -29,7 +29,7 @@ export interface RuntimeConfig {
  * Vue3 小程序运行时
  */
 export class Vue3MiniRuntime {
-  private static instance: Vue3MiniRuntime
+  private static instance: Vue3MiniRuntime | null = null
   private config: RuntimeConfig
   private reactivity: Reactivity
   private lifecycle: Lifecycle
@@ -52,10 +52,7 @@ export class Vue3MiniRuntime {
     this.template = new TemplateEngine(this.config)
     this.di = new DependencyInjection(this.config)
     this.event = new EventSystem(this.config)
-    this.component = new ComponentManager(this.config)
-
-    // 设置组件管理器的依赖
-    this.component.setDependencies({
+    this.component = new ComponentManager(this.config, {
       reactivity: this.reactivity,
       lifecycle: this.lifecycle,
       template: this.template,
@@ -209,7 +206,7 @@ export class Vue3MiniRuntime {
       this.reactivity.destroy()
 
       this.initialized = false
-      Vue3MiniRuntime.instance = null as any
+      Vue3MiniRuntime.instance = null
 
       logger.info('Vue3 小程序运行时已销毁')
     } catch (error) {
@@ -251,11 +248,6 @@ export class Vue3MiniRuntime {
 }
 
 /**
- * 全局运行时实例
- */
-export const runtime = Vue3MiniRuntime.getInstance()
-
-/**
  * 便捷的初始化函数
  */
 export async function initVue3Runtime(config?: RuntimeConfig): Promise<Vue3MiniRuntime> {
@@ -268,14 +260,14 @@ export async function initVue3Runtime(config?: RuntimeConfig): Promise<Vue3MiniR
  * 创建页面的便捷函数
  */
 export function definePage(config: any): any {
-  return runtime.createPage(config)
+  return Vue3MiniRuntime.getInstance().createPage(config)
 }
 
 /**
  * 创建组件的便捷函数
  */
 export function defineComponent(config: any): any {
-  return runtime.createComponent(config)
+  return Vue3MiniRuntime.getInstance().createComponent(config)
 }
 
 // 导出核心模块
@@ -303,40 +295,3 @@ export type {
 } from './types'
 
 // RuntimeConfig已经在上面直接导出了
-
-// 兼容旧版本API
-export * from './reactivity.js'
-export * from './lifecycle.js'
-export * from './event-system.js'
-
-import { setupReactivity, cleanupReactivity } from './reactivity.js'
-import { setupLifecycle, cleanupLifecycle } from './lifecycle.js'
-import { setupEventSystem, cleanupEventSystem } from './event-system.js'
-
-/**
- * 运行时初始化（兼容旧版本）
- */
-export function setupRuntime(context: any, isPage: boolean = false): void {
-  // 设置响应式系统
-  setupReactivity(context)
-
-  // 设置生命周期系统
-  setupLifecycle(context, isPage)
-
-  // 设置事件系统
-  setupEventSystem(context)
-}
-
-/**
- * 运行时清理（兼容旧版本）
- */
-export function cleanupRuntime(context: any): void {
-  // 清理响应式系统
-  cleanupReactivity(context)
-
-  // 清理生命周期系统
-  cleanupLifecycle(context)
-
-  // 清理事件系统
-  cleanupEventSystem(context)
-}

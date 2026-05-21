@@ -28,7 +28,7 @@ export interface RuntimeModule {
  * 打包结果
  */
 export interface BundleResult {
-  /** 打包后的代码 */
+  /** 打包摘要；实际注入代码由 CodeGenerator 按特性生成 */
   code: string
   /** 包含的模块列表 */
   modules: string[]
@@ -272,20 +272,14 @@ export class RuntimeBundler {
     logger.info('开始打包运行时库...')
 
     const requiredModules = this.getRequiredModules(featureUsage)
-    const bundleCode = await this.generateBundleCode(requiredModules)
+    const bundleCode = this.generateBundleManifest(requiredModules)
 
     const result: BundleResult = {
       code: bundleCode,
       modules: requiredModules,
       totalSize: bundleCode.length,
-      minifiedSize: bundleCode.length // TODO: 实际压缩
+      minifiedSize: bundleCode.length
     }
-
-    // 暂时禁用压缩以避免语法错误
-    // if (this.config.minify) {
-    //   result.code = this.minifyCode(result.code)
-    //   result.minifiedSize = result.code.length
-    // }
 
     logger.info(`运行时库打包完成: ${result.modules.length} 个模块, ${result.totalSize} 字节`)
     if (this.config.minify) {
@@ -296,118 +290,13 @@ export class RuntimeBundler {
   }
 
   /**
-   * 生成打包代码
+   * 生成运行时模块清单
    */
-  private async generateBundleCode(moduleNames: string[]): Promise<string> {
-    const fs = await import('fs/promises')
-    const path = await import('path')
-
-    let bundleCode = `
-// Vue3 小程序运行时库 v${this.config.runtimeVersion}
-// 自动生成，请勿手动修改
-// 包含模块: ${moduleNames.join(', ')}
-
-(function(global) {
-  // 运行时库命名空间
-  const Vue3MiniRuntime = {};
-  
-`
-
-    // 加载并合并模块代码
-    for (const moduleName of moduleNames) {
-      const module = this.availableModules.get(moduleName)
-      if (!module) continue
-
-      try {
-        const moduleCode = await this.loadModuleCode(module.path)
-        bundleCode += `
-  // === 模块: ${moduleName} ===
-  ${this.wrapModuleCode(moduleCode, moduleName)}
-  
-`
-      } catch (error) {
-        logger.warn(`加载模块失败: ${moduleName}`, error)
-      }
-    }
-
-    bundleCode += `
-  // 导出运行时库
-  if (typeof module !== 'undefined' && module.exports) {
-    module.exports = Vue3MiniRuntime;
-  } else {
-    global.Vue3MiniRuntime = Vue3MiniRuntime;
-  }
-  
-})(typeof global !== 'undefined' ? global : this);
-`
-
-    return bundleCode
-  }
-
-  /**
-   * 加载模块代码
-   */
-  private async loadModuleCode(modulePath: string): Promise<string> {
-    const fs = await import('fs/promises')
-    const path = await import('path')
-    const { fileURLToPath } = await import('url')
-
-    try {
-      // 获取当前文件的目录路径（ES 模块兼容）
-      const currentDir = typeof __dirname !== 'undefined'
-        ? __dirname
-        : path.dirname(fileURLToPath(import.meta.url))
-
-      const fullPath = path.resolve(currentDir, '..', modulePath)
-
-      // 检查文件是否存在
-      await fs.access(fullPath)
-
-      const content = await fs.readFile(fullPath, 'utf-8')
-      logger.info(`成功加载模块: ${modulePath} (${content.length} 字节)`)
-      return content
-    } catch (error) {
-      logger.error(`加载模块失败: ${modulePath}`, error)
-      // 返回一个简单的占位符代码，而不是抛出错误
-      return `// 模块 ${modulePath} 加载失败\nconsole.warn('模块 ${modulePath} 不可用');`
-    }
-  }
-
-  /**
-   * 包装模块代码
-   */
-  private wrapModuleCode(code: string, moduleName: string): string {
-    // 移除 TypeScript 类型注解和导入语句，但保持语法正确
-    let processedCode = code
-      .replace(/import\s+.*?from\s+['"][^'"]*['"];?\s*/g, '') // 移除 import 语句
-      .replace(/export\s+/g, 'Vue3MiniRuntime.') // 转换 export 为命名空间
-      .replace(/:\s*[A-Za-z<>[\]|&\s]+(?=[=,;{}()])/g, '') // 移除简单类型注解
-      .replace(/interface\s+\w+\s*{[^}]*}/g, '') // 移除接口定义
-      .replace(/type\s+\w+\s*=[^;]+;/g, '') // 移除类型别名
-
-    // 简单包装，不压缩以避免语法错误
-    return `
-  (function() {
-    ${processedCode}
-  })();
-`
-  }
-
-  /**
-   * 压缩代码
-   */
-  private minifyCode(code: string): string {
-    return code
-      .replace(/\/\*[\s\S]*?\*\//g, '') // 移除块注释
-      .replace(/\/\/.*$/gm, '') // 移除行注释
-      .replace(/\s*\n\s*/g, '') // 移除换行和缩进
-      .replace(/\s*{\s*/g, '{') // 压缩大括号
-      .replace(/\s*}\s*/g, '}') // 压缩大括号
-      .replace(/\s*;\s*/g, ';') // 压缩分号
-      .replace(/\s*,\s*/g, ',') // 压缩逗号
-      .replace(/\s*=\s*/g, '=') // 压缩等号
-      .replace(/\s+/g, ' ') // 压缩多余空白
-      .replace(/;\s*}/g, '}') // 移除分号前的空格
-      .trim()
+  private generateBundleManifest(moduleNames: string[]): string {
+    return [
+      `// Vue3 小程序运行时模块清单 v${this.config.runtimeVersion}`,
+      '// 实际 runtime-injection.js 由 CodeGenerator 根据此清单生成',
+      `// 包含模块: ${moduleNames.join(', ')}`
+    ].join('\n')
   }
 }

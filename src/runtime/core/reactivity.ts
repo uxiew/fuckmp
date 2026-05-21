@@ -46,7 +46,6 @@ export interface ReactivityConfig {
 export class Reactivity {
   private config: ReactivityConfig
   private instances: Map<any, ReactiveInstance> = new Map()
-  private globalWatchers: Map<string, WatcherDef[]> = new Map()
   private initialized = false
 
   constructor(config: ReactivityConfig = {}) {
@@ -106,7 +105,6 @@ export class Reactivity {
    */
   ref<T>(value: T, context?: any): { value: T; _isRef: true; _key: string } {
     const key = `ref_${Math.random().toString(36).substr(2, 9)}`
-    let _value = value
 
     // 创建一个包含 ref 元数据的目标对象
     const target = {
@@ -152,7 +150,7 @@ export class Reactivity {
         }
 
         // 允许设置其他属性（如 _context）
-        ; (target as any)[prop] = newValue
+        ;(target as any)[prop] = newValue
         return true
       },
 
@@ -181,7 +179,7 @@ export class Reactivity {
       context.setData({ [key]: value })
     }
 
-    return refProxy as { value: T; _isRef: true; _key: string }
+    return refProxy as unknown as { value: T; _isRef: true; _key: string }
   }
 
   /**
@@ -290,8 +288,6 @@ export class Reactivity {
   computed<T>(getter: () => T, context?: any): { value: T; _isComputed: true; _key: string } {
     const key = `computed_${Math.random().toString(36).substr(2, 9)}`
     let _value: T
-    let _dirty = true
-    let _computing = false // 防止循环计算
 
     // 创建包含 computed 元数据的目标对象
     const target = {
@@ -362,7 +358,7 @@ export class Reactivity {
         }
 
         // 允许设置其他属性
-        ; (target as any)[prop] = newValue
+        ;(target as any)[prop] = newValue
         return true
       },
 
@@ -395,23 +391,22 @@ export class Reactivity {
 
     // 初始计算
     try {
-      const initialValue = (computedProxy as any).value
+      void (computedProxy as any).value
     } catch (error) {
       logger.error(`计算属性 ${key} 初始计算失败:`, error)
     }
 
-    return computedProxy as { value: T; _isComputed: true; _key: string }
+    return computedProxy as unknown as { value: T; _isComputed: true; _key: string }
   }
 
   /**
    * 销毁响应式系统
    */
   destroy(): void {
-    for (const [instance, reactiveInstance] of this.instances) {
+    for (const reactiveInstance of this.instances.values()) {
       reactiveInstance.cleanup()
     }
     this.instances.clear()
-    this.globalWatchers.clear()
     this.initialized = false
   }
 

@@ -136,7 +136,7 @@ export class EventSystem {
    * 销毁事件系统
    */
   destroy(): void {
-    for (const [instance, eventInstance] of this.instances) {
+    for (const eventInstance of this.instances.values()) {
       eventInstance.cleanup()
     }
     this.instances.clear()
@@ -159,7 +159,6 @@ class EventInstance {
   private instance: any
   private config: any
   private eventConfig: EventConfig
-  private eventHandlers: Map<string, EventHandler> = new Map()
   private bindings: Map<string, TwoWayBinding> = new Map()
   private boundMethods: Map<string, Function> = new Map()
 
@@ -185,7 +184,6 @@ class EventInstance {
 
     for (const [name, handler] of Object.entries(this.config.events)) {
       const eventHandler = handler as EventHandler
-      this.eventHandlers.set(name, eventHandler)
 
       // 创建包装的处理器
       const wrappedHandler = this.createWrappedHandler(eventHandler)
@@ -228,6 +226,9 @@ class EventInstance {
         // 应用事件修饰符
         if (this.eventConfig.enableEventModifiers && eventHandler.modifiers) {
           event = this.applyEventModifiers(event, eventHandler.modifiers)
+          if (event === null) {
+            return undefined
+          }
         }
 
         // 执行处理器
@@ -366,61 +367,14 @@ class EventInstance {
   }
 
   /**
-   * 手动触发双向绑定更新
-   */
-  updateBinding(bindingName: string, value: any): void {
-    const binding = this.bindings.get(bindingName)
-    if (!binding) {
-      logger.warn(`双向绑定不存在: ${bindingName}`)
-      return
-    }
-
-    // 模拟事件对象
-    const mockEvent = {
-      detail: { value }
-    }
-
-    const handler = this.boundMethods.get(`_handle_${bindingName}_binding`)
-    if (handler) {
-      handler(mockEvent)
-    }
-  }
-
-  /**
-   * 获取绑定值
-   */
-  getBindingValue(bindingName: string): any {
-    const binding = this.bindings.get(bindingName)
-    if (!binding) {
-      return undefined
-    }
-
-    return this.instance.data?.[binding.property]
-  }
-
-  /**
-   * 获取所有绑定值
-   */
-  getAllBindingValues(): Record<string, any> {
-    const result: Record<string, any> = {}
-    
-    for (const [name, binding] of this.bindings) {
-      result[name] = this.instance.data?.[binding.property]
-    }
-
-    return result
-  }
-
-  /**
    * 清理
    */
   cleanup(): void {
     // 移除绑定的方法
-    for (const [name, method] of this.boundMethods) {
+    for (const name of this.boundMethods.keys()) {
       delete this.instance[name]
     }
 
-    this.eventHandlers.clear()
     this.bindings.clear()
     this.boundMethods.clear()
   }

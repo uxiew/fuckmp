@@ -30,8 +30,7 @@ export {
   Vue3MiniRuntime,
   initVue3Runtime,
   definePage,
-  defineComponent,
-  runtime
+  defineComponent
 } from './runtime/index.js'
 
 // 导出工具函数

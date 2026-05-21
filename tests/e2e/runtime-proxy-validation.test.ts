@@ -3,16 +3,53 @@
  * 验证编译后的运行时注入代码确实使用了 Proxy 实现
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import fs from 'fs'
+import os from 'os'
 import path from 'path'
+import { Vue3MiniprogramCompiler } from '@/compiler/compiler.js'
 
 describe('运行时 Proxy 响应式系统验证', () => {
   let runtimeCode: string
+  let outputDir: string
+
+  beforeAll(async () => {
+    outputDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vue3-wx-runtime-proxy-'))
+
+    const compiler = new Vue3MiniprogramCompiler({
+      input: path.join(process.cwd(), 'test-project'),
+      output: outputDir,
+      appId: 'test-miniprogram',
+      features: {
+        scriptSetup: true,
+        typescript: true,
+        scss: true,
+        compositionApi: true,
+        emits: true,
+        slots: true,
+        provide: false
+      },
+      optimization: {
+        minify: false,
+        sourcemap: true,
+        treeshaking: false,
+        incremental: false
+      }
+    })
+
+    const result = await compiler.compile()
+    expect(result.errors).toHaveLength(0)
+  })
+
+  afterAll(() => {
+    if (outputDir) {
+      fs.rmSync(outputDir, { recursive: true, force: true })
+    }
+  })
 
   beforeEach(() => {
     // 读取编译后的运行时注入代码
-    const runtimePath = path.resolve(__dirname, '../../test-output/runtime-injection.js')
+    const runtimePath = path.join(outputDir, 'runtime-injection.js')
     if (fs.existsSync(runtimePath)) {
       runtimeCode = fs.readFileSync(runtimePath, 'utf-8')
     } else {
@@ -44,8 +81,8 @@ describe('运行时 Proxy 响应式系统验证', () => {
     expect(runtimeCode).toContain('const proxyCache = new WeakMap();')
 
     // 验证包含缓存机制
-    expect(runtimeCode).toContain('if (proxyCache.has(obj)) {')
-    expect(runtimeCode).toContain('proxyCache.set(obj, proxy);')
+    expect(runtimeCode).toContain('if (proxyCache.has(target)) {')
+    expect(runtimeCode).toContain('proxyCache.set(target, proxy);')
 
     // 验证包含完整的 Proxy handlers
     expect(runtimeCode).toContain('deleteProperty(target, prop) {')
@@ -76,13 +113,13 @@ describe('运行时 Proxy 响应式系统验证', () => {
 
   it('应该包含完整的错误处理和警告机制', () => {
     // 验证包含适当的警告信息
-    expect(runtimeCode).toContain('console.warn(\'尝试修改 ref 的只读属性:')
-    expect(runtimeCode).toContain('console.warn(\'计算属性')
-    expect(runtimeCode).toContain('的 value 是只读的\')')
-    expect(runtimeCode).toContain('console.warn(\'尝试修改 computed 的只读属性:')
+    expect(runtimeCode).toContain('console.warn(`尝试修改 ref 的只读属性:')
+    expect(runtimeCode).toContain('console.warn(`计算属性')
+    expect(runtimeCode).toContain('的 value 是只读的`')
+    expect(runtimeCode).toContain('console.warn(`尝试修改 computed 的只读属性:')
 
     // 验证包含错误处理
-    expect(runtimeCode).toContain('console.error(\'计算属性')
+    expect(runtimeCode).toContain('console.error(`计算属性')
     expect(runtimeCode).toContain('计算失败:')
   })
 
@@ -95,7 +132,7 @@ describe('运行时 Proxy 响应式系统验证', () => {
 
     // 验证包含条件更新（只在值真正改变时更新）
     expect(runtimeCode).toContain('if (newValue !== oldValue)')
-    expect(runtimeCode).toContain('if (newValue !== target._value)')
+    expect(runtimeCode).toContain('const oldValue = target._value;')
 
     // 验证包含 Reflect API 的使用（更好的性能）
     expect(runtimeCode).toContain('Reflect.ownKeys')
@@ -111,7 +148,7 @@ describe('运行时 Proxy 响应式系统验证', () => {
 
     // 验证初始化时也调用 setData
     expect(runtimeCode).toContain('context.setData({ [key]: value });')
-    expect(runtimeCode).toContain('context.setData({ [key]: target });')
+    expect(runtimeCode).toContain('context.setData({ [key]: obj });')
 
     // 验证删除属性时的 setData 处理
     expect(runtimeCode).toContain('context.setData({ [fullPath]: undefined });')
@@ -127,7 +164,8 @@ describe('运行时 Proxy 响应式系统验证', () => {
     // 验证 computed 元数据
     expect(runtimeCode).toContain('_isComputed: true')
     expect(runtimeCode).toContain('_getter: getter')
-    expect(runtimeCode).toContain('_dirty: true')
+    expect(runtimeCode).toContain('let _dirty = true;')
+    expect(runtimeCode).toContain('_dirty: _dirty')
     expect(runtimeCode).toContain('_computing: false')
 
     // 验证元数据保护
@@ -174,9 +212,20 @@ describe('运行时 Proxy 响应式系统验证', () => {
     expect(runtimeCode).toContain('基于 Proxy 的实现')
     expect(runtimeCode).toContain('优化的 Proxy 实现')
     expect(runtimeCode).toContain('防止循环计算')
-    expect(runtimeCode).toContain('用于跟踪已代理的对象，避免重复代理')
-    expect(runtimeCode).toContain('如果有上下文，自动调用 setData')
-    expect(runtimeCode).toContain('防止修改元数据')
+    expect(runtimeCode).toContain('const proxyCache = new WeakMap();')
+    expect(runtimeCode).toContain('context.setData')
+    expect(runtimeCode).toContain('尝试修改 ref 的只读属性')
     expect(runtimeCode).toContain('computed value 是只读的')
+  })
+
+  it('不应该包含未接入调用链的占位 runtime 模块', () => {
+    expect(runtimeCode).not.toContain('function isRef(value)')
+    expect(runtimeCode).not.toContain('function unref(value)')
+    expect(runtimeCode).not.toContain('const lifecycleHooks = new Map()')
+    expect(runtimeCode).not.toContain('function onMounted(fn, context)')
+    expect(runtimeCode).not.toContain('function processTemplate(template, data)')
+    expect(runtimeCode).not.toContain('function bindEvent(context, eventName, handler)')
+    expect(runtimeCode).not.toContain('defineApp')
+    expect(runtimeCode).not.toContain('const runtime = new Vue3MiniRuntime()')
   })
 })

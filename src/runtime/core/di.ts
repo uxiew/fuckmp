@@ -165,7 +165,7 @@ export class DependencyInjection {
    * 销毁依赖注入系统
    */
   destroy(): void {
-    for (const [instance, diInstance] of this.instances) {
+    for (const diInstance of this.instances.values()) {
       diInstance.cleanup()
     }
     this.instances.clear()
@@ -229,7 +229,7 @@ class DIInstance {
   private setupProviders(): void {
     if (!this.config.providers) return
 
-    for (const [name, provider] of Object.entries(this.config.providers)) {
+    for (const provider of Object.values(this.config.providers)) {
       const providerDef = provider as ProviderDef
       this.providers.set(providerDef.key, providerDef.value)
 
@@ -377,28 +377,6 @@ class DIInstance {
         }
       }
     }
-  }
-
-  /**
-   * 获取所有注入的值
-   */
-  getInjectedValues(): Record<string, any> {
-    const result: Record<string, any> = {}
-    for (const [name, value] of this.injectedValues) {
-      result[name] = value
-    }
-    return result
-  }
-
-  /**
-   * 获取所有提供的值
-   */
-  getProvidedValues(): Record<InjectionKey, any> {
-    const result: Record<InjectionKey, any> = {}
-    for (const [key, value] of this.providers) {
-      result[key] = value
-    }
-    return result
   }
 
   /**

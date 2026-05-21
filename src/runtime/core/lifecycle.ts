@@ -113,7 +113,7 @@ export class Lifecycle {
    * 销毁生命周期系统
    */
   destroy(): void {
-    for (const [instance, lifecycleInstance] of this.instances) {
+    for (const lifecycleInstance of this.instances.values()) {
       lifecycleInstance.cleanup()
     }
     this.instances.clear()

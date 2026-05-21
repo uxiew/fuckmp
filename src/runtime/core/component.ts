@@ -57,6 +57,17 @@ export interface ComponentManagerConfig {
 }
 
 /**
+ * 组件管理器依赖
+ */
+export interface ComponentDependencies {
+  reactivity: Reactivity
+  lifecycle: Lifecycle
+  template: TemplateEngine
+  di: DependencyInjection
+  event: EventSystem
+}
+
+/**
  * 组件管理器
  */
 export class ComponentManager {
@@ -69,7 +80,7 @@ export class ComponentManager {
   private instances: Map<any, ComponentInstance> = new Map()
   private initialized = false
 
-  constructor(config: ComponentManagerConfig = {}) {
+  constructor(config: ComponentManagerConfig = {}, deps?: ComponentDependencies) {
     this.config = {
       debug: false,
       enableMixins: true,
@@ -77,24 +88,17 @@ export class ComponentManager {
       ...config
     }
 
-    // 注意：这些依赖应该从外部注入，这里为了简化直接创建
-    this.reactivity = new Reactivity()
-    this.lifecycle = new Lifecycle()
-    this.template = new TemplateEngine()
-    this.di = new DependencyInjection()
-    this.event = new EventSystem()
+    this.reactivity = deps?.reactivity ?? new Reactivity(config)
+    this.lifecycle = deps?.lifecycle ?? new Lifecycle(config)
+    this.template = deps?.template ?? new TemplateEngine(config)
+    this.di = deps?.di ?? new DependencyInjection(config)
+    this.event = deps?.event ?? new EventSystem(config)
   }
 
   /**
    * 设置依赖
    */
-  setDependencies(deps: {
-    reactivity: Reactivity
-    lifecycle: Lifecycle
-    template: TemplateEngine
-    di: DependencyInjection
-    event: EventSystem
-  }): void {
+  setDependencies(deps: ComponentDependencies): void {
     this.reactivity = deps.reactivity
     this.lifecycle = deps.lifecycle
     this.template = deps.template
@@ -118,7 +122,7 @@ export class ComponentManager {
    * 创建页面
    */
   createPage(config: ComponentConfig): any {
-    const processedConfig = this.processConfig(config, true)
+    const processedConfig = this.processConfig(config)
     const pageInstance = this.createInstance(processedConfig, true)
 
     // 返回小程序页面配置
@@ -129,7 +133,7 @@ export class ComponentManager {
    * 创建组件
    */
   createComponent(config: ComponentConfig): any {
-    const processedConfig = this.processConfig(config, false)
+    const processedConfig = this.processConfig(config)
     const componentInstance = this.createInstance(processedConfig, false)
 
     // 返回小程序组件配置
@@ -139,7 +143,7 @@ export class ComponentManager {
   /**
    * 处理配置
    */
-  private processConfig(config: ComponentConfig, isPage: boolean): ComponentConfig {
+  private processConfig(config: ComponentConfig): ComponentConfig {
     let processedConfig = { ...config }
 
     // 处理mixins
@@ -213,7 +217,7 @@ export class ComponentManager {
    * 创建实例
    */
   private createInstance(config: ComponentConfig, isPage: boolean): ComponentInstance {
-    const instance = new ComponentInstance(config, isPage, this.config)
+    const instance = new ComponentInstance(config)
 
     // 设置各个系统
     this.reactivity.setupInstance(instance.getRawInstance(), {
@@ -281,7 +285,20 @@ export class ComponentManager {
       Object.assign(miniProgramConfig, config.methods)
     }
 
-    // 添加生命周期（已经在lifecycle中处理）
+    // 添加生命周期方法
+    if (isPage) {
+      // 页面生命周期
+      if (rawInstance.onLoad) miniProgramConfig.onLoad = rawInstance.onLoad
+      if (rawInstance.onShow) miniProgramConfig.onShow = rawInstance.onShow
+      if (rawInstance.onReady) miniProgramConfig.onReady = rawInstance.onReady
+      if (rawInstance.onHide) miniProgramConfig.onHide = rawInstance.onHide
+      if (rawInstance.onUnload) miniProgramConfig.onUnload = rawInstance.onUnload
+    } else {
+      // 组件生命周期
+      if (rawInstance.lifetimes) {
+        miniProgramConfig.lifetimes = rawInstance.lifetimes
+      }
+    }
 
     // 如果是组件，添加组件特有配置
     if (!isPage) {
@@ -335,7 +352,7 @@ export class ComponentManager {
    * 销毁组件管理器
    */
   destroy(): void {
-    for (const [rawInstance, instance] of this.instances) {
+    for (const rawInstance of this.instances.keys()) {
       this.cleanupInstance(rawInstance)
     }
     this.instances.clear()
@@ -355,14 +372,10 @@ export class ComponentManager {
  */
 class ComponentInstance {
   private config: ComponentConfig
-  private isPage: boolean
-  private managerConfig: ComponentManagerConfig
   private rawInstance: any = {}
 
-  constructor(config: ComponentConfig, isPage: boolean, managerConfig: ComponentManagerConfig) {
+  constructor(config: ComponentConfig) {
     this.config = config
-    this.isPage = isPage
-    this.managerConfig = managerConfig
   }
 
   /**
@@ -377,13 +390,6 @@ class ComponentInstance {
    */
   getRawInstance(): any {
     return this.rawInstance
-  }
-
-  /**
-   * 是否为页面
-   */
-  getIsPage(): boolean {
-    return this.isPage
   }
 
   /**

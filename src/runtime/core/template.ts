@@ -151,7 +151,7 @@ export class TemplateEngine {
    * 销毁模板引擎
    */
   destroy(): void {
-    for (const [instance, templateInstance] of this.instances) {
+    for (const templateInstance of this.instances.values()) {
       templateInstance.cleanup()
     }
     this.instances.clear()
