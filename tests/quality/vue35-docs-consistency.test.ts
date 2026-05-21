@@ -60,9 +60,19 @@ const LATEST_MATRIX_ROWS = [
     refs: ['tests/e2e/slots-provide-inject-boundary.test.ts']
   },
   {
+    label: 'scoped slots / dynamic slots',
+    status: '明确降级 / 不宣称支持',
+    refs: ['tests/e2e/unsupported-template-boundary.test.ts']
+  },
+  {
     label: '`provide` / `inject`',
     status: '明确降级',
     refs: ['tests/e2e/slots-provide-inject-boundary.test.ts']
+  },
+  {
+    label: '`Transition` / `KeepAlive`',
+    status: '明确降级 / 不宣称支持',
+    refs: ['tests/e2e/unsupported-template-boundary.test.ts']
   },
   {
     label: '`watch` / `watchEffect` / `onWatcherCleanup`',
@@ -88,6 +98,7 @@ const README_NATIVE_FIRST_REFS = [
   'tests/e2e/with-defaults-props.test.ts',
   'tests/e2e/reactive-props-destructure.test.ts',
   'tests/e2e/slots-provide-inject-boundary.test.ts',
+  'tests/e2e/unsupported-template-boundary.test.ts',
   'tests/e2e/define-expose-degrade.test.ts',
   'tests/e2e/define-options-degrade.test.ts',
   'tests/e2e/define-slots-degrade.test.ts',

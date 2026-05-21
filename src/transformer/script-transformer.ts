@@ -101,6 +101,7 @@ export class ScriptTransformer {
         templateRefs: {},
         useIds: {},
         provideInject: {},
+        templateUnsupported: {},
         data: {},
         methods: {},
         computed: {},

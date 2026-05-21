@@ -337,6 +337,10 @@ export class Vue3MiniprogramCompiler {
         templateParseResult,
         context
       )
+
+      if (results.script?.context && context.templateUnsupported) {
+        results.script.context.templateUnsupported = context.templateUnsupported
+      }
     }
 
     // 解析和转换样式

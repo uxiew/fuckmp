@@ -25,6 +25,7 @@ export function createInitialTransformContext(
     templateRefs: {},
     useIds: {},
     provideInject: {},
+    templateUnsupported: {},
     data: {},
     methods: {},
     computed: {},

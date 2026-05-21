@@ -4,7 +4,7 @@
  */
 
 import { compileTemplate } from '@vue/compiler-sfc'
-import { logger } from '@/utils/index.js'
+import { recordUnsupportedTemplateCapabilities, logger } from '@/utils/index.js'
 import type { TransformContext } from '@/types/index.js'
 import type { TemplateParseResult } from '@/parser/index.js'
 import { applyPropAccessMappingsToTemplate } from './prop-access-mapping.js'
@@ -32,6 +32,8 @@ export class VueTemplateTransformer {
         components: new Set(),
         eventHandlers: new Map()
       }
+
+      recordUnsupportedTemplateCapabilities(parseResult.source, context)
 
       // 使用 @vue/compiler-sfc 编译模板获取 AST
       const compiledTemplate = compileTemplate({

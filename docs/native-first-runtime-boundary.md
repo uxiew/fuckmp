@@ -78,6 +78,16 @@ FuckMP 的目标是把 Vue3 SFC 编译为原生微信小程序工程，而不是
 
 验证测试：`tests/e2e/slots-provide-inject-boundary.test.ts`。
 
+### scoped slots / dynamic slots
+
+Vue scoped slots 依赖 `v-slot`/`#` 接收子组件传出的 slot props，dynamic slots 依赖动态指令参数选择 slot 名。微信原生 slot 只提供基础和具名 slot，不提供 Vue slot props 分发或动态 slot 名等价语义，因此当前处理为**明确降级 / 不宣称支持**：
+
+- 编译产物输出 `scoped slots / dynamic slots 降级` 注释。
+- 不生成 scoped slot props 分发、动态 slot 名解析或 template runtime 模块。
+- 不把该能力加入 thin runtime 白名单。
+
+验证测试：`tests/e2e/unsupported-template-boundary.test.ts`。
+
 ### `defineSlots`
 
 `defineSlots` 主要用于 `<script setup>` 的 slot 类型提示，并在 Vue 中返回 slots 对象。当前微信原生输出不暴露 Vue slots 对象桥接，因此当前处理为**类型宏擦除 / 明确降级**：
@@ -129,21 +139,26 @@ Vue 3.5 `useTemplateRef` 用于获取模板 ref 对应的 DOM 或组件实例引
 
 验证测试：`tests/e2e/use-template-ref-degrade.test.ts`。
 
+### `Transition` / `KeepAlive`
+
+Vue `<Transition>` 负责进入/离开阶段的 class、hook 与时序管理；`<KeepAlive>` 负责缓存非激活组件实例状态。微信原生输出当前没有 Vue 过渡状态机或组件缓存等价桥接，因此当前处理为**明确降级 / 不宣称支持**：
+
+- 编译产物输出 `transition / keep-alive 降级` 注释。
+- 不生成 transition state machine、keep-alive cache 或额外 runtime 模块。
+- 不把该能力加入 thin runtime 白名单。
+
+验证测试：`tests/e2e/unsupported-template-boundary.test.ts`。
+
 ### 仍不宣称支持
 
-以下能力可以在源码中被识别，但不能仅靠 runtime 模块名宣称支持：
-
-- scoped slots / dynamic slots
-- transition / keep-alive
-
-这些能力必须先有明确的原生编译方案或真实运行时实现，再更新支持状态。
+上述明确降级能力即使可以在源码中被识别，也不能仅靠 runtime 模块名宣称支持。后续若要更新支持状态，必须先有明确的原生编译方案或真实运行时实现，并补充对应 e2e/fixture 证明。
 
 ## 回归约束
 
 当前测试已固化以下边界：
 
 - `RuntimeBundler.getRequiredModules()` 只返回 `core` 或 `core + reactivity`。
-- 模板指令、事件、生命周期、props/emits、`defineProps<T>()` 命名空间访问、`defineModel`、`withDefaults`、响应式 props 解构、`defineExpose` 降级、`defineOptions` 降级、`defineSlots` 降级、`watch/watchEffect/onWatcherCleanup` 降级、`useId` 原生映射、`useTemplateRef` 降级、基础 slots 映射、`provide/inject` 降级不会引入 `template/event/lifecycle/component/di` 等伪模块。
+- 模板指令、事件、生命周期、props/emits、`defineProps<T>()` 命名空间访问、`defineModel`、`withDefaults`、响应式 props 解构、`defineExpose` 降级、`defineOptions` 降级、`defineSlots` 降级、`watch/watchEffect/onWatcherCleanup` 降级、`useId` 原生映射、`useTemplateRef` 降级、基础 slots 映射、scoped/dynamic slots 降级、transition/keep-alive 降级、`provide/inject` 降级不会引入 `template/event/lifecycle/component/di` 等伪模块。
 - `RuntimeInjectionGenerator` 不会因为 `<script setup>` 本身生成 `ref/reactive/computed` runtime。
 - `PageGenerator` 不会给静态页面内联旧版响应式 runtime，也不会输出 `setInterval` 轮询式 `watch` 占位。
 
@@ -164,6 +179,7 @@ Vue 3.5 `useTemplateRef` 用于获取模板 ref 对应的 DOM 或组件实例引
 - `tests/e2e/watcher-degrade.test.ts`
 - `tests/e2e/use-id-native.test.ts`
 - `tests/e2e/use-template-ref-degrade.test.ts`
+- `tests/e2e/unsupported-template-boundary.test.ts`
 
 ## 后续开发顺序
 

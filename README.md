@@ -399,7 +399,7 @@ await compiler.watch()
 | 模板语法 | 🚧 | v-if, v-for, v-model, 事件处理按原生 WXML/JS 输出逐步补齐 |
 | 样式 | ✅ | CSS, SCSS, 作用域样式 |
 | **SCSS 导入** | ✅ | **JavaScript 导入和 @import 语句** |
-| 插槽 | 🚧 | 基础 slots / named slots 已原生映射；scoped/dynamic slots 不宣称支持 |
+| 插槽 | 🚧 | 基础 slots / named slots 已原生映射；scoped/dynamic slots 已明确降级且不宣称支持 |
 | Provide/Inject | 明确降级 | 不生成 DI runtime 桥接，`inject()` 不落入 data |
 | Teleport | ❌ | 小程序不支持 |
 | Suspense | ❌ | 小程序不支持 |
@@ -410,11 +410,13 @@ await compiler.watch()
 |------|---------|------|
 | `defineProps` type-based（内联 / 本地类型 / 相对 import type）/ `defineEmits` type-based（call signature / named tuple / 本地类型 / 相对 import type）/ `defineModel` / `defineModel` tuple 修饰符 / `withDefaults` / 响应式 props 解构 | 已原生映射 | `tests/e2e/define-props-type-based.test.ts`、`tests/e2e/typed-emits.test.ts`、`tests/e2e/native-v-model.test.ts`、`tests/e2e/with-defaults-props.test.ts`、`tests/e2e/reactive-props-destructure.test.ts` |
 | 基础 slots / named slots | 已原生映射 | `tests/e2e/slots-provide-inject-boundary.test.ts` |
+| scoped slots / dynamic slots | 明确降级 / 不宣称支持 | `tests/e2e/unsupported-template-boundary.test.ts` |
 | `defineExpose` / `defineOptions` / `defineSlots` | 明确降级 | `tests/e2e/define-expose-degrade.test.ts`、`tests/e2e/define-options-degrade.test.ts`、`tests/e2e/define-slots-degrade.test.ts` |
 | `watch` / `watchEffect` / `onWatcherCleanup` | 明确降级 | `tests/e2e/watcher-degrade.test.ts` |
 | `useId` | 已原生映射 | `tests/e2e/use-id-native.test.ts` |
 | `useTemplateRef` | 明确降级 | `tests/e2e/use-template-ref-degrade.test.ts` |
 | `provide` / `inject` | 明确降级 | `tests/e2e/slots-provide-inject-boundary.test.ts` |
+| `Transition` / `KeepAlive` | 明确降级 / 不宣称支持 | `tests/e2e/unsupported-template-boundary.test.ts` |
 
 完整能力矩阵见 `docs/latest-platform-baseline.md`，runtime 边界见 `docs/native-first-runtime-boundary.md`。
 
