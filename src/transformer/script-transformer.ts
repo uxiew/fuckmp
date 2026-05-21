@@ -15,6 +15,7 @@ import {
   createLifecycleHandler
 } from './macro-handlers/index.js'
 import { applyPropAccessMappingsToScript, hasPropAccessMappings, registerPropNamespace } from './prop-access-mapping.js'
+import { resolveDefinePropsTypeParameters } from './type-reference-resolver.js'
 import { logger } from '@/utils/index.js'
 
 /**
@@ -203,7 +204,9 @@ export class ScriptTransformer {
               type: 'CallExpression',
               callee: { type: 'Identifier', name: macroName },
               arguments: macroCall.arguments.map(arg => this.createLiteralNode(arg)),
-              typeParameters: macroCall.typeParameters // 传递 TypeScript 泛型参数
+              typeParameters: macroName === 'defineProps'
+                ? resolveDefinePropsTypeParameters(macroCall.typeParameters, parseResult, context.filename)
+                : macroCall.typeParameters // 传递 TypeScript 泛型参数
             } as any
 
             handler(node, context)

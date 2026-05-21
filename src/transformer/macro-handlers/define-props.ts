@@ -226,16 +226,7 @@ function extractTypeScriptProps(node: any): PropsDefinition {
     if (node.type === 'TSTypeReference') {
       // 类型引用，如 Props
       const typeName = node.typeName?.name || 'Unknown'
-      logger.debug(`解析 TypeScript 类型引用: ${typeName}`)
-
-      // 根据类型名称推断常见属性
-      if (typeName === 'Props') {
-        props.user = { type: Object, required: true }
-        props.clickable = { type: Boolean, default: true }
-      } else {
-        // 对于其他类型引用，尝试从名称推断
-        props[typeName.toLowerCase()] = { type: Object, required: false }
-      }
+      logger.warn(`未解析的 TypeScript 类型引用: ${typeName}`)
 
     } else if (node.type === 'TSTypeLiteral') {
       // 内联类型字面量，如 { user: User; title?: string }

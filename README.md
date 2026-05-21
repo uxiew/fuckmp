@@ -394,7 +394,7 @@ await compiler.watch()
 | `<script setup>` | ✅ | 基础解析与编译已覆盖，复杂宏按矩阵继续补齐 |
 | Composition API | 🚧 | 当前运行时桥接白名单为 ref, reactive, computed；useId 已原生映射，watch/watchEffect/onWatcherCleanup/provide/inject 明确降级 |
 | TypeScript | ✅ | 原生支持 |
-| Props/Emits | 🚧 | defineProps 支持类型声明到 `Component.properties`，并将 `props.xxx` 静态映射为原生 property 访问；defineEmits 支持运行时声明和 TypeScript call signature 事件名提取 |
+| Props/Emits | 🚧 | defineProps 支持内联类型、本地 interface/type alias 与相对 import type 到 `Component.properties`，并将 `props.xxx` 静态映射为原生 property 访问；defineEmits 支持运行时声明和 TypeScript call signature 事件名提取 |
 | 生命周期 | ✅ | 映射到小程序生命周期，不依赖 lifecycle runtime |
 | 模板语法 | 🚧 | v-if, v-for, v-model, 事件处理按原生 WXML/JS 输出逐步补齐 |
 | 样式 | ✅ | CSS, SCSS, 作用域样式 |
@@ -408,7 +408,7 @@ await compiler.watch()
 
 | 能力 | 当前状态 | 验证 |
 |------|---------|------|
-| `defineProps` type-based / `defineModel` / `defineModel` tuple 修饰符 / `withDefaults` / 响应式 props 解构 | 已原生映射 | `tests/e2e/define-props-type-based.test.ts`、`tests/e2e/native-v-model.test.ts`、`tests/e2e/with-defaults-props.test.ts`、`tests/e2e/reactive-props-destructure.test.ts` |
+| `defineProps` type-based（内联 / 本地类型 / 相对 import type）/ `defineModel` / `defineModel` tuple 修饰符 / `withDefaults` / 响应式 props 解构 | 已原生映射 | `tests/e2e/define-props-type-based.test.ts`、`tests/e2e/native-v-model.test.ts`、`tests/e2e/with-defaults-props.test.ts`、`tests/e2e/reactive-props-destructure.test.ts` |
 | 基础 slots / named slots | 已原生映射 | `tests/e2e/slots-provide-inject-boundary.test.ts` |
 | `defineExpose` / `defineOptions` / `defineSlots` | 明确降级 | `tests/e2e/define-expose-degrade.test.ts`、`tests/e2e/define-options-degrade.test.ts`、`tests/e2e/define-slots-degrade.test.ts` |
 | `watch` / `watchEffect` / `onWatcherCleanup` | 明确降级 | `tests/e2e/watcher-degrade.test.ts` |

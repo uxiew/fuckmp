@@ -38,7 +38,7 @@ FuckMP 的目标是把 Vue3 SFC 编译为原生微信小程序工程，而不是
 | `v-bind / :prop` | 原生属性与 Mustache 表达式 | 不注入 bind runtime |
 | `v-on / @event` | `bind:*` 或 `catch:*` | 不注入 event runtime |
 | `v-model` | 属性 + 事件 handler | 不注入 v-model runtime |
-| `defineProps` | `Component.properties`；`props.xxx` 模板 / computed / setup 方法访问静态改写为原生 property 访问 | 不注入 component runtime |
+| `defineProps` | 内联类型、本地 interface/type alias、相对 import type 到 `Component.properties`；`props.xxx` 模板 / computed / setup 方法访问静态改写为原生 property 访问 | 不注入 component runtime |
 | `withDefaults(defineProps())` | `Component.properties.value` | 不注入 component runtime |
 | 响应式 props 解构 | `Component.properties.value` + 模板别名 / computed getter / 生命周期回调 / setup 方法访问静态还原 | 不注入 props runtime |
 | `defineModel` | `Component.properties` + `update:*` 事件；tuple 解构配合原生 input 修饰符 handler | 不注入 v-model runtime |
