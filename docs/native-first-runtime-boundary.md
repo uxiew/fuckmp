@@ -37,17 +37,31 @@ FuckMP 的目标是把 Vue3 SFC 编译为原生微信小程序工程，而不是
 | `v-on / @event` | `bind:*` 或 `catch:*` | 不注入 event runtime |
 | `v-model` | 属性 + 事件 handler | 不注入 v-model runtime |
 | `defineProps` | `Component.properties` | 不注入 component runtime |
+| `withDefaults(defineProps())` | `Component.properties.value` | 不注入 component runtime |
+| 响应式 props 解构 | `Component.properties.value` + 模板别名静态还原 | 不注入 props runtime |
+| `defineModel` | `Component.properties` + `update:*` 事件 | 不注入 v-model runtime |
 | `defineEmits` | `this.triggerEvent` | 不注入 event runtime |
 | 生命周期 | Page/Component 原生生命周期 | 不注入 lifecycle runtime |
 | 样式与 SCSS | `wxss` | 不注入 style runtime |
 
-## 暂不宣称运行时支持
+## 明确降级或暂不宣称运行时支持
+
+### `defineExpose`
+
+`defineExpose` 在 Vue 中用于控制 `<script setup>` 组件通过 template ref 暴露给父组件的 public instance。微信原生小程序目标没有可靠等价语义，因此当前处理为**明确降级**：
+
+- 编译产物输出 `defineExpose 降级` 注释和 exposed keys。
+- 不生成 `__expose`、template-ref 桥接或额外 runtime 模块。
+- 不把该能力加入 thin runtime 白名单。
+
+验证测试：`tests/e2e/define-expose-degrade.test.ts`。
+
+### 仍不宣称支持
 
 以下能力可以在源码中被识别，但不能仅靠 runtime 模块名宣称支持：
 
 - `watch / watchEffect`
 - `provide / inject`
-- `defineExpose`
 - slots / scoped slots
 - transition / keep-alive
 
@@ -58,16 +72,20 @@ FuckMP 的目标是把 Vue3 SFC 编译为原生微信小程序工程，而不是
 当前测试已固化以下边界：
 
 - `RuntimeBundler.getRequiredModules()` 只返回 `core` 或 `core + reactivity`。
-- 模板指令、事件、生命周期、props/emits、slots、provide/inject 不会引入 `template/event/lifecycle/component/di` 等伪模块。
+- 模板指令、事件、生命周期、props/emits、`defineModel`、`withDefaults`、响应式 props 解构、`defineExpose` 降级、slots、provide/inject 不会引入 `template/event/lifecycle/component/di` 等伪模块。
 - `RuntimeInjectionGenerator` 不会因为 `<script setup>` 本身生成 `ref/reactive/computed` runtime。
 
 相关测试：
 
 - `tests/runtime-injection.test.ts`
 - `tests/compiler/runtime-injection-generator.test.ts`
+- `tests/e2e/native-v-model.test.ts`
+- `tests/e2e/with-defaults-props.test.ts`
+- `tests/e2e/reactive-props-destructure.test.ts`
+- `tests/e2e/define-expose-degrade.test.ts`
 
 ## 后续开发顺序
 
-1. 先补静态编译能力矩阵，尤其是 `v-for`、`v-model`、props/emits、生命周期和组件通信。
+1. 继续补齐静态编译能力矩阵时，优先选择能稳定落到原生 `Page / Component / WXML / WXSS / JSON` 的能力。
 2. 每个能力必须先有 fixture/e2e 测试，再实现转换。
 3. 只有当静态编译无法表达，且存在真实实现时，才允许扩展 thin runtime 白名单。
