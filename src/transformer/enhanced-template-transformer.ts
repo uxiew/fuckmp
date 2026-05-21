@@ -5,7 +5,9 @@
 
 import { parse, HTMLElement, TextNode } from 'node-html-parser'
 import { logger } from '@/utils/index.js'
-import type { TemplateParseResult, TemplateTransformResult, TransformContext } from '@/types/index.js'
+import type { TemplateParseResult } from '@/parser/index.js'
+import type { TransformContext } from '@/types/index.js'
+import type { TemplateTransformResult } from './template-transformer.js'
 
 /**
  * 增强的模板转换器类
@@ -43,7 +45,7 @@ export class EnhancedTemplateTransformer {
       result.wxml = this.transformNode(root, result, context)
 
       // 收集组件信息
-      parseResult.components.forEach(component => {
+      parseResult.components.forEach((component: string) => {
         result.components.add(component)
         context.components.set(component, `./${component}`)
       })

@@ -224,18 +224,27 @@ export class ScriptParser {
         let macroType: string | undefined
 
         // 检查是否为响应式变量
+        let initValue: any = undefined
         if (declarator.init && isCallExpression(declarator.init) && isIdentifier(declarator.init.callee)) {
           const calleeName = declarator.init.callee.name
           if (['ref', 'reactive', 'computed'].includes(calleeName)) {
             isReactive = true
             macroType = calleeName
+            // 对于响应式变量，提取第一个参数作为初始值
+            if (declarator.init.arguments.length > 0) {
+              initValue = this.extractArgumentValue(declarator.init.arguments[0])
+            }
+          } else {
+            initValue = this.extractArgumentValue(declarator.init)
           }
+        } else if (declarator.init) {
+          initValue = this.extractArgumentValue(declarator.init)
         }
 
         const variableInfo: VariableInfo = {
           name,
           type: node.kind as 'const' | 'let' | 'var',
-          init: declarator.init ? this.extractArgumentValue(declarator.init) : undefined,
+          init: initValue,
           isReactive,
           ...(macroType && { macroType })
         }
@@ -351,21 +360,15 @@ export class ScriptParser {
       case 'ArrayExpression':
         return node.elements.map((el: any) => el ? this.extractArgumentValue(el) : null)
       case 'ObjectExpression':
-        // 生成对象字面量代码字符串
-        const properties = node.properties.map((prop: any) => {
+        // 解析为实际的对象而不是字符串
+        const obj: Record<string, any> = {}
+        node.properties.forEach((prop: any) => {
           if (prop.type === 'ObjectProperty') {
-            const key = prop.key.type === 'Identifier' ? prop.key.name : JSON.stringify(prop.key.value)
-            const value = this.extractArgumentValue(prop.value)
-
-            // 只有真正的字符串字面量才需要添加引号
-            // 对象、数组、函数、表达式等都不需要引号
-            const needsQuotes = prop.value.type === 'StringLiteral'
-
-            return `${key}: ${needsQuotes ? JSON.stringify(value) : value}`
+            const key = prop.key.type === 'Identifier' ? prop.key.name : prop.key.value
+            obj[key] = this.extractArgumentValue(prop.value)
           }
-          return ''
-        }).filter(Boolean).join(', ')
-        return `{ ${properties} }`
+        })
+        return obj
       case 'ArrowFunctionExpression':
       case 'FunctionExpression':
         // 对于函数，生成函数代码字符串
@@ -489,31 +492,34 @@ export class ScriptParser {
     // 对于Vue响应式API调用，直接返回参数内容
     if (typeof callee === 'string' && ['ref', 'reactive', 'computed'].includes(callee)) {
       if (node.arguments.length > 0) {
+        const arg = node.arguments[0]
+        // 对于 computed，如果参数是箭头函数，提取函数体
+        if (callee === 'computed' && arg.type === 'ArrowFunctionExpression') {
+          if (arg.body.type === 'BlockStatement') {
+            // 如果是块语句，生成完整的块
+            return this.generateBlockStatement(arg.body)
+          } else {
+            // 如果是表达式，直接生成表达式代码
+            return this.generateCodeString(arg.body)
+          }
+        }
         // 对于 reactive 和 ref，直接生成参数的代码
-        return this.generateCodeString(node.arguments[0])
+        return this.generateCodeString(arg)
       }
     }
 
     // 特殊处理 emit 函数调用
     if (callee === 'this.triggerEvent' || callee === 'emit') {
       const args = node.arguments.map((arg: any) => {
-        const value = this.extractArgumentValue(arg)
-        // 如果是字符串字面量，需要添加引号
-        if (arg.type === 'StringLiteral') {
-          return JSON.stringify(value)
-        }
-        return value
+        // 使用 generateCodeString 来生成代码
+        return this.generateCodeString(arg)
       }).join(', ')
       return `this.triggerEvent(${args})`
     }
 
     const args = node.arguments.map((arg: any) => {
-      const value = this.extractArgumentValue(arg)
-      // 如果是字符串字面量，需要添加引号
-      if (arg.type === 'StringLiteral') {
-        return JSON.stringify(value)
-      }
-      return value
+      // 使用 generateCodeString 而不是 extractArgumentValue 来生成代码
+      return this.generateCodeString(arg)
     }).join(', ')
     return `${callee}(${args})`
   }

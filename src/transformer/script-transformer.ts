@@ -199,9 +199,10 @@ export class ScriptTransformer {
       if (variable.isReactive) {
         // 响应式变量
         if (variable.macroType === 'computed') {
-          // 计算属性
+          // 计算属性 - 转换 getter 中的响应式变量访问
+          const getter = this.transformComputedGetter(variable.init || 'return null', parseResult)
           context.computed[name] = {
-            getter: variable.init || 'return null'
+            getter
           }
           // 保存响应式变量信息
           context.reactiveVariables!.set(name, {
@@ -454,6 +455,35 @@ ${entries.join(',\n')}
     })
 
     return usingComponents
+  }
+
+  /**
+   * 转换 computed 属性的 getter 函数
+   */
+  private transformComputedGetter(getter: string, parseResult: ScriptParseResult): string {
+    if (!getter || typeof getter !== 'string') {
+      return 'return null'
+    }
+
+    // 转换响应式变量访问：count.value -> this.data.count
+    let transformedGetter = getter
+
+    // 获取所有响应式变量
+    const reactiveVars = new Set<string>()
+    parseResult.variables.forEach((variable, name) => {
+      if (variable.isReactive && variable.macroType !== 'computed') {
+        reactiveVars.add(name)
+      }
+    })
+
+    // 转换每个响应式变量的访问
+    reactiveVars.forEach(varName => {
+      // 转换 varName.value 为 this.data.varName
+      const regex = new RegExp(`\\b${varName}\\.value\\b`, 'g')
+      transformedGetter = transformedGetter.replace(regex, `this.data.${varName}`)
+    })
+
+    return transformedGetter
   }
 
   /**

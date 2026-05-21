@@ -215,7 +215,7 @@ Component(createComponent(componentConfig))
 <view class="profile">
   <text>{{ userInfo.name }}</text>
   <text>{{ computedAge }}</text>
-  <button bindtap="updateAge">更新年龄</button>
+  <button bind:tap="updateAge">更新年龄</button>
 
   <!-- 条件渲染 -->
   <view wx:if="{{ showDetails }}">

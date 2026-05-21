@@ -163,14 +163,14 @@ export class VueTemplateTransformer {
       if (expression.startsWith('_ctx.')) {
         expression = expression.substring(5) // 移除 '_ctx.' 前缀
       }
-      return `{{ ${expression} }}`
+      return `{{${expression}}}`
     }
 
     // 处理复合表达式 (type: 8)
     if (node.content.type === 8) {
       // 优先使用 loc.source，这是原始的表达式内容
       if (node.content.loc && node.content.loc.source) {
-        return `{{ ${node.content.loc.source} }}`
+        return `{{${node.content.loc.source}}}`
       }
 
       // 如果没有 loc.source，从子节点中提取表达式
@@ -181,14 +181,14 @@ export class VueTemplateTransformer {
           .join('')
 
         if (expressions) {
-          return `{{ ${expressions} }}`
+          return `{{${expressions}}}`
         }
       }
     }
 
     // 如果有 loc.source，直接使用原始源码
     if (node.content.loc && node.content.loc.source) {
-      return `{{ ${node.content.loc.source} }}`
+      return `{{${node.content.loc.source}}}`
     }
 
     return ''
@@ -239,7 +239,33 @@ export class VueTemplateTransformer {
     const valueAlias = node.valueAlias?.content || 'item'
     const keyAlias = node.keyAlias?.content || 'index'
 
-    let output = `<view wx:for="{{${source}}}" wx:for-item="${valueAlias}" wx:for-index="${keyAlias}" wx:key="${valueAlias}">`
+    // 查找原始元素的 :key 属性
+    let keyExpression = valueAlias // 默认使用 item 变量
+    if (node.children && node.children.length > 0) {
+      const firstChild = node.children[0]
+      if (firstChild && firstChild.props) {
+        const keyProp = firstChild.props.find((prop: any) =>
+          prop.type === 7 && prop.name === 'bind' && prop.arg?.content === 'key'
+        )
+        if (keyProp && keyProp.exp) {
+          const fullKeyExpression = this.extractExpression(keyProp.exp)
+          // 智能提取 key 属性名
+          // 如果是 item.id 形式，提取 id 部分
+          if (fullKeyExpression.includes('.')) {
+            const parts = fullKeyExpression.split('.')
+            if (parts.length === 2 && parts[0] === valueAlias) {
+              keyExpression = parts[1]
+            } else {
+              keyExpression = fullKeyExpression
+            }
+          } else {
+            keyExpression = fullKeyExpression
+          }
+        }
+      }
+    }
+
+    let output = `<view wx:for="{{${source}}}" wx:for-item="${valueAlias}" wx:for-index="${keyAlias}" wx:key="${keyExpression}">`
 
     // 转换子节点
     if (node.children) {
@@ -260,7 +286,7 @@ export class VueTemplateTransformer {
     const tagName = this.transformTagName(node.tag)
 
     // 转换属性
-    const attributes = this.transformElementProps(node.props || [], result, context)
+    const attributes = this.transformElementProps(node.props || [], result, context, node.tag)
 
     // 转换子节点
     const children = (node.children || [])
@@ -294,7 +320,7 @@ export class VueTemplateTransformer {
   /**
    * 转换元素属性
    */
-  private transformElementProps(props: any[], result: TemplateTransformResult, context: TransformContext): string {
+  private transformElementProps(props: any[], result: TemplateTransformResult, context: TransformContext, tagName?: string): string {
     const attrs: string[] = []
     let staticClass = ''
     let dynamicClass = ''
@@ -314,7 +340,7 @@ export class VueTemplateTransformer {
           if (prop.name === 'bind' && prop.arg?.content === 'class') {
             dynamicClass = this.extractExpression(prop.exp)
           } else {
-            const transformed = this.transformDirective(prop, result, context)
+            const transformed = this.transformDirective(prop, result, context, tagName)
             if (transformed) {
               if (Array.isArray(transformed)) {
                 attrs.push(...transformed)
@@ -341,7 +367,7 @@ export class VueTemplateTransformer {
   /**
    * 转换指令
    */
-  private transformDirective(directive: any, result: TemplateTransformResult, context: TransformContext): string | string[] | null {
+  private transformDirective(directive: any, result: TemplateTransformResult, context: TransformContext, tagName?: string): string | string[] | null {
     const name = directive.name
     const arg = directive.arg?.content
     const exp = directive.exp ? this.extractExpression(directive.exp) : ''
@@ -375,7 +401,11 @@ export class VueTemplateTransformer {
         return null
 
       case 'model':
-        return this.transformVModel(exp, result)
+        // 提取修饰符的 content 属性
+        const modifiers = (directive.modifiers || []).map((mod: any) =>
+          typeof mod === 'string' ? mod : mod.content || mod
+        )
+        return this.transformVModel(exp, result, modifiers, tagName)
 
       default:
         logger.warn(`未处理的指令: v-${name}`)
@@ -577,15 +607,38 @@ export class VueTemplateTransformer {
   /**
    * 转换 v-model 指令
    */
-  private transformVModel(expression: string, result: TemplateTransformResult): string[] {
-    const inputHandler = `_handleInput_${expression.replace(/\./g, '_')}`
+  private transformVModel(expression: string, result: TemplateTransformResult, modifiers: string[] = [], elementType?: string): string[] {
+    // 根据元素类型和修饰符生成不同的处理函数名和事件类型
+    let handlerPrefix = '_handleInput'
+    let eventType = 'bindinput'
+
+    // 根据元素类型选择事件类型
+    if (elementType === 'radio-group') {
+      handlerPrefix = '_handleRadio'
+      eventType = 'bindchange'
+    } else if (elementType === 'checkbox-group') {
+      handlerPrefix = '_handleCheckbox'
+      eventType = 'bindchange'
+    } else if (elementType === 'picker') {
+      handlerPrefix = '_handlePicker'
+      eventType = 'bindchange'
+    } else {
+      // 对于 input/textarea，根据修饰符选择处理函数
+      if (modifiers.includes('number')) {
+        handlerPrefix = '_handleNumberInput'
+      } else if (modifiers.includes('trim')) {
+        handlerPrefix = '_handleTrimInput'
+      }
+    }
+
+    const inputHandler = `${handlerPrefix}_${expression.replace(/\./g, '_')}`
 
     // 记录事件处理器
     result.eventHandlers.set(inputHandler, inputHandler)
 
     return [
       `value="{{${expression}}}"`,
-      `bindinput="${inputHandler}"`
+      `${eventType}="${inputHandler}"`
     ]
   }
 

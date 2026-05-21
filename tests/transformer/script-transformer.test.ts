@@ -190,7 +190,7 @@ describe('ScriptTransformer', () => {
       // 检查计算属性
       expect(result.context.computed).toHaveProperty('doubleCount')
       const doubleCountComputed = result.context.computed.doubleCount
-      expect(doubleCountComputed.getter).toContain('count.value * 2')
+      expect(doubleCountComputed.getter).toContain('this.data.count * 2')
 
       // 检查方法
       expect(result.context.methods).toHaveProperty('increment')

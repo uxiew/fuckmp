@@ -297,4 +297,75 @@ const cities = ref(['北京', '上海', '广州', '深圳'])
       expect(jsContent).toContain('_handlePicker_city')
     })
   })
+
+  describe('生命周期转换', () => {
+    it('应该把页面 onMounted/onUnmounted 转换为小程序页面生命周期', async () => {
+      const vueContent = `<template>
+  <view class="lifecycle-page">{{ count }}</view>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted } from 'vue'
+
+const count = ref(0)
+
+onMounted(() => {
+  console.log('page mounted')
+  count.value++
+})
+
+onUnmounted(() => {
+  console.log('page unmounted')
+})
+</script>`
+
+      const filePath = await createTestFile('pages/LifecyclePage.vue', vueContent)
+      testFiles.push('pages/LifecyclePage.vue')
+
+      await compiler.compileFile(filePath)
+
+      const jsContent = await readTestFile('output/pages/LifecyclePage.js')
+
+      expect(jsContent).toContain('onReady()')
+      expect(jsContent).toContain("console.log('page mounted')")
+      expect(jsContent).toContain('count.value++')
+      expect(jsContent).toContain('onUnload()')
+      expect(jsContent).toContain("console.log('page unmounted')")
+    })
+
+    it('应该把组件 onMounted/onUnmounted 转换为组件 lifetimes', async () => {
+      const vueContent = `<template>
+  <view class="lifecycle-widget">{{ ready }}</view>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted } from 'vue'
+
+const ready = ref(false)
+
+onMounted(() => {
+  console.log('component mounted')
+  ready.value = true
+})
+
+onUnmounted(() => {
+  console.log('component unmounted')
+})
+</script>`
+
+      const filePath = await createTestFile('components/LifecycleWidget.vue', vueContent)
+      testFiles.push('components/LifecycleWidget.vue')
+
+      await compiler.compileFile(filePath)
+
+      const jsContent = await readTestFile('output/components/LifecycleWidget.js')
+
+      expect(jsContent).toContain('lifetimes:')
+      expect(jsContent).toContain('attached()')
+      expect(jsContent).toContain("console.log('component mounted')")
+      expect(jsContent).toContain('ready.value = true')
+      expect(jsContent).toContain('detached()')
+      expect(jsContent).toContain("console.log('component unmounted')")
+    })
+  })
 })

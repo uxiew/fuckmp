@@ -19,7 +19,7 @@
 
 ### 1. **模板转换核心**
 - Vue的 `v-if/v-for` 指令映射为小程序的 `wx:if/wx:for`
-- 事件绑定从 `@click` 转换为 `bindtap`
+- 事件绑定从 `@click` 转换为 `bind:tap`
 - 双向绑定 `v-model` 需要特殊处理
 
 ### 2. **响应式系统适配**

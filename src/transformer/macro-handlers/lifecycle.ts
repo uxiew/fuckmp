@@ -67,9 +67,51 @@ function extractCallbackFunction(node: any): string {
     return extractFunctionBody(node)
   } else if (node.type === 'Identifier') {
     return `this.${node.name}()`
+  } else if (node.type === 'StringLiteral' && typeof node.value === 'string') {
+    return extractCallbackFunctionString(node.value)
   }
 
   return '// 无效的回调函数'
+}
+
+/**
+ * 从解析阶段保留下来的函数字符串中提取函数体
+ */
+function extractCallbackFunctionString(source: string): string {
+  const trimmed = source.trim()
+
+  if (!trimmed) {
+    return '// 空生命周期回调'
+  }
+
+  const arrowIndex = trimmed.indexOf('=>')
+  if (arrowIndex >= 0) {
+    return unwrapFunctionBody(trimmed.slice(arrowIndex + 2))
+  }
+
+  const functionBodyMatch = trimmed.match(/^function\s*\([^)]*\)\s*([\s\S]*)$/)
+  if (functionBodyMatch?.[1]) {
+    return unwrapFunctionBody(functionBodyMatch[1])
+  }
+
+  if (/^[A-Za-z_$][\w$]*$/.test(trimmed)) {
+    return `this.${trimmed}()`
+  }
+
+  return trimmed
+}
+
+/**
+ * 去掉函数字符串最外层代码块，保留内部语句
+ */
+function unwrapFunctionBody(source: string): string {
+  const trimmed = source.trim()
+
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    return trimmed.slice(1, -1).trim()
+  }
+
+  return trimmed
 }
 
 /**
@@ -190,6 +232,19 @@ function generateExpressionCode(expr: any): string {
       return expr.value.toString()
     case 'ThisExpression':
       return 'this'
+    case 'ObjectExpression':
+      const properties = expr.properties.map((prop: any) => {
+        if (prop.type === 'ObjectProperty') {
+          const key = prop.key.type === 'Identifier' ? prop.key.name : generateExpressionCode(prop.key)
+          const value = generateExpressionCode(prop.value)
+          return `${key}: ${value}`
+        }
+        return ''
+      }).filter(Boolean)
+      return `{ ${properties.join(', ')} }`
+    case 'ArrayExpression':
+      const elements = expr.elements.map((el: any) => el ? generateExpressionCode(el) : 'null')
+      return `[${elements.join(', ')}]`
     default:
       return `/* 未支持的表达式: ${expr.type} */`
   }

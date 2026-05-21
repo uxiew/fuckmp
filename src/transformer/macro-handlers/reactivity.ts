@@ -255,6 +255,19 @@ function generateExpressionCode(expr: any): string {
       return expr.value.toString()
     case 'BooleanLiteral':
       return expr.value.toString()
+    case 'ObjectExpression':
+      const properties = expr.properties.map((prop: any) => {
+        if (prop.type === 'ObjectProperty') {
+          const key = prop.key.type === 'Identifier' ? prop.key.name : generateExpressionCode(prop.key)
+          const value = generateExpressionCode(prop.value)
+          return `${key}: ${value}`
+        }
+        return ''
+      }).filter(Boolean)
+      return `{ ${properties.join(', ')} }`
+    case 'ArrayExpression':
+      const elements = expr.elements.map((el: any) => el ? generateExpressionCode(el) : 'null')
+      return `[${elements.join(', ')}]`
     default:
       return '/* 未支持的表达式 */'
   }

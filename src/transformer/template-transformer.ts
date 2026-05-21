@@ -391,7 +391,7 @@ export class TemplateTransformer {
     }
 
     const mappedEvent = eventMap[eventName] || eventName
-    const bindType = modifiers.includes('capture') ? 'capture-bind' : 'bind'
+    const bindType = modifiers.includes('capture') ? 'capture-bind:' : 'bind:'
 
     return {
       [`${bindType}${mappedEvent}`]: handler
