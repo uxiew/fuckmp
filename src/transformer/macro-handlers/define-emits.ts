@@ -151,12 +151,13 @@ function extractTypeScriptEmits(node: any): EmitsDefinition {
   try {
     logger.debug(`解析 TypeScript emits 节点: ${node.type}`)
 
-    if (node.type === 'TSTypeLiteral') {
+    if (node.type === 'TSTypeLiteral' || node.type === 'TSInterfaceDeclaration') {
       // 类型字面量，如 { userClick: [user: User]; sendMessage: [user: User] }
       logger.debug('解析 TypeScript emits 类型字面量')
 
-      if (node.members && Array.isArray(node.members)) {
-        node.members.forEach((member: any) => {
+      const members = node.type === 'TSInterfaceDeclaration' ? node.body?.body : node.members
+      if (members && Array.isArray(members)) {
+        members.forEach((member: any) => {
           if (member.type === 'TSPropertySignature') {
             const key = getPropertyKey(member.key)
             // 对于事件，我们主要关心事件名，参数类型暂时忽略
@@ -179,18 +180,10 @@ function extractTypeScriptEmits(node: any): EmitsDefinition {
     } else if (node.type === 'TSTypeReference') {
       // 类型引用，如 EmitEvents
       const typeName = node.typeName?.name || 'Unknown'
-      logger.debug(`解析 TypeScript emits 类型引用: ${typeName}`)
-
-      // 根据类型名称推断常见事件
-      if (typeName.toLowerCase().includes('emit')) {
-        emits.click = null
-        emits.change = null
-      }
+      logger.warn(`未解析的 TypeScript emits 类型引用: ${typeName}`)
 
     } else {
       logger.warn(`未支持的 TypeScript emits 类型: ${node.type}`)
-      // 为未知类型创建默认事件
-      emits.unknownEvent = null
     }
 
   } catch (error) {

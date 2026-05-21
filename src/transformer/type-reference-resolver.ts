@@ -8,9 +8,9 @@ import { dirname, extname, resolve } from 'path'
 import { parseScript } from '@/utils/index.js'
 
 /**
- * 将 defineProps<T>() 的本地类型引用解析为实际 AST 类型声明。
+ * 将宏泛型参数中的本地类型引用解析为实际 AST 类型声明。
  */
-export function resolveDefinePropsTypeParameters(
+export function resolveTypeReferenceParameters(
   typeParameters: any,
   parseResult: ScriptParseResult,
   filename?: string

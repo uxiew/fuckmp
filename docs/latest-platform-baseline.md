@@ -38,7 +38,7 @@
 | Vue 3.5 能力 | 当前状态 | 原生输出/降级策略 | 主要验证 |
 |---|---|---|---|
 | `defineProps` type-based declaration | 已原生映射 | 从内联 TypeScript props、本地 interface/type alias 与相对 import type 推断 `Component.properties`，并将 `props.xxx` 模板 / computed / setup 方法访问静态改写为原生 property 访问；未解析类型引用不生成假 props | `tests/e2e/define-props-type-based.test.ts` |
-| `defineEmits` type-based call signatures | 已原生映射 | 从 TypeScript call signature 提取事件名，生成原生 `this.triggerEvent` 与 `_emit*` 方法 | `tests/e2e/typed-emits.test.ts` |
+| `defineEmits` type-based declarations | 已原生映射 | 从 TypeScript call signature、named tuple、本地 interface/type alias 和相对 import type 提取事件名；未解析类型引用不生成假事件 | `tests/e2e/typed-emits.test.ts` |
 | `defineModel` + 组件 `v-model` | 已原生映射 | 子组件生成 `Component.properties`、input handler 和 `this.triggerEvent('update:*')`；父级生成属性绑定与 `bind:update:*` 回写 handler；`defineModel` tuple 解构配合 `v-model.trim/.number` 复用原生输入修饰符 handler | `tests/e2e/native-v-model.test.ts` |
 | `withDefaults(defineProps())` | 已原生映射 | 静态默认值和数组/对象 factory 静态返回值写入 `Component.properties.value` | `tests/e2e/with-defaults-props.test.ts` |
 | Vue 3.5 响应式 props 解构 | 已原生映射 | 解构默认值合并到 `Component.properties`；模板、computed getter、生命周期回调和 setup 方法中的局部别名静态还原为原始 prop 名 | `tests/e2e/reactive-props-destructure.test.ts` |
