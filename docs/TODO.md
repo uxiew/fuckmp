@@ -1,6 +1,6 @@
 # TODO / 当前支持状态
 
-更新时间：2026-05-20
+更新时间：2026-05-21
 
 ## 当前已验证
 
@@ -23,17 +23,16 @@
 - [x] `CodeGenerator` 首轮拆分：对象字面量序列化和事件 handler 函数转换已抽离到 `src/compiler/codegen/object-serializer.ts`，定向运行时/真实项目测试通过。
 - [x] `CodeGenerator` runtime 注入模板拆分：自包含 runtime 与注入层生成已抽离到 `src/compiler/codegen/runtime-injection-generator.ts`，`code-generator.ts` 已降至 607 行。
 - [x] 页面/组件生成器首轮精简：共享 WXML 后处理、scoped hash 与组件引用 helper 已抽离到 `src/generator/shared-generator-utils.ts`，组件旧版未调用事件 handler 已删除；`page-generator.ts` 已降至 712 行。
+- [x] runtime 子路径 public surface 决策：当前包配置只声明根入口 `fuckmp` 与 CLI，构建产物只发布根入口/CLI；`fuckmp/runtime` 非 public surface，运行时对外能力仅通过根入口命名导出，编译产物运行时使用生成的 `runtime-injection.js`。
 - [x] 默认测试输出：Browserslist 过期提示已在 Vitest 环境中静默；真机测试默认跳过，需 `FUCKMP_REAL_DEVICE_TESTS=1` 显式启用。
 
 ## 当前不完整 / 待收敛
 
 - [ ] `src/transformer/template-transformer.ts` 当前 800 行，已触及单文件硬上限；最终 Review 前需确认是否拆分或至少防止继续增长。
 - [ ] 最终验收前补充生成 JS 语法级验证，覆盖 `runtime-injection` 覆盖后的页面/组件最终产物。
-- [ ] 若未来要支持 runtime 子路径导入，需要显式声明 package `exports` 并补兼容测试。
 - [ ] 真机测试默认不跑；需要真实验收时设置 `FUCKMP_REAL_DEVICE_TESTS=1`，必要时设置 `WECHAT_IDE_CLI`。
 
 ## 后续优先任务
 
 1. 为最终生成的页面/组件 JS 增加语法级验证，避免仅靠字符串包含断言遗漏生成代码语法问题。
-2. 如需对外暴露 runtime 子路径导入，补 package `exports` 与兼容测试。
-3. 需要真实小程序端验收时，配置微信开发者工具 CLI 后运行 opt-in 真机测试。
+2. 需要真实小程序端验收时，配置微信开发者工具 CLI 后运行 opt-in 真机测试。

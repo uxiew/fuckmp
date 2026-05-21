@@ -370,6 +370,13 @@ await compiler.compileFile('src/pages/index/index.vue')
 await compiler.watch()
 ```
 
+导入边界：
+
+- 当前 public surface 是包根入口 `fuckmp` 与 CLI 命令 `fuckmp` / `fmp`。
+- 运行时能力通过根入口命名导出提供，例如 `Vue3MiniRuntime`、`initVue3Runtime`、`definePage`、`defineComponent`。
+- `fuckmp/runtime` 等 runtime 子路径不是 public surface；小程序产物运行时由编译器生成 `runtime-injection.js` 并注入。
+- 若未来需要支持 runtime 子路径导入，必须先在 `package.json` 中显式声明 `exports`，并补充兼容测试。
+
 ## 支持的 Vue3 特性
 
 | 特性 | 支持状态 | 说明 |
