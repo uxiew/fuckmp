@@ -52,6 +52,8 @@
 4. 已完成：`defineExpose` 在微信原生目标下明确降级。
 5. 待评估：`watch/watchEffect` 只有真实实现后才允许进入 thin runtime 白名单。
 
+补充约束：不得用旧版页面内联 `watch` 轮询 helper 代替 Vue 3.5 语义；在真实实现前，`watch/watchEffect` 仍保持未支持/待评估状态。
+
 ## 参考链接
 
 - Vue `<script setup>` API: https://vuejs.org/api/sfc-script-setup

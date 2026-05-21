@@ -13,13 +13,14 @@
 - [x] 运行时注入：支持按特性生成自包含 `runtime-injection.js`，Proxy ref/reactive/computed 已有回归测试覆盖。
 - [x] 错误处理：输入目录不存在时返回结构化失败结果，不再静默成功。
 - [x] 类型检查基线：`pnpm type-check` 当前通过，范围限定为源码 `src/**/*`。
-- [x] 测试基线：`pnpm test:run` 当前通过 24 个测试文件、跳过 1 个显式 opt-in 真机测试文件；135 个测试通过、5 个真机测试跳过。
+- [x] 测试基线：`pnpm test:run` 当前通过 25 个测试文件、跳过 1 个显式 opt-in 真机测试文件；136 个测试通过、5 个真机测试跳过。
 - [x] 构建基线：`pnpm build` 当前通过，DTS 生成通过。
 - [x] Sass 弃用告警：运行时代码使用 Dart Sass namespace import，测试 SCSS 使用 `sass:color` 模块函数。
 - [x] 旧运行时兼容层：删除无引用旧文件和 `setupRuntime/cleanupRuntime` 兼容导出，当前保留 `src/runtime/core/*`。
 - [x] runtime 入口瘦身：移除 eager `runtime` 单例导出，`initVue3Runtime(config)` 首次配置可正确生效；组件管理器不再重复创建一套核心依赖。
 - [x] runtime 打包流程瘦身：`RuntimeBundler` 仅负责模块选择与清单，删除未使用且易误导的 TS 字符串拼接“假打包”逻辑；实际自包含注入仍由 `CodeGenerator` 生成。
 - [x] runtime 注入产物瘦身：`CodeGenerator` 不再输出未接入调用链的生命周期/模板/事件/组件占位模块和 `defineApp` 兼容别名，已补生成产物回归断言。
+- [x] 页面旧内联 runtime 清理：`PageGenerator` 不再给每个页面无条件内联旧版 `ref/reactive/computed/watch` 运行时，移除 `setInterval` 轮询 watch 占位；覆盖 `tests/e2e/thin-runtime-page-output.test.ts`。
 - [x] `CodeGenerator` 首轮拆分：对象字面量序列化和事件 handler 函数转换已抽离到 `src/compiler/codegen/object-serializer.ts`，定向运行时/真实项目测试通过。
 - [x] `CodeGenerator` runtime 注入模板拆分：自包含 runtime 与注入层生成已抽离到 `src/compiler/codegen/runtime-injection-generator.ts`，`code-generator.ts` 已降至 607 行。
 - [x] 页面/组件生成器首轮精简：共享 WXML 后处理、scoped hash 与组件引用 helper 已抽离到 `src/generator/shared-generator-utils.ts`，组件旧版未调用事件 handler 已删除；`page-generator.ts` 已降至 712 行。

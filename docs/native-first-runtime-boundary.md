@@ -27,6 +27,8 @@ FuckMP 的目标是把 Vue3 SFC 编译为原生微信小程序工程，而不是
 
 `<script setup>` 本身不触发响应式 runtime；只有实际使用 `ref/reactive/computed` 时才注入响应式代码。
 
+页面/组件生成器不得再内联旧版响应式运行时。尤其不能为了“看起来支持”而在页面 JS 中无条件输出 `watch` 轮询占位、`setDataContext` 或一套脱离 `runtime-injection.js` 的 `ref/reactive/computed` helper。
+
 ## 必须走原生编译的能力
 
 | Vue 能力 | 目标输出 | Runtime 边界 |
@@ -74,11 +76,13 @@ FuckMP 的目标是把 Vue3 SFC 编译为原生微信小程序工程，而不是
 - `RuntimeBundler.getRequiredModules()` 只返回 `core` 或 `core + reactivity`。
 - 模板指令、事件、生命周期、props/emits、`defineModel`、`withDefaults`、响应式 props 解构、`defineExpose` 降级、slots、provide/inject 不会引入 `template/event/lifecycle/component/di` 等伪模块。
 - `RuntimeInjectionGenerator` 不会因为 `<script setup>` 本身生成 `ref/reactive/computed` runtime。
+- `PageGenerator` 不会给静态页面内联旧版响应式 runtime，也不会输出 `setInterval` 轮询式 `watch` 占位。
 
 相关测试：
 
 - `tests/runtime-injection.test.ts`
 - `tests/compiler/runtime-injection-generator.test.ts`
+- `tests/e2e/thin-runtime-page-output.test.ts`
 - `tests/e2e/native-v-model.test.ts`
 - `tests/e2e/with-defaults-props.test.ts`
 - `tests/e2e/reactive-props-destructure.test.ts`
