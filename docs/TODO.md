@@ -23,7 +23,7 @@
 - [x] 页面旧内联 runtime 清理：`PageGenerator` 不再给每个页面无条件内联旧版 `ref/reactive/computed/watch` 运行时，移除 `setInterval` 轮询 watch 占位；覆盖 `tests/e2e/thin-runtime-page-output.test.ts`。
 - [x] `CodeGenerator` 首轮拆分：对象字面量序列化和事件 handler 函数转换已抽离到 `src/compiler/codegen/object-serializer.ts`，定向运行时/真实项目测试通过。
 - [x] `CodeGenerator` runtime 注入模板拆分：自包含 runtime 与注入层生成已抽离到 `src/compiler/codegen/runtime-injection-generator.ts`，`code-generator.ts` 已降至 607 行。
-- [x] 页面/组件生成器首轮精简：共享 WXML 后处理、scoped hash 与组件引用 helper 已抽离到 `src/generator/shared-generator-utils.ts`，组件旧版未调用事件 handler 已删除；`page-generator.ts` 已降至 712 行。
+- [x] 页面/组件生成器首轮精简：共享 WXML 后处理、scoped hash 与组件引用 helper 已抽离到 `src/generator/shared-generator-utils.ts`，组件旧版未调用事件 handler 已删除；`page-generator.ts` 当前为 584 行。
 - [x] runtime 子路径 public surface 决策：当前包配置只声明根入口 `fuckmp` 与 CLI，构建产物只发布根入口/CLI；`fuckmp/runtime` 非 public surface，运行时对外能力仅通过根入口命名导出，编译产物运行时使用生成的 `runtime-injection.js`。
 - [x] 最终生成 JS 语法级验证：真实项目 e2e 已解析 `runtime-injection` 覆盖后的 `app.js`、页面 JS、组件 JS，覆盖生命周期嵌套箭头函数和多行字符串字面量语法风险。
 - [x] `TemplateTransformer` 字符串后处理工具拆分：Vue 绑定/事件、自闭合标签、三花括号与空白清理已抽离到 `src/transformer/template-string-utils.ts`，新增定向单测覆盖。
@@ -45,7 +45,7 @@
 - [x] Vue 3.5 `useId` 原生目标映射：非 SSR 微信原生目标下生成稳定 `data` id，组件实例 `attached` 时追加唯一后缀，不生成 ID runtime；覆盖 `tests/e2e/use-id-native.test.ts`。
 - [x] Vue 3.5 `useTemplateRef` 原生目标降级：微信原生目标无 Vue template ref / DOM 或组件实例等价桥接，产物输出降级注释和 template refs，不生成 runtime 代理；覆盖 `tests/e2e/use-template-ref-degrade.test.ts`。
 - [x] Vue 3.5 Native-first 文档一致性审计：README、TODO、latest baseline 与 runtime boundary 中的测试引用必须存在，公开矩阵必须覆盖核心 Vue 3.5 能力测试面；覆盖 `tests/quality/vue35-docs-consistency.test.ts`。
-- [x] 单文件行数约束：当前 `src/**/*` 未超过 640 行维护阈值；`src/transformer/vue-template-transformer.ts` 已拆出无状态节点转换 helper 并降至 423 行，`src/compiler/compiler.ts` 已拆出上下文合并和 runtime 注入映射 helper 并降至 631 行，当前最大源码文件为 `src/runtime/core/reactivity.ts` 639 行，并由 `tests/quality/source-size.test.ts` 固化。
+- [x] 单文件行数约束：当前 `src/**/*` 未超过 640 行维护阈值；`src/runtime/core/reactivity.ts` 已拆出 ref/computed Proxy helper 并降至 460 行，当前最大源码文件为 `src/compiler/compiler.ts` 631 行，其次为 `src/transformer/template-transformer.ts` 608 行与 `src/compiler/code-generator.ts` 607 行，并由 `tests/quality/source-size.test.ts` 固化。
 - [x] 默认测试输出：Browserslist 过期提示已在 Vitest 环境中静默；真机测试默认跳过，需 `FUCKMP_REAL_DEVICE_TESTS=1` 显式启用。
 
 ## 后续约束 / 可选验收
@@ -56,6 +56,6 @@
 ## 后续优先任务
 
 1. 需要真实小程序端验收时，配置合法微信小程序 AppID / 项目、确认微信开发者工具自动化 HTTP 端口可用后，运行 opt-in 真机测试。
-2. 如需继续做维护性瘦身，重点关注 `src/runtime/core/reactivity.ts`、`src/compiler/compiler.ts`、`src/transformer/template-transformer.ts` 与 `src/compiler/code-generator.ts` 等 600 行以上模块。
+2. 如需继续做维护性瘦身，重点关注 `src/compiler/compiler.ts`、`src/transformer/template-transformer.ts` 与 `src/compiler/code-generator.ts` 等 600 行以上模块；`src/runtime/core/reactivity.ts` 当前已降至 460 行。
 3. `watch/watchEffect/onWatcherCleanup` 已明确降级；只有真实实现 Vue watcher 调度与 cleanup 语义后，才允许进入 runtime 白名单。
 4. 继续补齐最新 Vue 3.5 能力矩阵时，基础 slots 已原生映射；scoped/dynamic slots 与 `Transition` / `KeepAlive` 已明确降级；更复杂 DI 语义仍需真实方案或继续明确降级。

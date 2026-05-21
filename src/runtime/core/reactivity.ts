@@ -4,6 +4,12 @@
  */
 
 import { logger } from '../utils/logger'
+import {
+  createComputedProxy,
+  createRefProxy,
+  type RuntimeComputed,
+  type RuntimeRef
+} from './reactivity-proxy-helpers'
 
 /**
  * 响应式数据类型
@@ -103,83 +109,8 @@ export class Reactivity {
   /**
    * 创建 ref (基于 Proxy 的实现)
    */
-  ref<T>(value: T, context?: any): { value: T; _isRef: true; _key: string } {
-    const key = `ref_${Math.random().toString(36).substr(2, 9)}`
-
-    // 创建一个包含 ref 元数据的目标对象
-    const target = {
-      _isRef: true as const,
-      _key: key,
-      _value: value,
-      _context: context
-    }
-
-    // 使用 Proxy 创建响应式 ref
-    const refProxy = new Proxy(target, {
-      get(target, prop: string | symbol): any {
-        if (prop === 'value') {
-          return target._value
-        }
-        if (prop === '_isRef' || prop === '_key') {
-          return target[prop as keyof typeof target]
-        }
-        // 支持其他属性访问
-        return target[prop as keyof typeof target]
-      },
-
-      set(target, prop: string | symbol, newValue: any): boolean {
-        if (prop === 'value') {
-          const oldValue = target._value
-          if (newValue !== oldValue) {
-            target._value = newValue
-
-            // 如果有上下文，自动调用 setData
-            if (target._context && typeof target._context.setData === 'function') {
-              target._context.setData({ [target._key]: newValue })
-            }
-          }
-          return true
-        }
-
-        // 防止修改元数据
-        if (prop === '_isRef' || prop === '_key') {
-          // 注意：这里不能使用 this.config，因为在 Proxy handler 中 this 指向不同
-          // 如果需要调试信息，可以通过 target._context 访问
-          logger.warn(`尝试修改 ref 的只读属性: ${String(prop)}`)
-          return false
-        }
-
-        // 允许设置其他属性（如 _context）
-        ;(target as any)[prop] = newValue
-        return true
-      },
-
-      has(target, prop: string | symbol): boolean {
-        return prop === 'value' || prop === '_isRef' || prop === '_key' || prop in target
-      },
-
-      ownKeys(target): (string | symbol)[] {
-        return ['value', '_isRef', '_key']
-      },
-
-      getOwnPropertyDescriptor(target, prop: string | symbol) {
-        if (prop === 'value' || prop === '_isRef' || prop === '_key') {
-          return {
-            enumerable: true,
-            configurable: true,
-            ...(prop === 'value' ? { writable: true } : { writable: false })
-          }
-        }
-        return undefined
-      }
-    })
-
-    // 如果有上下文，初始化数据
-    if (context && typeof context.setData === 'function') {
-      context.setData({ [key]: value })
-    }
-
-    return refProxy as unknown as { value: T; _isRef: true; _key: string }
+  ref<T>(value: T, context?: any): RuntimeRef<T> {
+    return createRefProxy(value, context)
   }
 
   /**
@@ -285,118 +216,8 @@ export class Reactivity {
   /**
    * 创建 computed (基于 Proxy 的实现)
    */
-  computed<T>(getter: () => T, context?: any): { value: T; _isComputed: true; _key: string } {
-    const key = `computed_${Math.random().toString(36).substr(2, 9)}`
-    let _value: T
-
-    // 创建包含 computed 元数据的目标对象
-    const target = {
-      _isComputed: true as const,
-      _key: key,
-      _getter: getter,
-      _context: context,
-      _dirty: true,
-      _computing: false
-    }
-
-    // 使用 Proxy 创建响应式 computed
-    const computedProxy = new Proxy(target, {
-      get(target, prop: string | symbol): any {
-        if (prop === 'value') {
-          // 防止循环计算
-          if (target._computing) {
-            logger.warn(`检测到计算属性 ${target._key} 的循环依赖`)
-            return undefined
-          }
-
-          if (target._dirty) {
-            target._computing = true
-            try {
-              _value = target._getter()
-              target._dirty = false
-
-              // 如果有上下文，更新数据
-              if (target._context && typeof target._context.setData === 'function') {
-                target._context.setData({ [target._key]: _value })
-              }
-            } catch (error) {
-              logger.error(`计算属性 ${target._key} 计算失败:`, error)
-              _value = undefined as T
-            } finally {
-              target._computing = false
-            }
-          }
-
-          return _value
-        }
-
-        if (prop === '_isComputed' || prop === '_key') {
-          return target[prop as keyof typeof target]
-        }
-
-        // 支持其他属性访问
-        return target[prop as keyof typeof target]
-      },
-
-      set(target, prop: string | symbol, newValue: any): boolean {
-        // computed 的 value 是只读的
-        if (prop === 'value') {
-          logger.warn(`计算属性 ${target._key} 的 value 是只读的`)
-          return false
-        }
-
-        // 防止修改元数据
-        if (prop === '_isComputed' || prop === '_key') {
-          logger.warn(`尝试修改 computed 的只读属性: ${String(prop)}`)
-          return false
-        }
-
-        // 允许设置内部属性
-        if (prop === '_dirty') {
-          target._dirty = newValue
-          return true
-        }
-
-        // 允许设置其他属性
-        ;(target as any)[prop] = newValue
-        return true
-      },
-
-      has(target, prop: string | symbol): boolean {
-        return prop === 'value' || prop === '_isComputed' || prop === '_key' || prop in target
-      },
-
-      ownKeys(target): (string | symbol)[] {
-        return ['value', '_isComputed', '_key']
-      },
-
-      getOwnPropertyDescriptor(target, prop: string | symbol) {
-        if (prop === 'value') {
-          return {
-            enumerable: true,
-            configurable: true,
-            writable: false // computed value 是只读的
-          }
-        }
-        if (prop === '_isComputed' || prop === '_key') {
-          return {
-            enumerable: true,
-            configurable: true,
-            writable: false
-          }
-        }
-        return undefined
-      }
-    })
-
-    // 初始计算
-    try {
-      void (computedProxy as any).value
-    } catch (error) {
-      logger.error(`计算属性 ${key} 初始计算失败:`, error)
-    }
-
-    return computedProxy as unknown as { value: T; _isComputed: true; _key: string }
+  computed<T>(getter: () => T, context?: any): RuntimeComputed<T> {
+    return createComputedProxy(getter, context)
   }
 
   /**
