@@ -178,6 +178,8 @@ export interface TransformContext {
   reactiveVariables?: Map<string, ReactiveVariableInfo>
   /** props 解构局部名到原始 prop 名的映射 */
   propAliases?: Map<string, string>
+  /** defineProps 返回值变量名，用于把 props.xxx 静态映射为原生 property 访问 */
+  propNamespaces?: Set<string>
   /** 当前正在处理的模板元素 */
   currentElement?: {
     tagName?: string

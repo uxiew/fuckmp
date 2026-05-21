@@ -338,6 +338,10 @@ export class Vue3MiniprogramCompiler {
         if (scriptContext.propAliases) {
           context.propAliases = scriptContext.propAliases
         }
+
+        if (scriptContext.propNamespaces) {
+          context.propNamespaces = scriptContext.propNamespaces
+        }
       }
     }
 

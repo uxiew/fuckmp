@@ -38,7 +38,7 @@ FuckMP 的目标是把 Vue3 SFC 编译为原生微信小程序工程，而不是
 | `v-bind / :prop` | 原生属性与 Mustache 表达式 | 不注入 bind runtime |
 | `v-on / @event` | `bind:*` 或 `catch:*` | 不注入 event runtime |
 | `v-model` | 属性 + 事件 handler | 不注入 v-model runtime |
-| `defineProps` | `Component.properties` | 不注入 component runtime |
+| `defineProps` | `Component.properties`；`props.xxx` 模板 / computed / setup 方法访问静态改写为原生 property 访问 | 不注入 component runtime |
 | `withDefaults(defineProps())` | `Component.properties.value` | 不注入 component runtime |
 | 响应式 props 解构 | `Component.properties.value` + 模板别名 / computed getter / 生命周期回调 / setup 方法访问静态还原 | 不注入 props runtime |
 | `defineModel` | `Component.properties` + `update:*` 事件；tuple 解构配合原生 input 修饰符 handler | 不注入 v-model runtime |
@@ -143,7 +143,7 @@ Vue 3.5 `useTemplateRef` 用于获取模板 ref 对应的 DOM 或组件实例引
 当前测试已固化以下边界：
 
 - `RuntimeBundler.getRequiredModules()` 只返回 `core` 或 `core + reactivity`。
-- 模板指令、事件、生命周期、props/emits、`defineModel`、`withDefaults`、响应式 props 解构、`defineExpose` 降级、`defineOptions` 降级、`defineSlots` 降级、`watch/watchEffect/onWatcherCleanup` 降级、`useId` 原生映射、`useTemplateRef` 降级、基础 slots 映射、`provide/inject` 降级不会引入 `template/event/lifecycle/component/di` 等伪模块。
+- 模板指令、事件、生命周期、props/emits、`defineProps<T>()` 命名空间访问、`defineModel`、`withDefaults`、响应式 props 解构、`defineExpose` 降级、`defineOptions` 降级、`defineSlots` 降级、`watch/watchEffect/onWatcherCleanup` 降级、`useId` 原生映射、`useTemplateRef` 降级、基础 slots 映射、`provide/inject` 降级不会引入 `template/event/lifecycle/component/di` 等伪模块。
 - `RuntimeInjectionGenerator` 不会因为 `<script setup>` 本身生成 `ref/reactive/computed` runtime。
 - `PageGenerator` 不会给静态页面内联旧版响应式 runtime，也不会输出 `setInterval` 轮询式 `watch` 占位。
 
@@ -152,6 +152,7 @@ Vue 3.5 `useTemplateRef` 用于获取模板 ref 对应的 DOM 或组件实例引
 - `tests/runtime-injection.test.ts`
 - `tests/compiler/runtime-injection-generator.test.ts`
 - `tests/e2e/thin-runtime-page-output.test.ts`
+- `tests/e2e/define-props-type-based.test.ts`
 - `tests/e2e/typed-emits.test.ts`
 - `tests/e2e/native-v-model.test.ts`
 - `tests/e2e/with-defaults-props.test.ts`

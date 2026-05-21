@@ -13,7 +13,7 @@
 - [x] 运行时注入：支持按特性生成自包含 `runtime-injection.js`，Proxy ref/reactive/computed 已有回归测试覆盖。
 - [x] 错误处理：输入目录不存在时返回结构化失败结果，不再静默成功。
 - [x] 类型检查基线：`pnpm type-check` 当前通过，范围限定为源码 `src/**/*`。
-- [x] 测试基线：`pnpm test:run` 当前通过 32 个测试文件、跳过 1 个显式 opt-in 真机测试文件；149 个测试通过、5 个真机测试跳过。
+- [x] 测试基线：`pnpm test:run` 当前通过 33 个测试文件、跳过 1 个显式 opt-in 真机测试文件；150 个测试通过、5 个真机测试跳过。
 - [x] 构建基线：`pnpm build` 当前通过，DTS 生成通过。
 - [x] Sass 弃用告警：运行时代码使用 Dart Sass namespace import，测试 SCSS 使用 `sass:color` 模块函数。
 - [x] 旧运行时兼容层：删除无引用旧文件和 `setupRuntime/cleanupRuntime` 兼容导出，当前保留 `src/runtime/core/*`。
@@ -30,6 +30,7 @@
 - [x] `ScriptParser` AST 代码生成工具拆分：表达式/语句代码片段生成已抽离到 `src/parser/script-codegen-utils.ts`，新增定向单测覆盖。
 - [x] Native-first runtime 边界：正式记录 `docs/native-first-runtime-boundary.md`，并用测试约束 runtime 只返回 `core` 或 `core + reactivity`，不再为模板/事件/生命周期/组件语义注入伪模块。
 - [x] 最新平台基线：Vue 相关依赖升级到 `3.5.34`，新增 `docs/latest-platform-baseline.md` 与 Vue 3.5 `<script setup>` 宏兼容测试。
+- [x] `defineProps<T>()` 类型声明原生映射：支持内联 TypeScript props 推断到 `Component.properties`，并将模板、computed getter 与 setup 方法中的 `props.xxx` 静态改写为原生 property 访问；覆盖 `tests/e2e/define-props-type-based.test.ts`。
 - [x] `defineEmits` 类型声明原生映射：支持 TypeScript call signature 事件名提取，生成原生 `this.triggerEvent` 与 `_emit*` 方法；覆盖 `tests/e2e/typed-emits.test.ts`。
 - [x] `defineModel` + 组件 `v-model` 原生闭环：子组件输出 `Component.properties`、原生 input handler 与 `update:*` 事件，父级输出属性绑定与 `bind:update:*` 回写 handler；`defineModel` tuple 解构配合 `v-model.trim/.number` 可复用原生输入修饰符 handler；覆盖 `tests/e2e/native-v-model.test.ts`。
 - [x] `withDefaults(defineProps())` 默认值原生映射：静态默认值和数组/对象 factory 静态返回值写入 `Component.properties.value`；覆盖 `tests/e2e/with-defaults-props.test.ts`。
@@ -42,7 +43,7 @@
 - [x] `watch/watchEffect/onWatcherCleanup` 原生目标降级：当前不提供 Vue watcher 副作用调度与 Vue 3.5 cleanup 等价桥接，产物输出降级注释且不恢复旧版轮询 watch helper；覆盖 `tests/e2e/watcher-degrade.test.ts`。
 - [x] Vue 3.5 `useId` 原生目标映射：非 SSR 微信原生目标下生成稳定 `data` id，组件实例 `attached` 时追加唯一后缀，不生成 ID runtime；覆盖 `tests/e2e/use-id-native.test.ts`。
 - [x] Vue 3.5 `useTemplateRef` 原生目标降级：微信原生目标无 Vue template ref / DOM 或组件实例等价桥接，产物输出降级注释和 template refs，不生成 runtime 代理；覆盖 `tests/e2e/use-template-ref-degrade.test.ts`。
-- [x] 单文件行数约束：当前 `src/**/*` 未超过 800 行硬上限；当前最大源码文件为 `src/transformer/vue-template-transformer.ts` 765 行。
+- [x] 单文件行数约束：当前 `src/**/*` 未超过 800 行硬上限；当前最大源码文件为 `src/transformer/vue-template-transformer.ts` 754 行。
 - [x] 默认测试输出：Browserslist 过期提示已在 Vitest 环境中静默；真机测试默认跳过，需 `FUCKMP_REAL_DEVICE_TESTS=1` 显式启用。
 
 ## 后续约束 / 可选验收

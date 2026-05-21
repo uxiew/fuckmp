@@ -7,6 +7,7 @@ import { compileTemplate } from '@vue/compiler-sfc'
 import { logger } from '@/utils/index.js'
 import type { TransformContext } from '@/types/index.js'
 import type { TemplateParseResult } from '@/parser/index.js'
+import { applyPropAccessMappingsToTemplate } from './prop-access-mapping.js'
 
 // 导入标准的转换结果类型
 import type { TemplateTransformResult } from './template-transformer.js'
@@ -440,19 +441,7 @@ export class VueTemplateTransformer {
    * 将 Vue 3.5 props 解构局部别名还原为原生小程序 property 名。
    */
   private applyPropAliases(expression: string, context?: TransformContext): string {
-    if (!context?.propAliases || context.propAliases.size === 0) {
-      return expression
-    }
-
-    let result = expression
-    context.propAliases.forEach((propName, localName) => {
-      if (propName === localName) return
-
-      const escapedLocalName = localName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      result = result.replace(new RegExp(`(^|[^\\w$.'"])${escapedLocalName}\\b`, 'g'), `$1${propName}`)
-    })
-
-    return result
+    return applyPropAccessMappingsToTemplate(expression, context)
   }
 
   /**

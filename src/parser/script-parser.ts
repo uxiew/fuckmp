@@ -260,6 +260,9 @@ export class ScriptParser {
           } else if (calleeName === 'defineModel') {
             macroType = calleeName
             initValue = this.extractDefineModelInfo(declarator.init, name, result)
+          } else if (calleeName === 'defineProps') {
+            macroType = calleeName
+            initValue = { variable: name }
           } else if (calleeName === 'defineEmits') {
             macroType = calleeName
             initValue = { variable: name }

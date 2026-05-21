@@ -14,6 +14,7 @@ import {
   computedHandler,
   createLifecycleHandler
 } from './macro-handlers/index.js'
+import { applyPropAccessMappingsToScript, hasPropAccessMappings, registerPropNamespace } from './prop-access-mapping.js'
 import { logger } from '@/utils/index.js'
 
 /**
@@ -105,7 +106,8 @@ export class ScriptTransformer {
         imports: new Set(),
         components: new Map(),
         reactiveVariables: new Map(),
-        propAliases: new Map()
+        propAliases: new Map(),
+        propNamespaces: new Set()
       }
 
       // 处理导入
@@ -268,6 +270,8 @@ export class ScriptTransformer {
     parseResult.variables.forEach((variable, name) => {
       if (variable.macroType === 'defineModel') {
         this.processDefineModelVariable(variable, context)
+      } else if (variable.macroType === 'defineProps') {
+        registerPropNamespace(context, variable.init?.variable || variable.name)
       } else if (variable.macroType === 'defineEmits') {
         // defineEmits 已在宏处理阶段写入 context.emits；这里仅擦除 setup 变量。
       } else if (variable.macroType === 'withDefaults') {
@@ -331,8 +335,6 @@ export class ScriptTransformer {
       }
     })
   }
-
-
 
   /**
    * 将 withDefaults 的默认值合并到 defineProps 生成的 properties。
@@ -516,12 +518,12 @@ export class ScriptTransformer {
    * 将生命周期回调中的 Vue 3.5 props 解构局部访问映射回原生 property 访问。
    */
   private processLifecyclePropAliases(context: TransformContext): void {
-    if (!context.propAliases || context.propAliases.size === 0) {
+    if (!hasPropAccessMappings(context)) {
       return
     }
 
     Object.entries(context.lifecycle).forEach(([name, code]) => {
-      context.lifecycle[name] = this.applyPropAliasesToScriptAccess(code, context)
+      context.lifecycle[name] = applyPropAccessMappingsToScript(code, context)
     })
   }
 
@@ -529,13 +531,13 @@ export class ScriptTransformer {
    * 将 setup 方法中的 Vue 3.5 props 解构局部访问映射回原生 property 访问。
    */
   private processMethodPropAliases(context: TransformContext): void {
-    if (!context.propAliases || context.propAliases.size === 0) {
+    if (!hasPropAccessMappings(context)) {
       return
     }
 
     Object.values(context.methods).forEach(method => {
       if (method && typeof method === 'object' && typeof method.body === 'string') {
-        method.body = this.applyPropAliasesToScriptAccess(method.body, context)
+        method.body = applyPropAccessMappingsToScript(method.body, context)
       }
     })
   }
@@ -579,7 +581,7 @@ export class ScriptTransformer {
       transformedGetter = transformedGetter.replace(regex, `this.data.${varName}`)
     })
 
-    return this.applyPropAliasesToScriptAccess(transformedGetter, context)
+    return applyPropAccessMappingsToScript(transformedGetter, context)
   }
 
   /**
@@ -598,24 +600,6 @@ export class ScriptTransformer {
     }
 
     return `return ${body}`
-  }
-
-  /**
-   * 将 Vue 3.5 props 解构局部访问映射回原生 property 访问。
-   */
-  private applyPropAliasesToScriptAccess(code: string, context: TransformContext): string {
-    if (!context.propAliases || context.propAliases.size === 0) {
-      return code
-    }
-
-    let result = code
-    context.propAliases.forEach((propName, localName) => {
-      const escapedLocalName = localName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      result = result.replace(new RegExp(`\\bthis\\.data\\.${escapedLocalName}\\b`, 'g'), `this.data.${propName}`)
-      result = result.replace(new RegExp(`(^|[^\\w$.'"])${escapedLocalName}\\b(?!\\s*:)`, 'g'), `$1this.data.${propName}`)
-    })
-
-    return result
   }
 
   /**
