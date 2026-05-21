@@ -12,7 +12,7 @@ export class VModelPlugin extends BaseTransformPlugin {
   readonly name = 'v-model-plugin'
   readonly version = '1.0.0'
   readonly priority = 80
-  readonly dependencies = ['reactive-plugin'] // 依赖响应式插件
+  override readonly dependencies = ['reactive-plugin'] // 依赖响应式插件
 
   supports(node: ASTNode, context: TransformContext): boolean {
     // 检查是否为 v-model 指令
@@ -49,7 +49,8 @@ export class VModelPlugin extends BaseTransformPlugin {
           )
       }
     } catch (error) {
-      return this.createErrorResult(`v-model 转换失败: ${error.message}`)
+      const message = error instanceof Error ? error.message : String(error)
+      return this.createErrorResult(`v-model 转换失败: ${message}`)
     }
   }
 

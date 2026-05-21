@@ -34,7 +34,8 @@ export class SlotsPlugin extends BaseTransformPlugin {
 
       return this.createUnhandledResult()
     } catch (error) {
-      return this.createErrorResult(`插槽转换失败: ${error.message}`)
+      const message = error instanceof Error ? error.message : String(error)
+      return this.createErrorResult(`插槽转换失败: ${message}`)
     }
   }
 

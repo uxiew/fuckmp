@@ -39,9 +39,7 @@
     }
   },
   "include": [
-    "src/**/*",
-    "tests/**/*",
-    "examples/**/*"
+    "src/**/*"
   ],
   "exclude": [
     "node_modules",

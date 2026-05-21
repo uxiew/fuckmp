@@ -215,7 +215,7 @@ App({
 
       logger.info('运行时库注入完成')
     } catch (error) {
-      logger.error('运行时库注入失败:', error)
+      logger.error('运行时库注入失败:', error instanceof Error ? error : new Error(String(error)))
       throw error
     }
   }

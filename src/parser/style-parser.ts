@@ -2,7 +2,7 @@
  * Style 解析器
  */
 
-import sass from 'sass'
+import * as sass from 'sass'
 import postcss from 'postcss'
 import autoprefixer from 'autoprefixer'
 import type { ParseResult } from '@/types/index.js'

@@ -39,7 +39,8 @@ export class VIfPlugin extends BaseTransformPlugin {
           return this.createUnhandledResult()
       }
     } catch (error) {
-      return this.createErrorResult(`v-${node.name} 转换失败: ${error.message}`)
+      const message = error instanceof Error ? error.message : String(error)
+      return this.createErrorResult(`v-${node.name} 转换失败: ${message}`)
     }
   }
 

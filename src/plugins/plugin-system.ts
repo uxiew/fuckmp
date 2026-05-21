@@ -302,10 +302,8 @@ export class CodeQualityPlugin implements Plugin {
 
   private groupIssuesByType(): Record<string, typeof this.issues> {
     return this.issues.reduce((groups, issue) => {
-      if (!groups[issue.type]) {
-        groups[issue.type] = []
-      }
-      groups[issue.type].push(issue)
+      const group = groups[issue.type] ?? (groups[issue.type] = [])
+      group.push(issue)
       return groups
     }, {} as Record<string, typeof this.issues>)
   }

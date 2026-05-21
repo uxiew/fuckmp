@@ -10,6 +10,7 @@ import type { CompilerOptions, LogLevel } from '@/types/index.js'
 export const DEFAULT_COMPILER_OPTIONS: CompilerOptions = {
   input: 'src',
   output: 'dist',
+  mode: 'development',
   appId: 'your-app-id',
   framework: 'vue3',
   features: {

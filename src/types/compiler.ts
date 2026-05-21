@@ -13,6 +13,8 @@ export interface CompilerOptions {
   input: string
   /** 输出目录 */
   output: string
+  /** 编译模式 */
+  mode: CompileMode
   /** 小程序 AppID */
   appId: string
   /** 框架版本 */
@@ -162,6 +164,21 @@ export interface TransformContext {
   styleImports?: string[]
   /** 响应式变量信息 */
   reactiveVariables?: Map<string, ReactiveVariableInfo>
+  /** 当前正在处理的模板元素 */
+  currentElement?: {
+    tagName?: string
+  }
+  /** 模板转换插件扩展状态 */
+  template?: {
+    slots?: Record<string, any>
+    [key: string]: any
+  }
+  /** provide/inject 插件扩展状态 */
+  di?: {
+    providers?: Record<string, any>
+    injectors?: Record<string, any>
+    [key: string]: any
+  }
 }
 
 /**

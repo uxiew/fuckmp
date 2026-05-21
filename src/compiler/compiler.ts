@@ -10,7 +10,7 @@ import { PluginManager, createDefaultPluginManager } from '@/plugins/index.js'
 import { UserConfigManager } from '@/config/user-config.js'
 import { RuntimeInjector } from './runtime-injector'
 import type { CompilerOptions, CompileResult, ParseResult, TransformContext } from '@/types/index.js'
-import { logger, scanVueFiles, getOutputPath, isPageComponent, isAppComponent, writeFile, ensureDir, getRelativePath, normalizePath, PathResolver, createPathResolver, readFile } from '@/utils/index.js'
+import { logger, scanVueFiles, getOutputPath, isPageComponent, isAppComponent, writeFile, ensureDir, getRelativePath, normalizePath, PathResolver, createPathResolver, readFile, isDirectory } from '@/utils/index.js'
 import path from 'path'
 
 /**
@@ -175,6 +175,19 @@ export class Vue3MiniprogramCompiler {
     }
 
     try {
+      if (!(await isDirectory(options.input))) {
+        const message = `输入目录不存在或不可访问: ${options.input}`
+        logger.error(message)
+        result.errors.push({
+          file: options.input,
+          message
+        })
+        result.stats.total = 1
+        result.stats.failed = 1
+        result.stats.duration = Date.now() - startTime
+        return result
+      }
+
       // 扫描 Vue 文件
       const vueFiles = await scanVueFiles(options.input)
       result.stats.total = vueFiles.length

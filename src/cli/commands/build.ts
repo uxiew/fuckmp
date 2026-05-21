@@ -120,10 +120,12 @@ async function buildCompilerOptions(options: BuildOptions): Promise<Partial<Comp
   }
 
   // 优化选项 - build 模式默认启用压缩并禁用 sourcemap
+  const currentOptimization = compilerOptions.optimization
   compilerOptions.optimization = {
-    ...compilerOptions.optimization,
     minify: options.minify !== false,  // 默认启用压缩，除非明确设置 --no-minify
-    sourcemap: options.sourcemap === true  // 默认禁用 sourcemap，除非明确设置 --sourcemap
+    treeshaking: currentOptimization?.treeshaking ?? true,
+    sourcemap: options.sourcemap === true,  // 默认禁用 sourcemap，除非明确设置 --sourcemap
+    incremental: currentOptimization?.incremental ?? true
   }
 
   return compilerOptions

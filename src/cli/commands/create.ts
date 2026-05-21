@@ -115,21 +115,25 @@ function getProjectTemplate(templateName: string, features: { typescript: boolea
 function createBasicTemplate(features: { typescript: boolean; scss: boolean }): ProjectTemplate {
   const ext = features.typescript ? 'ts' : 'js'
   const styleExt = features.scss ? 'scss' : 'css'
+  const files: Record<string, string> = {
+    'package.json': createPackageJson(features),
+    [`src/app.vue`]: createAppVue(styleExt),
+    [`src/pages/index/index.vue`]: createIndexPage(ext, styleExt),
+    [`src/components/HelloWorld.vue`]: createHelloWorldComponent(ext, styleExt),
+    'vue3mp.config.js': createConfig(features),
+    '.gitignore': createGitignore(),
+    'README.md': createReadme()
+  }
+
+  if (features.typescript) {
+    files['tsconfig.json'] = createTSConfig()
+  }
 
   return {
     name: 'basic',
     description: '基础 Vue3 小程序模板',
     features: ['Vue3', 'Composition API', ...(features.typescript ? ['TypeScript'] : []), ...(features.scss ? ['SCSS'] : [])],
-    files: {
-      'package.json': createPackageJson(features),
-      [`src/app.vue`]: createAppVue(styleExt),
-      [`src/pages/index/index.vue`]: createIndexPage(ext, styleExt),
-      [`src/components/HelloWorld.vue`]: createHelloWorldComponent(ext, styleExt),
-      'vue3mp.config.js': createConfig(features),
-      '.gitignore': createGitignore(),
-      'README.md': createReadme(),
-      'tsconfig.json': features.typescript ? createTSConfig() : undefined
-    }
+    files
   }
 }
 

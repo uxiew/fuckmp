@@ -39,7 +39,8 @@ export class ProvideInjectPlugin extends BaseTransformPlugin {
           return this.createUnhandledResult()
       }
     } catch (error) {
-      return this.createErrorResult(`provide/inject 转换失败: ${error.message}`)
+      const message = error instanceof Error ? error.message : String(error)
+      return this.createErrorResult(`provide/inject 转换失败: ${message}`)
     }
   }
 
@@ -311,7 +312,7 @@ export class ProvideInjectPlugin extends BaseTransformPlugin {
    */
   private generateCallExpression(node: ASTNode): string {
     const callee = node.callee?.name || 'unknown'
-    const args = node.arguments?.map(arg => this.extractProvideValue(arg)).join(', ') || ''
+    const args = node.arguments?.map((arg: ASTNode) => this.extractProvideValue(arg)).join(', ') || ''
     return `${callee}(${args})`
   }
 
@@ -351,17 +352,23 @@ export class ProvideInjectPlugin extends BaseTransformPlugin {
   generateRuntimeConfig(di: any): any {
     return {
       type: 'dependency-injection',
-      providers: Object.entries(di.providers || {}).map(([key, config]) => ({
+      providers: Object.entries(di.providers || {}).map(([key, config]) => {
+        const provider = config as { value: any; reactive: boolean }
+        return {
         key,
-        value: config.value,
-        reactive: config.reactive
-      })),
-      injectors: Object.entries(di.injectors || {}).map(([varName, config]) => ({
+        value: provider.value,
+        reactive: provider.reactive
+        }
+      }),
+      injectors: Object.entries(di.injectors || {}).map(([varName, config]) => {
+        const injector = config as { key: string; defaultValue: any; required: boolean }
+        return {
         variableName: varName,
-        key: config.key,
-        defaultValue: config.defaultValue,
-        required: config.required
-      }))
+        key: injector.key,
+        defaultValue: injector.defaultValue,
+        required: injector.required
+        }
+      })
     }
   }
 
@@ -372,7 +379,8 @@ export class ProvideInjectPlugin extends BaseTransformPlugin {
     // 验证提供者
     if (config.providers) {
       for (const [key, provider] of Object.entries(config.providers)) {
-        if (!provider.key || provider.value === undefined) {
+        const providerConfig = provider as { key?: string; value?: any }
+        if (!providerConfig.key || providerConfig.value === undefined) {
           return false
         }
       }
@@ -381,7 +389,8 @@ export class ProvideInjectPlugin extends BaseTransformPlugin {
     // 验证注入者
     if (config.injectors) {
       for (const [varName, injector] of Object.entries(config.injectors)) {
-        if (!injector.key) {
+        const injectorConfig = injector as { key?: string }
+        if (!injectorConfig.key) {
           return false
         }
       }
