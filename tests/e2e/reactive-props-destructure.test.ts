@@ -167,4 +167,38 @@ onMounted(() => {
     expect(jsContent).toContain('console.log(this.data.title)')
     expect(jsContent).not.toContain('console.log(displayTitle)')
   })
+
+  it('应该把 setup 方法中的 props 解构别名改写为原生 property 访问', async () => {
+    const source = `<template>
+  <view class="props-card" @tap="handleTap">
+    <text>{{ title }}</text>
+  </view>
+</template>
+
+<script setup lang="ts">
+const {
+  title: displayTitle = 'Hello Native'
+} = defineProps<{
+  title?: string
+}>()
+
+const handleTap = () => {
+  console.log(displayTitle)
+}
+</script>`
+
+    const filePath = await createTestFile('components/ReactivePropsMethod.vue', source)
+    testFiles.push('components/ReactivePropsMethod.vue')
+
+    await compiler.compileFile(filePath)
+
+    const jsContent = await readTestFile('output/components/ReactivePropsMethod.js')
+    const wxmlContent = await readTestFile('output/components/ReactivePropsMethod.wxml')
+    expect(() => parse(jsContent, { sourceType: 'script' })).not.toThrow()
+
+    expect(wxmlContent).toContain('bind:tap="handleTap"')
+    expect(jsContent).toContain('handleTap()')
+    expect(jsContent).toContain('console.log(this.data.title)')
+    expect(jsContent).not.toContain('console.log(displayTitle)')
+  })
 })

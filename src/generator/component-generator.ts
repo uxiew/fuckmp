@@ -277,6 +277,8 @@ ${this.generateComputedUpdate(computed)}
       if (typeof method === 'function') {
         const funcStr = method.toString()
         return `    ${name}${funcStr.substring(funcStr.indexOf('('))}`
+      } else if (method && typeof method === 'object' && method.body) {
+        return this.generateMethodFromBody(name, String(method.body))
       } else if (typeof method === 'object' && method.type === 'function') {
         // 处理从 AST 解析的函数
         return `    ${name}() {
@@ -295,6 +297,33 @@ ${this.generateComputedUpdate(computed)}
     }
 
     return entries.join(',\n\n')
+  }
+
+  /**
+   * 从脚本解析保留的函数体生成组件 methods。
+   */
+  private generateMethodFromBody(name: string, body: string): string {
+    const trimmedBody = body.trim()
+    const arrowMatch = trimmedBody.match(/^\((.*?)\)\s*=>\s*([\s\S]*)$/)
+
+    if (arrowMatch) {
+      const params = arrowMatch[1]
+      let functionBody = (arrowMatch[2] || '').trim()
+      if (functionBody.startsWith('{') && functionBody.endsWith('}')) {
+        functionBody = functionBody.slice(1, -1).trim()
+        return `    ${name}(${params}) {
+      ${functionBody}
+    }`
+      }
+
+      return `    ${name}(${params}) {
+      return ${functionBody}
+    }`
+    }
+
+    return `    ${name}() {
+      ${trimmedBody}
+    }`
   }
 
   /**

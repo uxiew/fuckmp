@@ -32,7 +32,7 @@
 - [x] 最新平台基线：Vue 相关依赖升级到 `3.5.34`，新增 `docs/latest-platform-baseline.md` 与 Vue 3.5 `<script setup>` 宏兼容测试。
 - [x] `defineModel` + 组件 `v-model` 原生闭环：子组件输出 `Component.properties`、原生 input handler 与 `update:*` 事件，父级输出属性绑定与 `bind:update:*` 回写 handler；覆盖 `tests/e2e/native-v-model.test.ts`。
 - [x] `withDefaults(defineProps())` 默认值原生映射：静态默认值和数组/对象 factory 静态返回值写入 `Component.properties.value`；覆盖 `tests/e2e/with-defaults-props.test.ts`。
-- [x] Vue 3.5 响应式 props 解构映射：解构默认值写入 `Component.properties`，模板、computed getter 与生命周期回调中的局部别名还原为原始 prop 名且不误伤成员表达式；覆盖 `tests/e2e/reactive-props-destructure.test.ts`。
+- [x] Vue 3.5 响应式 props 解构映射：解构默认值写入 `Component.properties`，模板、computed getter、生命周期回调与 setup 方法中的局部别名还原为原始 prop 名且不误伤成员表达式；覆盖 `tests/e2e/reactive-props-destructure.test.ts`。
 - [x] `defineExpose` 原生目标降级：微信原生目标无 Vue template ref public instance 等价语义，产物输出降级注释和 exposed keys，不生成 runtime 桥接；覆盖 `tests/e2e/define-expose-degrade.test.ts`。
 - [x] `defineOptions` 原生目标降级：微信原生目标无完整 Vue component options 合并等价语义，产物输出降级注释和 option keys，不生成 runtime 桥接；覆盖 `tests/e2e/define-options-degrade.test.ts`。
 - [x] `defineSlots` 类型宏擦除 / 原生目标降级：当前不暴露 Vue slots 对象桥接，产物输出降级注释并避免 `defineSlots()` 落入 data；覆盖 `tests/e2e/define-slots-degrade.test.ts`。

@@ -39,7 +39,7 @@
 |---|---|---|---|
 | `defineModel` + 组件 `v-model` | 已原生映射 | 子组件生成 `Component.properties`、input handler 和 `this.triggerEvent('update:*')`；父级生成属性绑定与 `bind:update:*` 回写 handler | `tests/e2e/native-v-model.test.ts` |
 | `withDefaults(defineProps())` | 已原生映射 | 静态默认值和数组/对象 factory 静态返回值写入 `Component.properties.value` | `tests/e2e/with-defaults-props.test.ts` |
-| Vue 3.5 响应式 props 解构 | 已原生映射 | 解构默认值合并到 `Component.properties`；模板、computed getter 和生命周期回调中的局部别名静态还原为原始 prop 名 | `tests/e2e/reactive-props-destructure.test.ts` |
+| Vue 3.5 响应式 props 解构 | 已原生映射 | 解构默认值合并到 `Component.properties`；模板、computed getter、生命周期回调和 setup 方法中的局部别名静态还原为原始 prop 名 | `tests/e2e/reactive-props-destructure.test.ts` |
 | `defineExpose` | 明确降级 | 微信原生目标无 Vue template ref public instance 等价语义；产物输出降级注释和 exposed keys，不生成运行时桥接 | `tests/e2e/define-expose-degrade.test.ts` |
 | `defineOptions` | 明确降级 | 微信原生目标无完整 Vue component options 合并等价语义；产物输出降级注释和 option keys，不生成运行时桥接 | `tests/e2e/define-options-degrade.test.ts` |
 | `defineSlots` | 类型宏擦除 / 明确降级 | 当前不暴露 Vue slots 对象桥接；产物输出降级注释并擦除 `defineSlots()` 变量，不生成运行时桥接 | `tests/e2e/define-slots-degrade.test.ts` |

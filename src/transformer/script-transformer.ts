@@ -120,6 +120,7 @@ export class ScriptTransformer {
 
       // 处理函数声明
       this.processFunctions(parseResult, context)
+      this.processMethodPropAliases(context)
 
       // 生成代码
       const result = this.generateCode(context)
@@ -519,6 +520,21 @@ export class ScriptTransformer {
 
     Object.entries(context.lifecycle).forEach(([name, code]) => {
       context.lifecycle[name] = this.applyPropAliasesToScriptAccess(code, context)
+    })
+  }
+
+  /**
+   * 将 setup 方法中的 Vue 3.5 props 解构局部访问映射回原生 property 访问。
+   */
+  private processMethodPropAliases(context: TransformContext): void {
+    if (!context.propAliases || context.propAliases.size === 0) {
+      return
+    }
+
+    Object.values(context.methods).forEach(method => {
+      if (method && typeof method === 'object' && typeof method.body === 'string') {
+        method.body = this.applyPropAliasesToScriptAccess(method.body, context)
+      }
     })
   }
 
