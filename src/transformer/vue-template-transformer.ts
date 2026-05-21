@@ -126,7 +126,7 @@ export class VueTemplateTransformer {
       case 2: // TEXT
         return this.transformTextNode(node)
       case 5: // INTERPOLATION (插值表达式)
-        return this.transformInterpolationNode(node)
+        return this.transformInterpolationNode(node, context)
       case 9: // IF
         return this.transformIfNode(node, result, context)
       case 11: // FOR
@@ -154,7 +154,7 @@ export class VueTemplateTransformer {
   /**
    * 转换插值表达式节点
    */
-  private transformInterpolationNode(node: any): string {
+  private transformInterpolationNode(node: any, context: TransformContext): string {
     if (!node.content) return ''
 
     // 处理简单表达式 (type: 4)
@@ -163,6 +163,7 @@ export class VueTemplateTransformer {
       if (expression.startsWith('_ctx.')) {
         expression = expression.substring(5) // 移除 '_ctx.' 前缀
       }
+      expression = this.applyPropAliases(expression, context)
       return `{{${expression}}}`
     }
 
@@ -170,7 +171,7 @@ export class VueTemplateTransformer {
     if (node.content.type === 8) {
       // 优先使用 loc.source，这是原始的表达式内容
       if (node.content.loc && node.content.loc.source) {
-        return `{{${node.content.loc.source}}}`
+        return `{{${this.applyPropAliases(node.content.loc.source, context)}}}`
       }
 
       // 如果没有 loc.source，从子节点中提取表达式
@@ -181,14 +182,14 @@ export class VueTemplateTransformer {
           .join('')
 
         if (expressions) {
-          return `{{${expressions}}}`
+          return `{{${this.applyPropAliases(expressions, context)}}}`
         }
       }
     }
 
     // 如果有 loc.source，直接使用原始源码
     if (node.content.loc && node.content.loc.source) {
-      return `{{${node.content.loc.source}}}`
+      return `{{${this.applyPropAliases(node.content.loc.source, context)}}}`
     }
 
     return ''
@@ -204,7 +205,7 @@ export class VueTemplateTransformer {
     if (node.branches) {
       node.branches.forEach((branch: any, index: number) => {
         if (branch.condition) {
-          const condition = this.extractExpression(branch.condition)
+          const condition = this.extractExpression(branch.condition, context)
           if (index === 0) {
             // v-if
             output += `<view wx:if="{{${condition}}}">`
@@ -235,7 +236,7 @@ export class VueTemplateTransformer {
    * 转换 v-for 节点
    */
   private transformForNode(node: any, result: TemplateTransformResult, context: TransformContext): string {
-    const source = this.extractExpression(node.source)
+    const source = this.extractExpression(node.source, context)
     const valueAlias = node.valueAlias?.content || 'item'
     const keyAlias = node.keyAlias?.content || 'index'
 
@@ -248,7 +249,7 @@ export class VueTemplateTransformer {
           prop.type === 7 && prop.name === 'bind' && prop.arg?.content === 'key'
         )
         if (keyProp && keyProp.exp) {
-          const fullKeyExpression = this.extractExpression(keyProp.exp)
+          const fullKeyExpression = this.extractExpression(keyProp.exp, context)
           // 智能提取 key 属性名
           // 如果是 item.id 形式，提取 id 部分
           if (fullKeyExpression.includes('.')) {
@@ -338,7 +339,7 @@ export class VueTemplateTransformer {
         case 7: // DIRECTIVE (指令)
           // 特殊处理 :class 指令
           if (prop.name === 'bind' && prop.arg?.content === 'class') {
-            dynamicClass = this.extractExpression(prop.exp)
+            dynamicClass = this.extractExpression(prop.exp, context)
           } else {
             const transformed = this.transformDirective(prop, result, context, tagName)
             if (transformed) {
@@ -370,7 +371,7 @@ export class VueTemplateTransformer {
   private transformDirective(directive: any, result: TemplateTransformResult, context: TransformContext, tagName?: string): string | string[] | null {
     const name = directive.name
     const arg = directive.arg?.content
-    const exp = directive.exp ? this.extractExpression(directive.exp) : ''
+    const exp = directive.exp ? this.extractExpression(directive.exp, context) : ''
 
     switch (name) {
       case 'bind':
@@ -416,7 +417,7 @@ export class VueTemplateTransformer {
   /**
    * 提取表达式内容并移除 _ctx 前缀
    */
-  private extractExpression(exp: any): string {
+  private extractExpression(exp: any, context?: TransformContext): string {
     let expression = ''
 
     if (typeof exp === 'string') {
@@ -432,7 +433,26 @@ export class VueTemplateTransformer {
       expression = expression.substring(5)
     }
 
-    return expression
+    return this.applyPropAliases(expression, context)
+  }
+
+  /**
+   * 将 Vue 3.5 props 解构局部别名还原为原生小程序 property 名。
+   */
+  private applyPropAliases(expression: string, context?: TransformContext): string {
+    if (!context?.propAliases || context.propAliases.size === 0) {
+      return expression
+    }
+
+    let result = expression
+    context.propAliases.forEach((propName, localName) => {
+      if (propName === localName) return
+
+      const escapedLocalName = localName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      result = result.replace(new RegExp(`(^|[^\\w$.'"])${escapedLocalName}\\b`, 'g'), `$1${propName}`)
+    })
+
+    return result
   }
 
   /**

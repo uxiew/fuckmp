@@ -98,7 +98,8 @@ export class ScriptTransformer {
         lifecycle: {},
         imports: new Set(),
         components: new Map(),
-        reactiveVariables: new Map()
+        reactiveVariables: new Map(),
+        propAliases: new Map()
       }
 
       // 处理导入
@@ -200,6 +201,8 @@ export class ScriptTransformer {
         this.processDefineModelVariable(variable, context)
       } else if (variable.macroType === 'withDefaults') {
         this.processWithDefaultsVariable(variable, context)
+      } else if (variable.macroType === 'definePropsDestructure') {
+        this.processDefinePropsDestructureVariable(variable, context)
       } else if (variable.isReactive) {
         // 响应式变量
         if (variable.macroType === 'computed') {
@@ -258,6 +261,30 @@ export class ScriptTransformer {
   private processWithDefaultsVariable(variable: any, context: TransformContext): void {
     const defaults = variable.init?.defaults || {}
 
+    this.mergePropDefaults(defaults, context)
+  }
+
+  /**
+   * 将响应式 props 解构的默认值与局部别名合并进上下文。
+   */
+  private processDefinePropsDestructureVariable(variable: any, context: TransformContext): void {
+    const defaults = variable.init?.defaults || {}
+    const aliases = variable.init?.aliases || {}
+
+    this.mergePropDefaults(defaults, context)
+
+    if (!context.propAliases) {
+      context.propAliases = new Map()
+    }
+    Object.entries(aliases).forEach(([localName, propName]) => {
+      context.propAliases!.set(localName, String(propName))
+    })
+  }
+
+  /**
+   * 将 prop 默认值合并到 defineProps 生成的 properties。
+   */
+  private mergePropDefaults(defaults: Record<string, any>, context: TransformContext): void {
     Object.entries(defaults).forEach(([propName, defaultValue]) => {
       const existingProp = context.props[propName]
       if (existingProp && typeof existingProp === 'object') {

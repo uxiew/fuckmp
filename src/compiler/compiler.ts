@@ -301,6 +301,10 @@ export class Vue3MiniprogramCompiler {
         if (scriptContext.reactiveVariables) {
           context.reactiveVariables = scriptContext.reactiveVariables
         }
+
+        if (scriptContext.propAliases) {
+          context.propAliases = scriptContext.propAliases
+        }
       }
     }
 

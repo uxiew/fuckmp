@@ -164,6 +164,8 @@ export interface TransformContext {
   styleImports?: string[]
   /** 响应式变量信息 */
   reactiveVariables?: Map<string, ReactiveVariableInfo>
+  /** props 解构局部名到原始 prop 名的映射 */
+  propAliases?: Map<string, string>
   /** 当前正在处理的模板元素 */
   currentElement?: {
     tagName?: string

@@ -208,7 +208,21 @@ export class ScriptParser {
    */
   private handleVariableDeclaration(node: VariableDeclaration, result: ScriptParseResult): void {
     node.declarations.forEach(declarator => {
-      if (declarator.id.type === 'Identifier') {
+      if (declarator.id.type === 'ObjectPattern' &&
+        declarator.init &&
+        isCallExpression(declarator.init) &&
+        isIdentifier(declarator.init.callee) &&
+        declarator.init.callee.name === 'defineProps') {
+        const variableInfo: VariableInfo = {
+          name: `__definePropsDestructure_${result.variables.size}`,
+          type: node.kind as 'const' | 'let' | 'var',
+          init: this.extractDefinePropsDestructureInfo(declarator.id, result),
+          isReactive: false,
+          macroType: 'definePropsDestructure'
+        }
+
+        result.variables.set(variableInfo.name, variableInfo)
+      } else if (declarator.id.type === 'Identifier') {
         const name = declarator.id.name
         let isReactive = false
         let macroType: string | undefined
@@ -250,6 +264,48 @@ export class ScriptParser {
     })
   }
 
+
+  /**
+   * 提取 Vue 3.5 defineProps 响应式解构的默认值和别名。
+   */
+  private extractDefinePropsDestructureInfo(pattern: any, result: ScriptParseResult): Record<string, any> {
+    const defaults: Record<string, any> = {}
+    const aliases: Record<string, string> = {}
+
+    pattern.properties.forEach((property: any) => {
+      if (property.type !== 'ObjectProperty') return
+
+      const propName = this.getObjectPropertyKey(property.key)
+      const localName = this.getDestructureLocalName(property.value)
+      if (!propName || !localName) return
+
+      aliases[localName] = propName
+
+      if (property.value.type === 'AssignmentPattern') {
+        defaults[propName] = this.extractDefaultValue(property.value.right, result)
+      }
+    })
+
+    return { defaults, aliases }
+  }
+
+  /**
+   * 获取对象属性 key。
+   */
+  private getObjectPropertyKey(key: any): string {
+    if (key.type === 'Identifier') return key.name
+    if (key.type === 'StringLiteral' || key.type === 'NumericLiteral') return String(key.value)
+    return ''
+  }
+
+  /**
+   * 获取 defineProps 解构后的局部变量名。
+   */
+  private getDestructureLocalName(value: any): string {
+    if (value.type === 'Identifier') return value.name
+    if (value.type === 'AssignmentPattern' && value.left.type === 'Identifier') return value.left.name
+    return ''
+  }
 
 
   /**
