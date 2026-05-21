@@ -15,6 +15,7 @@ export const VUE3_MACROS = {
   defineModel: 'defineModel',
   withDefaults: 'withDefaults',
   useTemplateRef: 'useTemplateRef',
+  useId: 'useId',
   
   // 运行时 API
   ref: 'ref',

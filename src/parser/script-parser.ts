@@ -250,6 +250,9 @@ export class ScriptParser {
           } else if (calleeName === 'useTemplateRef') {
             macroType = calleeName
             initValue = this.extractUseTemplateRefInfo(declarator.init, name, result)
+          } else if (calleeName === 'useId') {
+            macroType = calleeName
+            initValue = { variable: name }
           } else {
             initValue = extractArgumentValue(declarator.init, result.variables)
           }

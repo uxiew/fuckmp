@@ -110,6 +110,7 @@ export class Vue3MiniprogramCompiler {
         defineSlots: {},
         watcherEffects: {},
         templateRefs: {},
+        useIds: {},
         data: {},
         methods: {},
         computed: {},
@@ -305,6 +306,10 @@ export class Vue3MiniprogramCompiler {
 
         if (scriptContext.templateRefs) {
           context.templateRefs = scriptContext.templateRefs
+        }
+
+        if (scriptContext.useIds) {
+          context.useIds = scriptContext.useIds
         }
 
         // 合并props和emits

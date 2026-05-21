@@ -2,7 +2,7 @@
  * Script 转换器
  */
 
-import { traverseAST, generateCode, isCallExpression, isIdentifier, isVariableDeclaration, PathResolver, createPathResolver, createDefineExposeDegradeRecord, createDefineOptionsDegradeRecord, createDefineSlotsDegradeRecord, createUseTemplateRefDegradeRecord, createWatcherDegradeRecord, mergeUseTemplateRefDegradeRecord } from '@/utils/index.js'
+import { traverseAST, generateCode, isCallExpression, isIdentifier, isVariableDeclaration, PathResolver, createPathResolver, createDefineExposeDegradeRecord, createDefineOptionsDegradeRecord, createDefineSlotsDegradeRecord, createUseIdDegradeRecord, createUseTemplateRefDegradeRecord, createWatcherDegradeRecord, mergeUseTemplateRefDegradeRecord } from '@/utils/index.js'
 import { VUE3_MACROS } from '@/types/index.js'
 import type { TransformContext, MacroHandler } from '@/types/index.js'
 import type { ScriptParseResult } from '@/parser/index.js'
@@ -95,6 +95,7 @@ export class ScriptTransformer {
         defineSlots: {},
         watcherEffects: {},
         templateRefs: {},
+        useIds: {},
         data: {},
         methods: {},
         computed: {},
@@ -254,6 +255,8 @@ export class ScriptTransformer {
         this.processDefineSlotsVariable(variable, context)
       } else if (variable.macroType === 'useTemplateRef') {
         this.processUseTemplateRefVariable(variable, context)
+      } else if (variable.macroType === 'useId') {
+        this.processUseIdVariable(variable, context)
       } else if (variable.isReactive) {
         // 响应式变量
         if (variable.macroType === 'computed') {
@@ -395,6 +398,16 @@ export class ScriptTransformer {
     context.templateRefs = mergeUseTemplateRefDegradeRecord(context.templateRefs, record)
 
     logger.warn(`useTemplateRef 已在原生小程序目标下降级: ${context.filename}`)
+  }
+
+  /**
+   * useId 依赖 Vue app idPrefix 与 SSR 稳定 ID 语义，原生目标暂不伪造等价支持。
+   */
+  private processUseIdVariable(variable: any, context: TransformContext): void {
+    const previousVariables = Array.isArray(context.useIds?.variables) ? context.useIds.variables : []
+    context.useIds = createUseIdDegradeRecord(variable.init?.variable || variable.name, previousVariables)
+
+    logger.warn(`useId 已在原生小程序目标下降级: ${context.filename}`)
   }
 
   /**

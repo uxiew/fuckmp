@@ -392,7 +392,7 @@ await compiler.watch()
 | 特性 | 支持状态 | 说明 |
 |------|---------|------|
 | `<script setup>` | ✅ | 基础解析与编译已覆盖，复杂宏按矩阵继续补齐 |
-| Composition API | 🚧 | 当前运行时桥接白名单为 ref, reactive, computed；watch/watchEffect/onWatcherCleanup 明确降级 |
+| Composition API | 🚧 | 当前运行时桥接白名单为 ref, reactive, computed；watch/watchEffect/onWatcherCleanup/useId 明确降级 |
 | TypeScript | ✅ | 原生支持 |
 | Props/Emits | 🚧 | defineProps, defineEmits 基础转换，继续按原生输出矩阵补齐 |
 | 生命周期 | ✅ | 映射到小程序生命周期，不依赖 lifecycle runtime |

@@ -154,6 +154,8 @@ export interface TransformContext {
   watcherEffects?: Record<string, any>
   /** 原生目标下降级的模板引用 */
   templateRefs?: Record<string, any>
+  /** 原生目标下降级的 useId 调用 */
+  useIds?: Record<string, any>
   /** 响应式数据 */
   data: Record<string, any>
   /** 方法定义 */
