@@ -58,11 +58,21 @@ FuckMP 的目标是把 Vue3 SFC 编译为原生微信小程序工程，而不是
 
 验证测试：`tests/e2e/define-expose-degrade.test.ts`。
 
+### `useTemplateRef`
+
+Vue 3.5 `useTemplateRef` 用于获取模板 ref 对应的 DOM 或组件实例引用。微信原生小程序目标没有 Vue DOM/component instance 等价桥接，因此当前处理为**明确降级**：
+
+- 编译产物输出 `useTemplateRef 降级` 注释和 template refs。
+- 不生成 `__templateRef`、DOM/组件实例代理或额外 runtime 模块。
+- 不把该能力加入 thin runtime 白名单。
+
+验证测试：`tests/e2e/use-template-ref-degrade.test.ts`。
+
 ### 仍不宣称支持
 
 以下能力可以在源码中被识别，但不能仅靠 runtime 模块名宣称支持：
 
-- `watch / watchEffect`
+- `watch / watchEffect / onWatcherCleanup`
 - `provide / inject`
 - slots / scoped slots
 - transition / keep-alive
@@ -74,7 +84,7 @@ FuckMP 的目标是把 Vue3 SFC 编译为原生微信小程序工程，而不是
 当前测试已固化以下边界：
 
 - `RuntimeBundler.getRequiredModules()` 只返回 `core` 或 `core + reactivity`。
-- 模板指令、事件、生命周期、props/emits、`defineModel`、`withDefaults`、响应式 props 解构、`defineExpose` 降级、slots、provide/inject 不会引入 `template/event/lifecycle/component/di` 等伪模块。
+- 模板指令、事件、生命周期、props/emits、`defineModel`、`withDefaults`、响应式 props 解构、`defineExpose` 降级、`useTemplateRef` 降级、slots、provide/inject 不会引入 `template/event/lifecycle/component/di` 等伪模块。
 - `RuntimeInjectionGenerator` 不会因为 `<script setup>` 本身生成 `ref/reactive/computed` runtime。
 - `PageGenerator` 不会给静态页面内联旧版响应式 runtime，也不会输出 `setInterval` 轮询式 `watch` 占位。
 
@@ -87,6 +97,7 @@ FuckMP 的目标是把 Vue3 SFC 编译为原生微信小程序工程，而不是
 - `tests/e2e/with-defaults-props.test.ts`
 - `tests/e2e/reactive-props-destructure.test.ts`
 - `tests/e2e/define-expose-degrade.test.ts`
+- `tests/e2e/use-template-ref-degrade.test.ts`
 
 ## 后续开发顺序
 

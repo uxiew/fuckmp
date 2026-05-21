@@ -4,7 +4,7 @@
 
 import type { TransformContext, GenerateResult, CompilerOptions } from '@/types/index.js'
 import type { ScriptTransformResult, TemplateTransformResult, StyleTransformResult } from '@/transformer/index.js'
-import { generateDefineExposeDegradeComment, logger } from '@/utils/index.js'
+import { generateDefineExposeDegradeComment, generateUseTemplateRefDegradeComment, logger } from '@/utils/index.js'
 import { addScopeAttributes, generateScopeId, generateUsingComponents, removeCtxPrefixes } from './shared-generator-utils.js'
 
 /**
@@ -136,7 +136,7 @@ ${this.generateComputedUpdate(computed)}
     }
 
     // 生成页面定义
-    const pageCode = `${generateDefineExposeDegradeComment(context.expose, '页面')}Page({
+    const pageCode = `${generateDefineExposeDegradeComment(context.expose, '页面')}${generateUseTemplateRefDegradeComment(context.templateRefs || {}, '页面')}Page({
 ${parts.join(',\n\n')}
 })`
 

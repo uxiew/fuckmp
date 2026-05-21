@@ -244,6 +244,9 @@ export class ScriptParser {
           } else if (calleeName === 'withDefaults') {
             macroType = calleeName
             initValue = this.extractWithDefaultsInfo(declarator.init, result)
+          } else if (calleeName === 'useTemplateRef') {
+            macroType = calleeName
+            initValue = this.extractUseTemplateRefInfo(declarator.init, name, result)
           } else {
             initValue = extractArgumentValue(declarator.init, result.variables)
           }
@@ -393,6 +396,19 @@ export class ScriptParser {
       case 'TSStringKeyword':
       default:
         return 'String'
+    }
+  }
+
+  /**
+   * 提取 Vue 3.5 useTemplateRef 的 ref key。
+   */
+  private extractUseTemplateRefInfo(node: CallExpression, variableName: string, result: ScriptParseResult): Record<string, any> {
+    const firstArg = node.arguments[0]
+    const refName = firstArg ? extractArgumentValue(firstArg, result.variables) : variableName
+
+    return {
+      variable: variableName,
+      ref: typeof refName === 'string' ? refName : variableName
     }
   }
 

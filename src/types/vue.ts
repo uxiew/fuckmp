@@ -14,6 +14,7 @@ export const VUE3_MACROS = {
   defineSlots: 'defineSlots',
   defineModel: 'defineModel',
   withDefaults: 'withDefaults',
+  useTemplateRef: 'useTemplateRef',
   
   // 运行时 API
   ref: 'ref',

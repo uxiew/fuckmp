@@ -146,6 +146,8 @@ export interface TransformContext {
   emits: string[]
   /** 暴露的方法 */
   expose: Record<string, any>
+  /** 原生目标下降级的模板引用 */
+  templateRefs?: Record<string, any>
   /** 响应式数据 */
   data: Record<string, any>
   /** 方法定义 */

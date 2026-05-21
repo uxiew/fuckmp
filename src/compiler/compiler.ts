@@ -106,6 +106,7 @@ export class Vue3MiniprogramCompiler {
         props: {},
         emits: [],
         expose: {},
+        templateRefs: {},
         data: {},
         methods: {},
         computed: {},
@@ -286,6 +287,10 @@ export class Vue3MiniprogramCompiler {
 
         // 合并原生目标降级记录
         Object.assign(context.expose, scriptContext.expose)
+
+        if (scriptContext.templateRefs) {
+          context.templateRefs = scriptContext.templateRefs
+        }
 
         // 合并props和emits
         Object.assign(context.props, scriptContext.props)

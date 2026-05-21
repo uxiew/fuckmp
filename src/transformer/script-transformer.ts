@@ -2,7 +2,7 @@
  * Script 转换器
  */
 
-import { traverseAST, generateCode, isCallExpression, isIdentifier, isVariableDeclaration, PathResolver, createPathResolver, createDefineExposeDegradeRecord } from '@/utils/index.js'
+import { traverseAST, generateCode, isCallExpression, isIdentifier, isVariableDeclaration, PathResolver, createPathResolver, createDefineExposeDegradeRecord, createUseTemplateRefDegradeRecord, mergeUseTemplateRefDegradeRecord } from '@/utils/index.js'
 import { VUE3_MACROS } from '@/types/index.js'
 import type { TransformContext, MacroHandler } from '@/types/index.js'
 import type { ScriptParseResult } from '@/parser/index.js'
@@ -91,6 +91,7 @@ export class ScriptTransformer {
         props: {},
         emits: [],
         expose: {},
+        templateRefs: {},
         data: {},
         methods: {},
         computed: {},
@@ -218,6 +219,8 @@ export class ScriptTransformer {
         this.processWithDefaultsVariable(variable, context)
       } else if (variable.macroType === 'definePropsDestructure') {
         this.processDefinePropsDestructureVariable(variable, context)
+      } else if (variable.macroType === 'useTemplateRef') {
+        this.processUseTemplateRefVariable(variable, context)
       } else if (variable.isReactive) {
         // 响应式变量
         if (variable.macroType === 'computed') {
@@ -347,6 +350,18 @@ export class ScriptTransformer {
     if (!context.emits.includes(updateEvent)) {
       context.emits.push(updateEvent)
     }
+  }
+
+  /**
+   * useTemplateRef 依赖 Vue template ref / DOM 或组件实例，原生小程序目标无法可靠等价映射。
+   */
+  private processUseTemplateRefVariable(variable: any, context: TransformContext): void {
+    const refInfo = variable.init || {}
+    const previousRefs = Array.isArray(context.templateRefs?.refs) ? context.templateRefs!.refs : []
+    const record = createUseTemplateRefDegradeRecord(refInfo.ref, refInfo.variable || variable.name, previousRefs)
+    context.templateRefs = mergeUseTemplateRefDegradeRecord(context.templateRefs, record)
+
+    logger.warn(`useTemplateRef 已在原生小程序目标下降级: ${context.filename}`)
   }
 
   /**

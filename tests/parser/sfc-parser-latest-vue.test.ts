@@ -8,9 +8,11 @@ describe('SFCParser latest Vue 3 compatibility', () => {
   it('编译 Vue 3.5 script setup 宏与响应式 props 解构', async () => {
     const source = `
 <template>
-  <view>{{ label }}: {{ count }}</view>
+  <view ref="panel">{{ label }}: {{ count }}</view>
 </template>
 <script setup lang="ts">
+import { onWatcherCleanup, useTemplateRef, watch } from 'vue'
+
 interface Props {
   label?: string
   count?: number
@@ -22,6 +24,11 @@ const emit = defineEmits<{
 }>()
 const model = defineModel<string>({ default: 'hello' })
 const namedModel = defineModel<number>('count', { default: 0 })
+const panel = useTemplateRef<unknown>('panel')
+
+watch(model, () => {
+  onWatcherCleanup(() => {})
+})
 
 defineExpose({
   focus: () => emit('save', count)
@@ -38,6 +45,8 @@ defineExpose({
     expect(compiled?.content).toContain('update:modelValue')
     expect(compiled?.content).toContain('update:count')
     expect(compiled?.content).toContain('__expose')
+    expect(compiled?.content).toContain('useTemplateRef')
+    expect(compiled?.content).toContain('onWatcherCleanup')
     expect(compiled?.content).toContain('default: \'默认标题\'')
     expect(compiled?.bindings.label).toBe('props')
     expect(compiled?.bindings.count).toBe('props')
