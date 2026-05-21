@@ -162,10 +162,20 @@ function extractTypeScriptEmits(node: any): EmitsDefinition {
             // 对于事件，我们主要关心事件名，参数类型暂时忽略
             emits[key] = null
             logger.debug(`解析事件: ${key}`)
+          } else if (member.type === 'TSCallSignatureDeclaration') {
+            extractEventNamesFromSignature(member).forEach(eventName => {
+              emits[eventName] = null
+              logger.debug(`解析 call signature 事件: ${eventName}`)
+            })
           }
         })
       }
 
+    } else if (node.type === 'TSFunctionType') {
+      extractEventNamesFromSignature(node).forEach(eventName => {
+        emits[eventName] = null
+        logger.debug(`解析函数类型事件: ${eventName}`)
+      })
     } else if (node.type === 'TSTypeReference') {
       // 类型引用，如 EmitEvents
       const typeName = node.typeName?.name || 'Unknown'
@@ -188,6 +198,35 @@ function extractTypeScriptEmits(node: any): EmitsDefinition {
   }
 
   return emits
+}
+
+/**
+ * 从 defineEmits 的 TypeScript 函数签名中提取事件名。
+ */
+function extractEventNamesFromSignature(node: any): string[] {
+  const firstParam = node.parameters?.[0]
+  const typeNode = firstParam?.typeAnnotation?.typeAnnotation
+
+  return extractEventNamesFromTypeNode(typeNode)
+}
+
+/**
+ * 从事件名参数类型中提取字符串字面量事件。
+ */
+function extractEventNamesFromTypeNode(node: any): string[] {
+  if (!node) {
+    return []
+  }
+
+  if (node.type === 'TSLiteralType' && node.literal?.type === 'StringLiteral') {
+    return [node.literal.value]
+  }
+
+  if (node.type === 'TSUnionType') {
+    return node.types.flatMap((item: any) => extractEventNamesFromTypeNode(item))
+  }
+
+  return []
 }
 
 /**

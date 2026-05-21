@@ -394,7 +394,7 @@ await compiler.watch()
 | `<script setup>` | ✅ | 基础解析与编译已覆盖，复杂宏按矩阵继续补齐 |
 | Composition API | 🚧 | 当前运行时桥接白名单为 ref, reactive, computed；useId 已原生映射，watch/watchEffect/onWatcherCleanup/provide/inject 明确降级 |
 | TypeScript | ✅ | 原生支持 |
-| Props/Emits | 🚧 | defineProps, defineEmits 基础转换，继续按原生输出矩阵补齐 |
+| Props/Emits | 🚧 | defineProps 基础转换；defineEmits 支持运行时声明和 TypeScript call signature 事件名提取 |
 | 生命周期 | ✅ | 映射到小程序生命周期，不依赖 lifecycle runtime |
 | 模板语法 | 🚧 | v-if, v-for, v-model, 事件处理按原生 WXML/JS 输出逐步补齐 |
 | 样式 | ✅ | CSS, SCSS, 作用域样式 |

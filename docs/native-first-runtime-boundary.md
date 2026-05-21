@@ -42,7 +42,7 @@ FuckMP 的目标是把 Vue3 SFC 编译为原生微信小程序工程，而不是
 | `withDefaults(defineProps())` | `Component.properties.value` | 不注入 component runtime |
 | 响应式 props 解构 | `Component.properties.value` + 模板别名 / computed getter / 生命周期回调 / setup 方法访问静态还原 | 不注入 props runtime |
 | `defineModel` | `Component.properties` + `update:*` 事件；tuple 解构配合原生 input 修饰符 handler | 不注入 v-model runtime |
-| `defineEmits` | `this.triggerEvent` | 不注入 event runtime |
+| `defineEmits` | 运行时声明 / TypeScript call signature 事件名提取 + `this.triggerEvent` | 不注入 event runtime |
 | 生命周期 | Page/Component 原生生命周期 | 不注入 lifecycle runtime |
 | 样式与 SCSS | `wxss` | 不注入 style runtime |
 
@@ -152,6 +152,7 @@ Vue 3.5 `useTemplateRef` 用于获取模板 ref 对应的 DOM 或组件实例引
 - `tests/runtime-injection.test.ts`
 - `tests/compiler/runtime-injection-generator.test.ts`
 - `tests/e2e/thin-runtime-page-output.test.ts`
+- `tests/e2e/typed-emits.test.ts`
 - `tests/e2e/native-v-model.test.ts`
 - `tests/e2e/with-defaults-props.test.ts`
 - `tests/e2e/reactive-props-destructure.test.ts`

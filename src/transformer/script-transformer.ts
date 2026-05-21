@@ -268,6 +268,8 @@ export class ScriptTransformer {
     parseResult.variables.forEach((variable, name) => {
       if (variable.macroType === 'defineModel') {
         this.processDefineModelVariable(variable, context)
+      } else if (variable.macroType === 'defineEmits') {
+        // defineEmits 已在宏处理阶段写入 context.emits；这里仅擦除 setup 变量。
       } else if (variable.macroType === 'withDefaults') {
         this.processWithDefaultsVariable(variable, context)
       } else if (variable.macroType === 'definePropsDestructure') {
