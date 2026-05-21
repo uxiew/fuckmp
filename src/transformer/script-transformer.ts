@@ -282,7 +282,7 @@ export class ScriptTransformer {
         // 响应式变量
         if (variable.macroType === 'computed') {
           // 计算属性 - 转换 getter 中的响应式变量访问
-          const getter = this.transformComputedGetter(variable.init || 'return null', parseResult)
+          const getter = this.transformComputedGetter(variable.init || 'return null', parseResult, context)
           context.computed[name] = {
             getter
           }
@@ -524,13 +524,13 @@ export class ScriptTransformer {
   /**
    * 转换 computed 属性的 getter 函数
    */
-  private transformComputedGetter(getter: string, parseResult: ScriptParseResult): string {
+  private transformComputedGetter(getter: string, parseResult: ScriptParseResult, context: TransformContext): string {
     if (!getter || typeof getter !== 'string') {
       return 'return null'
     }
 
-    // 转换响应式变量访问：count.value -> this.data.count
-    let transformedGetter = getter
+    // 转换 computed(() => expr) 这类源码片段为可直接放入方法体的 return 语句。
+    let transformedGetter = this.normalizeComputedGetter(getter)
 
     // 获取所有响应式变量
     const reactiveVars = new Set<string>()
@@ -547,7 +547,43 @@ export class ScriptTransformer {
       transformedGetter = transformedGetter.replace(regex, `this.data.${varName}`)
     })
 
-    return transformedGetter
+    return this.applyPropAliasesToScriptAccess(transformedGetter, context)
+  }
+
+  /**
+   * 标准化 computed getter 字符串。
+   */
+  private normalizeComputedGetter(getter: string): string {
+    const trimmedGetter = getter.trim()
+    const arrowMatch = trimmedGetter.match(/^(?:async\s*)?\(?([^)]*)\)?\s*=>\s*([\s\S]*)$/)
+    if (!arrowMatch) {
+      return trimmedGetter
+    }
+
+    const body = (arrowMatch[2] || '').trim()
+    if (body.startsWith('{') && body.endsWith('}')) {
+      return body.slice(1, -1).trim()
+    }
+
+    return `return ${body}`
+  }
+
+  /**
+   * 将 Vue 3.5 props 解构局部访问映射回原生 property 访问。
+   */
+  private applyPropAliasesToScriptAccess(code: string, context: TransformContext): string {
+    if (!context.propAliases || context.propAliases.size === 0) {
+      return code
+    }
+
+    let result = code
+    context.propAliases.forEach((propName, localName) => {
+      const escapedLocalName = localName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      result = result.replace(new RegExp(`\\bthis\\.data\\.${escapedLocalName}\\b`, 'g'), `this.data.${propName}`)
+      result = result.replace(new RegExp(`(^|[^\\w$.'"])${escapedLocalName}\\b(?!\\s*:)`, 'g'), `$1this.data.${propName}`)
+    })
+
+    return result
   }
 
   /**

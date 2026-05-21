@@ -40,7 +40,7 @@ FuckMP 的目标是把 Vue3 SFC 编译为原生微信小程序工程，而不是
 | `v-model` | 属性 + 事件 handler | 不注入 v-model runtime |
 | `defineProps` | `Component.properties` | 不注入 component runtime |
 | `withDefaults(defineProps())` | `Component.properties.value` | 不注入 component runtime |
-| 响应式 props 解构 | `Component.properties.value` + 模板别名静态还原 | 不注入 props runtime |
+| 响应式 props 解构 | `Component.properties.value` + 模板别名 / computed getter 访问静态还原 | 不注入 props runtime |
 | `defineModel` | `Component.properties` + `update:*` 事件 | 不注入 v-model runtime |
 | `defineEmits` | `this.triggerEvent` | 不注入 event runtime |
 | 生命周期 | Page/Component 原生生命周期 | 不注入 lifecycle runtime |

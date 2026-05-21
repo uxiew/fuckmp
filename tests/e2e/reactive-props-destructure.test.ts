@@ -90,4 +90,45 @@ const {
     expect(wxmlContent).toContain('{{title}}')
     expect(wxmlContent).not.toContain('{{displayTitle}}')
   })
+
+  it('应该把 computed getter 中的 props 解构别名改写为原生 property 访问', async () => {
+    const source = `<template>
+  <view class="props-card">
+    <text>{{ summary }}</text>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { computed } from 'vue'
+
+const {
+  title: displayTitle = 'Hello Native',
+  count = 7
+} = defineProps<{
+  title?: string
+  count?: number
+}>()
+
+const summary = computed(() => displayTitle + ':' + count)
+</script>`
+
+    const filePath = await createTestFile('components/ReactivePropsComputed.vue', source)
+    testFiles.push('components/ReactivePropsComputed.vue')
+
+    await compiler.compileFile(filePath)
+
+    const jsContent = await readTestFile('output/components/ReactivePropsComputed.js')
+    const wxmlContent = await readTestFile('output/components/ReactivePropsComputed.wxml')
+    expect(() => parse(jsContent, { sourceType: 'script' })).not.toThrow()
+
+    expect(jsContent).toContain('title: {')
+    expect(jsContent).toContain('value: "Hello Native"')
+    expect(jsContent).toContain('count: {')
+    expect(jsContent).toContain('value: 7')
+
+    expect(jsContent).toContain('return this.data.title + \':\' + this.data.count')
+    expect(jsContent).not.toContain('this.data.displayTitle')
+    expect(jsContent).not.toContain('"displayTitle"')
+    expect(wxmlContent).toContain('{{summary}}')
+  })
 })
