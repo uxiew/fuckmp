@@ -103,4 +103,45 @@ const title = ref('initial title')
     expect(pageJs).toContain('content: event.detail')
     expect(pageJs).toContain('title: event.detail')
   })
+
+  it('应该把 defineModel tuple 解构与输入修饰符编译为原生 handler', async () => {
+    const childContent = `<template>
+  <view class="model-input">
+    <input v-model.trim="modelValue" />
+    <input v-model.number="count" />
+  </view>
+</template>
+
+<script setup lang="ts">
+const [modelValue, modelModifiers] = defineModel<string>({ default: '' })
+const [count, countModifiers] = defineModel<number>('count', { default: 0 })
+</script>`
+
+    const childPath = await createTestFile('components/ModelModifierInput.vue', childContent)
+    testFiles.push('components/ModelModifierInput.vue')
+
+    await compiler.compileFile(childPath)
+
+    const childJs = await readTestFile('output/components/ModelModifierInput.js')
+    const childWxml = await readTestFile('output/components/ModelModifierInput.wxml')
+
+    expect(() => parse(childJs, { sourceType: 'script' })).not.toThrow()
+
+    expect(childJs).toContain('modelValue: {')
+    expect(childJs).toContain('type: String')
+    expect(childJs).toContain('value: ""')
+    expect(childJs).toContain('count: {')
+    expect(childJs).toContain('type: Number')
+    expect(childJs).toContain('value: 0')
+
+    expect(childWxml).toContain('value="{{modelValue}}"')
+    expect(childWxml).toContain('bindinput="_handleTrimInput_modelValue"')
+    expect(childWxml).toContain('value="{{count}}"')
+    expect(childWxml).toContain('bindinput="_handleNumberInput_count"')
+
+    expect(childJs).toContain("this.triggerEvent('update:modelValue', value)")
+    expect(childJs).toContain("this.triggerEvent('update:count', value)")
+    expect(childJs).not.toContain('modelModifiers')
+    expect(childJs).not.toContain('countModifiers')
+  })
 })

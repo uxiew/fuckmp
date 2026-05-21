@@ -222,6 +222,25 @@ export class ScriptParser {
         }
 
         result.variables.set(variableInfo.name, variableInfo)
+      } else if (declarator.id.type === 'ArrayPattern' &&
+        declarator.init &&
+        isCallExpression(declarator.init) &&
+        isIdentifier(declarator.init.callee) &&
+        declarator.init.callee.name === 'defineModel') {
+        const modelVariableName = this.getArrayPatternFirstIdentifier(declarator.id)
+        if (!modelVariableName) {
+          return
+        }
+
+        const variableInfo: VariableInfo = {
+          name: modelVariableName,
+          type: node.kind as 'const' | 'let' | 'var',
+          init: this.extractDefineModelInfo(declarator.init, modelVariableName, result),
+          isReactive: false,
+          macroType: 'defineModel'
+        }
+
+        result.variables.set(variableInfo.name, variableInfo)
       } else if (declarator.id.type === 'Identifier') {
         const name = declarator.id.name
         let isReactive = false
@@ -311,6 +330,14 @@ export class ScriptParser {
     if (key.type === 'Identifier') return key.name
     if (key.type === 'StringLiteral' || key.type === 'NumericLiteral') return String(key.value)
     return ''
+  }
+
+  /**
+   * 获取数组解构的第一个标识符，用于 defineModel tuple 返回值。
+   */
+  private getArrayPatternFirstIdentifier(pattern: any): string {
+    const firstElement = pattern.elements?.[0]
+    return firstElement?.type === 'Identifier' ? firstElement.name : ''
   }
 
   /**
