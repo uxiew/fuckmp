@@ -131,4 +131,40 @@ const summary = computed(() => displayTitle + ':' + count)
     expect(jsContent).not.toContain('"displayTitle"')
     expect(wxmlContent).toContain('{{summary}}')
   })
+
+  it('应该把生命周期回调中的 props 解构别名改写为原生 property 访问', async () => {
+    const source = `<template>
+  <view class="props-card">
+    <text>{{ title }}</text>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { onMounted } from 'vue'
+
+const {
+  title: displayTitle = 'Hello Native'
+} = defineProps<{
+  title?: string
+}>()
+
+onMounted(() => {
+  console.log(displayTitle)
+})
+</script>`
+
+    const filePath = await createTestFile('components/ReactivePropsLifecycle.vue', source)
+    testFiles.push('components/ReactivePropsLifecycle.vue')
+
+    await compiler.compileFile(filePath)
+
+    const jsContent = await readTestFile('output/components/ReactivePropsLifecycle.js')
+    expect(() => parse(jsContent, { sourceType: 'script' })).not.toThrow()
+
+    expect(jsContent).toContain('title: {')
+    expect(jsContent).toContain('value: "Hello Native"')
+    expect(jsContent).toContain('attached()')
+    expect(jsContent).toContain('console.log(this.data.title)')
+    expect(jsContent).not.toContain('console.log(displayTitle)')
+  })
 })

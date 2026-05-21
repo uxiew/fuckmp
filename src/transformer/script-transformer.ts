@@ -116,6 +116,7 @@ export class ScriptTransformer {
 
       // 处理变量声明
       this.processVariables(parseResult, context)
+      this.processLifecyclePropAliases(context)
 
       // 处理函数声明
       this.processFunctions(parseResult, context)
@@ -506,6 +507,19 @@ export class ScriptTransformer {
     context.lifecycle[lifecycleName] = existingCode && existingCode.trim()
       ? `${existingCode.trim()}\n${code}`
       : code
+  }
+
+  /**
+   * 将生命周期回调中的 Vue 3.5 props 解构局部访问映射回原生 property 访问。
+   */
+  private processLifecyclePropAliases(context: TransformContext): void {
+    if (!context.propAliases || context.propAliases.size === 0) {
+      return
+    }
+
+    Object.entries(context.lifecycle).forEach(([name, code]) => {
+      context.lifecycle[name] = this.applyPropAliasesToScriptAccess(code, context)
+    })
   }
 
   /**
