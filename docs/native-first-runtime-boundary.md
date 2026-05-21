@@ -12,6 +12,10 @@ FuckMP 的目标是把 Vue3 SFC 编译为原生微信小程序工程，而不是
 - 运行时只作为小程序 `setData` 与 Vue3 响应式写法之间的最小桥接。
 - 不允许用未实现的 runtime 模块占位来宣称支持某项 Vue 能力。
 
+## 平台版本基线
+
+当前 Vue 相关依赖基线为 `vue@3.5.34`、`@vue/compiler-sfc@3.5.34`、`@vue/reactivity@3.5.34`；微信小程序目标保持原生 `Page / Component / WXML / WXSS / JSON`。详细记录见 `docs/latest-platform-baseline.md`。
+
 ## 当前运行时白名单
 
 当前允许进入 `runtime-injection.js` 的能力只有：

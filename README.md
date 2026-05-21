@@ -381,6 +381,12 @@ await compiler.watch()
 - `fuckmp/runtime` 等 runtime 子路径不是 public surface；小程序产物运行时由编译器生成 `runtime-injection.js` 并注入。
 - 若未来需要支持 runtime 子路径导入，必须先在 `package.json` 中显式声明 `exports`，并补充兼容测试。
 
+## 平台基线
+
+- 当前 Vue3 基线：`vue@3.5.34`、`@vue/compiler-sfc@3.5.34`、`@vue/reactivity@3.5.34`。
+- 目标小程序基线：原生微信小程序 `Page / Component / WXML / WXSS / JSON`。
+- 最新基线与参考链接见 `docs/latest-platform-baseline.md`。
+
 ## 支持的 Vue3 特性
 
 | 特性 | 支持状态 | 说明 |
