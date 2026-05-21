@@ -148,6 +148,8 @@ export interface TransformContext {
   expose: Record<string, any>
   /** 原生目标下降级的 defineOptions 选项 */
   defineOptions?: Record<string, any>
+  /** 原生目标下降级的 defineSlots 类型宏 */
+  defineSlots?: Record<string, any>
   /** 原生目标下降级的模板引用 */
   templateRefs?: Record<string, any>
   /** 响应式数据 */

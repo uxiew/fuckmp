@@ -22,6 +22,12 @@ const { label = '默认标题', count = 0 } = defineProps<Props>()
 const emit = defineEmits<{
   save: [value: number]
 }>()
+defineOptions({
+  name: 'LatestVueMacros'
+})
+const slots = defineSlots<{
+  default(props: { count: number }): any
+}>()
 const model = defineModel<string>({ default: 'hello' })
 const namedModel = defineModel<number>('count', { default: 0 })
 const panel = useTemplateRef<unknown>('panel')
@@ -42,6 +48,7 @@ defineExpose({
     expect(compiled).not.toBeNull()
     expect(compiled?.content).toContain('props:')
     expect(compiled?.content).toContain('emits:')
+    expect(compiled?.content).toContain('LatestVueMacros')
     expect(compiled?.content).toContain('update:modelValue')
     expect(compiled?.content).toContain('update:count')
     expect(compiled?.content).toContain('__expose')
@@ -50,6 +57,7 @@ defineExpose({
     expect(compiled?.content).toContain('default: \'默认标题\'')
     expect(compiled?.bindings.label).toBe('props')
     expect(compiled?.bindings.count).toBe('props')
+    expect(compiled?.bindings.slots).toBe('setup-const')
     expect(compiled?.bindings.model).toBe('setup-ref')
     expect(compiled?.bindings.namedModel).toBe('setup-ref')
   })

@@ -107,6 +107,7 @@ export class Vue3MiniprogramCompiler {
         emits: [],
         expose: {},
         defineOptions: {},
+        defineSlots: {},
         templateRefs: {},
         data: {},
         methods: {},
@@ -291,6 +292,10 @@ export class Vue3MiniprogramCompiler {
 
         if (scriptContext.defineOptions) {
           context.defineOptions = scriptContext.defineOptions
+        }
+
+        if (scriptContext.defineSlots) {
+          context.defineSlots = scriptContext.defineSlots
         }
 
         if (scriptContext.templateRefs) {

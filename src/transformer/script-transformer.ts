@@ -2,7 +2,7 @@
  * Script 转换器
  */
 
-import { traverseAST, generateCode, isCallExpression, isIdentifier, isVariableDeclaration, PathResolver, createPathResolver, createDefineExposeDegradeRecord, createDefineOptionsDegradeRecord, createUseTemplateRefDegradeRecord, mergeUseTemplateRefDegradeRecord } from '@/utils/index.js'
+import { traverseAST, generateCode, isCallExpression, isIdentifier, isVariableDeclaration, PathResolver, createPathResolver, createDefineExposeDegradeRecord, createDefineOptionsDegradeRecord, createDefineSlotsDegradeRecord, createUseTemplateRefDegradeRecord, mergeUseTemplateRefDegradeRecord } from '@/utils/index.js'
 import { VUE3_MACROS } from '@/types/index.js'
 import type { TransformContext, MacroHandler } from '@/types/index.js'
 import type { ScriptParseResult } from '@/parser/index.js'
@@ -92,6 +92,7 @@ export class ScriptTransformer {
         emits: [],
         expose: {},
         defineOptions: {},
+        defineSlots: {},
         templateRefs: {},
         data: {},
         methods: {},
@@ -234,6 +235,8 @@ export class ScriptTransformer {
         this.processWithDefaultsVariable(variable, context)
       } else if (variable.macroType === 'definePropsDestructure') {
         this.processDefinePropsDestructureVariable(variable, context)
+      } else if (variable.macroType === 'defineSlots') {
+        this.processDefineSlotsVariable(variable, context)
       } else if (variable.macroType === 'useTemplateRef') {
         this.processUseTemplateRefVariable(variable, context)
       } else if (variable.isReactive) {
@@ -377,6 +380,14 @@ export class ScriptTransformer {
     context.templateRefs = mergeUseTemplateRefDegradeRecord(context.templateRefs, record)
 
     logger.warn(`useTemplateRef 已在原生小程序目标下降级: ${context.filename}`)
+  }
+
+  /**
+   * defineSlots 当前仅作为类型宏擦除，不生成 Vue slots 对象桥接。
+   */
+  private processDefineSlotsVariable(variable: any, context: TransformContext): void {
+    context.defineSlots = createDefineSlotsDegradeRecord(variable.init?.variable || variable.name)
+    logger.warn(`defineSlots 已在原生小程序目标下降级: ${context.filename}`)
   }
 
   /**

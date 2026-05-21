@@ -68,6 +68,16 @@ FuckMP 的目标是把 Vue3 SFC 编译为原生微信小程序工程，而不是
 
 验证测试：`tests/e2e/define-options-degrade.test.ts`。
 
+### `defineSlots`
+
+`defineSlots` 主要用于 `<script setup>` 的 slot 类型提示，并在 Vue 中返回 slots 对象。当前微信原生输出不暴露 Vue slots 对象桥接，因此当前处理为**类型宏擦除 / 明确降级**：
+
+- 编译产物输出 `defineSlots 降级` 注释。
+- 擦除 `defineSlots()` 变量，不让其落入 `data`。
+- 不生成 `__slots`、Vue slots 对象桥接或额外 runtime 模块。
+
+验证测试：`tests/e2e/define-slots-degrade.test.ts`。
+
 ### `useTemplateRef`
 
 Vue 3.5 `useTemplateRef` 用于获取模板 ref 对应的 DOM 或组件实例引用。微信原生小程序目标没有 Vue DOM/component instance 等价桥接，因此当前处理为**明确降级**：
@@ -94,7 +104,7 @@ Vue 3.5 `useTemplateRef` 用于获取模板 ref 对应的 DOM 或组件实例引
 当前测试已固化以下边界：
 
 - `RuntimeBundler.getRequiredModules()` 只返回 `core` 或 `core + reactivity`。
-- 模板指令、事件、生命周期、props/emits、`defineModel`、`withDefaults`、响应式 props 解构、`defineExpose` 降级、`defineOptions` 降级、`useTemplateRef` 降级、slots、provide/inject 不会引入 `template/event/lifecycle/component/di` 等伪模块。
+- 模板指令、事件、生命周期、props/emits、`defineModel`、`withDefaults`、响应式 props 解构、`defineExpose` 降级、`defineOptions` 降级、`defineSlots` 降级、`useTemplateRef` 降级、slots、provide/inject 不会引入 `template/event/lifecycle/component/di` 等伪模块。
 - `RuntimeInjectionGenerator` 不会因为 `<script setup>` 本身生成 `ref/reactive/computed` runtime。
 - `PageGenerator` 不会给静态页面内联旧版响应式 runtime，也不会输出 `setInterval` 轮询式 `watch` 占位。
 
@@ -108,6 +118,7 @@ Vue 3.5 `useTemplateRef` 用于获取模板 ref 对应的 DOM 或组件实例引
 - `tests/e2e/reactive-props-destructure.test.ts`
 - `tests/e2e/define-expose-degrade.test.ts`
 - `tests/e2e/define-options-degrade.test.ts`
+- `tests/e2e/define-slots-degrade.test.ts`
 - `tests/e2e/use-template-ref-degrade.test.ts`
 
 ## 后续开发顺序

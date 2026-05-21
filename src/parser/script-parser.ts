@@ -244,6 +244,9 @@ export class ScriptParser {
           } else if (calleeName === 'withDefaults') {
             macroType = calleeName
             initValue = this.extractWithDefaultsInfo(declarator.init, result)
+          } else if (calleeName === 'defineSlots') {
+            macroType = calleeName
+            initValue = { variable: name }
           } else if (calleeName === 'useTemplateRef') {
             macroType = calleeName
             initValue = this.extractUseTemplateRefInfo(declarator.init, name, result)
