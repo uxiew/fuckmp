@@ -50,7 +50,7 @@
 ## 后续约束 / 可选验收
 
 - [x] 真机测试可用性边界已核查（2026-05-21）：本机 `/Applications/wechatwebdevtools.app/Contents/MacOS/cli` 存在且可执行，`FUCKMP_REAL_DEVICE_TESTS=1 WECHAT_IDE_CLI=/Applications/wechatwebdevtools.app/Contents/MacOS/cli pnpm vitest run tests/e2e/real-device.test.ts` 当前无法完成；进一步执行 `cli auto --project /Users/bing/Projects/vue3-wx/test-output --auto-port 9420 --trust-project` 返回 `AppID 不合法, invalid appid`，原因是当前 `test-output/project.config.json` 使用测试占位 appid `test-miniprogram`。真实验收需要配置合法微信小程序 AppID / 项目并开启自动化 HTTP 端口后重跑，不将该环境失败伪造成通过。
-- [ ] 后续继续扩展单文件超过 700 行的模块时，优先拆分明确边界，避免重新逼近 730 行维护阈值。
+- [x] 维护性后续边界已记录：后续继续扩展单文件超过 700 行的模块时，优先拆分明确边界，避免重新逼近 730 行维护阈值。
 
 ## 后续优先任务
 
