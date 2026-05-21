@@ -4,7 +4,7 @@
 
 import type { TransformContext, GenerateResult, CompilerOptions } from '@/types/index.js'
 import type { ScriptTransformResult, TemplateTransformResult, StyleTransformResult } from '@/transformer/index.js'
-import { logger } from '@/utils/index.js'
+import { generateDefineExposeDegradeComment, logger } from '@/utils/index.js'
 import { addScopeAttributes, generateScopeId, generateUsingComponents, removeCtxPrefixes } from './shared-generator-utils.js'
 
 /**
@@ -63,7 +63,7 @@ export class ComponentGenerator {
     })
 
     // 生成组件定义
-    const componentCode = `Component({
+    const componentCode = `${generateDefineExposeDegradeComment(transformContext.expose, '组件')}Component({
   // 组件属性定义
   properties: ${this.generateProperties(props)},
 

@@ -2,7 +2,7 @@
  * Script 转换器
  */
 
-import { traverseAST, generateCode, isCallExpression, isIdentifier, isVariableDeclaration, PathResolver, createPathResolver } from '@/utils/index.js'
+import { traverseAST, generateCode, isCallExpression, isIdentifier, isVariableDeclaration, PathResolver, createPathResolver, createDefineExposeDegradeRecord } from '@/utils/index.js'
 import { VUE3_MACROS } from '@/types/index.js'
 import type { TransformContext, MacroHandler } from '@/types/index.js'
 import type { ScriptParseResult } from '@/parser/index.js'
@@ -167,6 +167,11 @@ export class ScriptTransformer {
     }
 
     parseResult.macros.forEach((macroCalls, macroName) => {
+      if (macroName === 'defineExpose') {
+        macroCalls.forEach(macroCall => this.processDefineExposeMacro(macroCall, context))
+        return
+      }
+
       const handler = this.macroHandlers.get(macroName)
       if (handler) {
         macroCalls.forEach(macroCall => {
@@ -186,6 +191,16 @@ export class ScriptTransformer {
         })
       }
     })
+  }
+
+  /**
+   * defineExpose 依赖 Vue public instance/template ref，原生小程序目标无法可靠等价映射。
+   */
+  private processDefineExposeMacro(macroCall: any, context: TransformContext): void {
+    const previousKeys = Array.isArray(context.expose?.keys) ? context.expose.keys : []
+    context.expose = createDefineExposeDegradeRecord(macroCall.arguments?.[0], previousKeys)
+
+    logger.warn(`defineExpose 已在原生小程序目标下降级: ${context.filename}`)
   }
 
   /**

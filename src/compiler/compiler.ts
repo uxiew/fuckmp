@@ -284,6 +284,9 @@ export class Vue3MiniprogramCompiler {
         // 合并监听器
         Object.assign(context.watch, scriptContext.watch)
 
+        // 合并原生目标降级记录
+        Object.assign(context.expose, scriptContext.expose)
+
         // 合并props和emits
         Object.assign(context.props, scriptContext.props)
         context.emits = [...context.emits, ...scriptContext.emits]
