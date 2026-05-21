@@ -6,6 +6,7 @@ import { SFCParser, ScriptParser, TemplateParser, StyleParser } from '@/parser/i
 import { ScriptTransformer, TemplateTransformer, StyleTransformer } from '@/transformer/index.js'
 import { ComponentGenerator, PageGenerator, ConfigGenerator } from '@/generator/index.js'
 import { ConfigManager } from './options.js'
+import { createInitialTransformContext } from './transform-context.js'
 import { PluginManager, createDefaultPluginManager } from '@/plugins/index.js'
 import { UserConfigManager } from '@/config/user-config.js'
 import { RuntimeInjector } from './runtime-injector'
@@ -99,27 +100,7 @@ export class Vue3MiniprogramCompiler {
       const hasScoped = parseResult.styles.some(style => style.scoped)
 
       // 创建转换上下文
-      const context: TransformContext = {
-        filename: filePath,
-        isPage: isPageComponent(filePath),
-        hasScoped,
-        props: {},
-        emits: [],
-        expose: {},
-        defineOptions: {},
-        defineSlots: {},
-        watcherEffects: {},
-        templateRefs: {},
-        useIds: {},
-        provideInject: {},
-        data: {},
-        methods: {},
-        computed: {},
-        watch: {},
-        lifecycle: {},
-        imports: new Set(),
-        components: new Map()
-      }
+      const context = createInitialTransformContext(filePath, hasScoped)
 
       // 解析和转换各个部分
       const results = await this.parseAndTransform(parseResult, context)

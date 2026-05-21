@@ -8,51 +8,10 @@ import { logger } from '@/utils/index.js'
 import type { TransformContext } from '@/types/index.js'
 import type { TemplateParseResult } from '@/parser/index.js'
 import { applyPropAccessMappingsToTemplate } from './prop-access-mapping.js'
+import { EVENT_MAP, TAG_MAP } from './template-constants.js'
 
 // 导入标准的转换结果类型
 import type { TemplateTransformResult } from './template-transformer.js'
-
-/**
- * Vue 指令到小程序指令的映射
- */
-const DIRECTIVE_MAP = {
-  'v-if': 'wx:if',
-  'v-else-if': 'wx:elif',
-  'v-else': 'wx:else',
-  'v-show': 'hidden',
-  'v-for': 'wx:for',
-  'v-model': 'model:value'
-} as const
-
-/**
- * HTML 标签到小程序标签的映射
- */
-const TAG_MAP = {
-  'div': 'view',
-  'span': 'text',
-  'p': 'text',
-  'img': 'image',
-  'a': 'navigator',
-  'input': 'input',
-  'textarea': 'textarea',
-  'button': 'button',
-  'form': 'form'
-} as const
-
-/**
- * 事件名映射
- */
-const EVENT_MAP = {
-  'click': 'tap',
-  'input': 'input',
-  'change': 'change',
-  'focus': 'focus',
-  'blur': 'blur',
-  'submit': 'submit',
-  'touchstart': 'touchstart',
-  'touchmove': 'touchmove',
-  'touchend': 'touchend'
-} as const
 
 /**
  * Vue 模板转换器 - 基于 AST 精确操作
