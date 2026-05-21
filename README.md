@@ -392,7 +392,7 @@ await compiler.watch()
 | 特性 | 支持状态 | 说明 |
 |------|---------|------|
 | `<script setup>` | ✅ | 基础解析与编译已覆盖，复杂宏按矩阵继续补齐 |
-| Composition API | 🚧 | 当前运行时桥接白名单为 ref, reactive, computed；watch/watchEffect/onWatcherCleanup/useId/provide/inject 明确降级 |
+| Composition API | 🚧 | 当前运行时桥接白名单为 ref, reactive, computed；useId 已原生映射，watch/watchEffect/onWatcherCleanup/provide/inject 明确降级 |
 | TypeScript | ✅ | 原生支持 |
 | Props/Emits | 🚧 | defineProps, defineEmits 基础转换，继续按原生输出矩阵补齐 |
 | 生命周期 | ✅ | 映射到小程序生命周期，不依赖 lifecycle runtime |
@@ -412,7 +412,8 @@ await compiler.watch()
 | 基础 slots / named slots | 已原生映射 | `tests/e2e/slots-provide-inject-boundary.test.ts` |
 | `defineExpose` / `defineOptions` / `defineSlots` | 明确降级 | `tests/e2e/define-expose-degrade.test.ts`、`tests/e2e/define-options-degrade.test.ts`、`tests/e2e/define-slots-degrade.test.ts` |
 | `watch` / `watchEffect` / `onWatcherCleanup` | 明确降级 | `tests/e2e/watcher-degrade.test.ts` |
-| `useTemplateRef` / `useId` | 明确降级 | `tests/e2e/use-template-ref-degrade.test.ts`、`tests/e2e/use-id-degrade.test.ts` |
+| `useId` | 已原生映射 | `tests/e2e/use-id-native.test.ts` |
+| `useTemplateRef` | 明确降级 | `tests/e2e/use-template-ref-degrade.test.ts` |
 | `provide` / `inject` | 明确降级 | `tests/e2e/slots-provide-inject-boundary.test.ts` |
 
 完整能力矩阵见 `docs/latest-platform-baseline.md`，runtime 边界见 `docs/native-first-runtime-boundary.md`。

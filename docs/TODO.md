@@ -39,7 +39,7 @@
 - [x] 基础 slots / named slots 原生映射：`<slot>` 保留为微信原生 slot，组件 JSON 自动启用 `options.multipleSlots`；覆盖 `tests/e2e/slots-provide-inject-boundary.test.ts`。
 - [x] `provide/inject` 原生目标降级：当前不提供 Vue dependency injection 实例树等价桥接，产物输出降级注释并避免 `inject()` 落入 data；覆盖 `tests/e2e/slots-provide-inject-boundary.test.ts`。
 - [x] `watch/watchEffect/onWatcherCleanup` 原生目标降级：当前不提供 Vue watcher 副作用调度与 Vue 3.5 cleanup 等价桥接，产物输出降级注释且不恢复旧版轮询 watch helper；覆盖 `tests/e2e/watcher-degrade.test.ts`。
-- [x] Vue 3.5 `useId` 原生目标降级：当前不提供 Vue app 作用域稳定 ID、`app.config.idPrefix` 或 SSR hydration 等价桥接，产物输出降级注释并避免 `useId()` 落入 data；覆盖 `tests/e2e/use-id-degrade.test.ts`。
+- [x] Vue 3.5 `useId` 原生目标映射：非 SSR 微信原生目标下生成稳定 `data` id，组件实例 `attached` 时追加唯一后缀，不生成 ID runtime；覆盖 `tests/e2e/use-id-native.test.ts`。
 - [x] Vue 3.5 `useTemplateRef` 原生目标降级：微信原生目标无 Vue template ref / DOM 或组件实例等价桥接，产物输出降级注释和 template refs，不生成 runtime 代理；覆盖 `tests/e2e/use-template-ref-degrade.test.ts`。
 - [x] 单文件行数约束：当前 `src/**/*` 未超过 800 行硬上限；当前最大源码文件为 `src/transformer/vue-template-transformer.ts` 765 行。
 - [x] 默认测试输出：Browserslist 过期提示已在 Vitest 环境中静默；真机测试默认跳过，需 `FUCKMP_REAL_DEVICE_TESTS=1` 显式启用。

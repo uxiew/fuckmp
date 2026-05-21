@@ -2,7 +2,7 @@
  * Script 转换器
  */
 
-import { traverseAST, generateCode, isCallExpression, isIdentifier, isVariableDeclaration, PathResolver, createPathResolver, createDefineExposeDegradeRecord, createDefineOptionsDegradeRecord, createDefineSlotsDegradeRecord, createProvideInjectDegradeRecord, createUseIdDegradeRecord, createUseTemplateRefDegradeRecord, createWatcherDegradeRecord, mergeUseTemplateRefDegradeRecord } from '@/utils/index.js'
+import { traverseAST, generateCode, isCallExpression, isIdentifier, isVariableDeclaration, PathResolver, createPathResolver, createDefineExposeDegradeRecord, createDefineOptionsDegradeRecord, createDefineSlotsDegradeRecord, createProvideInjectDegradeRecord, createUseIdNativeRecord, createUseTemplateRefDegradeRecord, createWatcherDegradeRecord, generateUseIdComponentInitCode, getUseIdEntries, mergeUseTemplateRefDegradeRecord } from '@/utils/index.js'
 import { VUE3_MACROS } from '@/types/index.js'
 import type { TransformContext, MacroHandler } from '@/types/index.js'
 import type { ScriptParseResult } from '@/parser/index.js'
@@ -422,13 +422,26 @@ export class ScriptTransformer {
   }
 
   /**
-   * useId 依赖 Vue app idPrefix 与 SSR 稳定 ID 语义，原生目标暂不伪造等价支持。
+   * 将 useId 编译为原生 data 中的稳定 id。
    */
   private processUseIdVariable(variable: any, context: TransformContext): void {
-    const previousVariables = Array.isArray(context.useIds?.variables) ? context.useIds.variables : []
-    context.useIds = createUseIdDegradeRecord(variable.init?.variable || variable.name, previousVariables)
+    const variableName = variable.init?.variable || variable.name
+    const previousIds = getUseIdEntries(context.useIds || {})
+    context.useIds = createUseIdNativeRecord(context.filename, variableName, previousIds)
 
-    logger.warn(`useId 已在原生小程序目标下降级: ${context.filename}`)
+    const entry = getUseIdEntries(context.useIds)
+      .find(item => item.variable === variableName)
+    if (!entry) {
+      return
+    }
+
+    context.data[variableName] = entry.baseId
+
+    if (!context.isPage) {
+      this.appendLifecycleCode(context, 'attached', generateUseIdComponentInitCode(entry))
+    }
+
+    logger.info(`useId 已编译为原生小程序稳定 id: ${context.filename}`)
   }
 
   /**
@@ -483,6 +496,16 @@ export class ScriptTransformer {
     parseResult.functions.forEach((func, name) => {
       context.methods[name] = func
     })
+  }
+
+  /**
+   * 追加生命周期代码，避免覆盖用户已有生命周期转换结果。
+   */
+  private appendLifecycleCode(context: TransformContext, lifecycleName: string, code: string): void {
+    const existingCode = context.lifecycle[lifecycleName]
+    context.lifecycle[lifecycleName] = existingCode && existingCode.trim()
+      ? `${existingCode.trim()}\n${code}`
+      : code
   }
 
   /**

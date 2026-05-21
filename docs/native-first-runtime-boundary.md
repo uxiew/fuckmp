@@ -110,13 +110,14 @@ FuckMP 的目标是把 Vue3 SFC 编译为原生微信小程序工程，而不是
 
 ### `useId`
 
-Vue 3.5 `useId` 用于生成应用内唯一、SSR 与客户端渲染稳定一致的 ID，并可通过 `app.config.idPrefix` 配置应用级前缀。当前微信原生输出没有 Vue app 实例、hydration 或 `idPrefix` 配置链，因此当前处理为**明确降级**：
+Vue 3.5 `useId` 用于生成应用内唯一、SSR 与客户端渲染稳定一致的 ID，并可通过 `app.config.idPrefix` 配置应用级前缀。微信小程序原生目标没有 SSR/hydration 流程；对常见模板 `:id` / `:for` 绑定，当前处理为**原生映射**：
 
-- 编译产物输出 `useId 降级` 注释和变量名。
-- 擦除 `useId()` 调用，不让其落入 `data`。
+- 编译产物输出 `useId 原生映射` 注释和变量名。
+- `useId()` 变量写入稳定 `data` id，模板继续使用 `{{fieldId}}` 等原生数据绑定。
+- 组件产物在 `attached` 中追加实例级唯一后缀，避免同一组件多实例的 id 冲突。
 - 不生成 `__useId`、`app.config.idPrefix` 或 SSR/hydration 伪 runtime。
 
-验证测试：`tests/e2e/use-id-degrade.test.ts`。
+验证测试：`tests/e2e/use-id-native.test.ts`。
 
 ### `useTemplateRef`
 
@@ -142,7 +143,7 @@ Vue 3.5 `useTemplateRef` 用于获取模板 ref 对应的 DOM 或组件实例引
 当前测试已固化以下边界：
 
 - `RuntimeBundler.getRequiredModules()` 只返回 `core` 或 `core + reactivity`。
-- 模板指令、事件、生命周期、props/emits、`defineModel`、`withDefaults`、响应式 props 解构、`defineExpose` 降级、`defineOptions` 降级、`defineSlots` 降级、`watch/watchEffect/onWatcherCleanup` 降级、`useId` 降级、`useTemplateRef` 降级、基础 slots 映射、`provide/inject` 降级不会引入 `template/event/lifecycle/component/di` 等伪模块。
+- 模板指令、事件、生命周期、props/emits、`defineModel`、`withDefaults`、响应式 props 解构、`defineExpose` 降级、`defineOptions` 降级、`defineSlots` 降级、`watch/watchEffect/onWatcherCleanup` 降级、`useId` 原生映射、`useTemplateRef` 降级、基础 slots 映射、`provide/inject` 降级不会引入 `template/event/lifecycle/component/di` 等伪模块。
 - `RuntimeInjectionGenerator` 不会因为 `<script setup>` 本身生成 `ref/reactive/computed` runtime。
 - `PageGenerator` 不会给静态页面内联旧版响应式 runtime，也不会输出 `setInterval` 轮询式 `watch` 占位。
 
@@ -159,7 +160,7 @@ Vue 3.5 `useTemplateRef` 用于获取模板 ref 对应的 DOM 或组件实例引
 - `tests/e2e/define-slots-degrade.test.ts`
 - `tests/e2e/slots-provide-inject-boundary.test.ts`
 - `tests/e2e/watcher-degrade.test.ts`
-- `tests/e2e/use-id-degrade.test.ts`
+- `tests/e2e/use-id-native.test.ts`
 - `tests/e2e/use-template-ref-degrade.test.ts`
 
 ## 后续开发顺序
