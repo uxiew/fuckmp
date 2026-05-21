@@ -25,15 +25,16 @@
 - [x] 页面/组件生成器首轮精简：共享 WXML 后处理、scoped hash 与组件引用 helper 已抽离到 `src/generator/shared-generator-utils.ts`，组件旧版未调用事件 handler 已删除；`page-generator.ts` 已降至 712 行。
 - [x] runtime 子路径 public surface 决策：当前包配置只声明根入口 `fuckmp` 与 CLI，构建产物只发布根入口/CLI；`fuckmp/runtime` 非 public surface，运行时对外能力仅通过根入口命名导出，编译产物运行时使用生成的 `runtime-injection.js`。
 - [x] 最终生成 JS 语法级验证：真实项目 e2e 已解析 `runtime-injection` 覆盖后的 `app.js`、页面 JS、组件 JS，覆盖生命周期嵌套箭头函数和多行字符串字面量语法风险。
-- [x] 单文件行数约束：当前 `src/**/*` 未超过 800 行硬上限；`template-transformer.ts` 为 800 行、`script-parser.ts` 为 795 行，后续扩展前需优先拆分。
+- [x] `TemplateTransformer` 字符串后处理工具拆分：Vue 绑定/事件、自闭合标签、三花括号与空白清理已抽离到 `src/transformer/template-string-utils.ts`，新增定向单测覆盖。
+- [x] 单文件行数约束：当前 `src/**/*` 未超过 800 行硬上限；`template-transformer.ts` 已降至 608 行，`script-parser.ts` 为 795 行，后续扩展解析能力前需优先拆分。
 - [x] 默认测试输出：Browserslist 过期提示已在 Vitest 环境中静默；真机测试默认跳过，需 `FUCKMP_REAL_DEVICE_TESTS=1` 显式启用。
 
 ## 后续约束 / 可选验收
 
 - [ ] 真机测试默认不跑；需要真实验收时设置 `FUCKMP_REAL_DEVICE_TESTS=1`，必要时设置 `WECHAT_IDE_CLI`。
-- [ ] `src/transformer/template-transformer.ts` 当前 800 行、`src/parser/script-parser.ts` 当前 795 行；后续改动前必须先拆分或删除等量代码。
+- [ ] `src/parser/script-parser.ts` 当前 795 行；后续改动解析能力前必须先拆分或删除等量代码。
 
 ## 后续优先任务
 
 1. 需要真实小程序端验收时，配置微信开发者工具 CLI 后运行 opt-in 真机测试。
-2. 如需继续扩展模板转换能力，先拆分 `src/transformer/template-transformer.ts`，避免超过 800 行硬上限。
+2. 如需继续扩展脚本解析能力，先拆分 `src/parser/script-parser.ts`，避免超过 800 行硬上限。

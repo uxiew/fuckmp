@@ -7,6 +7,14 @@ import type { TemplateParseResult } from '@/parser/index.js'
 import type { TransformContext, DirectiveTransformer } from '@/types/index.js'
 import { logger } from '@/utils/index.js'
 import { EnhancedTemplateTransformer } from './enhanced-template-transformer.js'
+import {
+  cleanupWhitespace,
+  fixSelfClosingTags,
+  fixTripleBraces,
+  toKebabCase,
+  transformVueBindings,
+  transformVueEvents
+} from './template-string-utils.js'
 import { VueTemplateTransformer } from './vue-template-transformer.js'
 
 /**
@@ -477,11 +485,11 @@ export class TemplateTransformer {
     wxml = this.transformVueComponents(wxml, result, context)
 
     // 2. 处理 Vue 属性绑定语法 :prop="value" -> prop="{{value}}"
-    wxml = this.transformVueBindings(wxml)
+    wxml = transformVueBindings(wxml)
 
     // 3. 处理 Vue 事件绑定语法 @event="handler" -> bind:event="handler"
     logger.debug(`事件转换前: ${wxml.substring(0, 200)}...`)
-    wxml = this.transformVueEvents(wxml)
+    wxml = transformVueEvents(wxml)
     logger.debug(`事件转换后: ${wxml.substring(0, 200)}...`)
 
     // 4. 基本的指令替换
@@ -516,13 +524,13 @@ export class TemplateTransformer {
     })
 
     // 8. 修复自闭合标签语法
-    wxml = this.fixSelfClosingTags(wxml)
+    wxml = fixSelfClosingTags(wxml)
 
     // 9. 修复三重花括号问题
-    wxml = this.fixTripleBraces(wxml)
+    wxml = fixTripleBraces(wxml)
 
     // 10. 清理多余的空格和换行
-    wxml = this.cleanupWhitespace(wxml)
+    wxml = cleanupWhitespace(wxml)
 
     logger.debug(`字符串替换转换完成，转换后模板长度: ${wxml.length}`)
     return wxml
@@ -538,7 +546,7 @@ export class TemplateTransformer {
 
     // 转换开始标签
     wxml = wxml.replace(componentRegex, (match, tagName, attributes, selfClosing) => {
-      const kebabName = this.toKebabCase(tagName)
+      const kebabName = toKebabCase(tagName)
 
       // 记录组件使用
       result.components.add(tagName)
@@ -551,211 +559,11 @@ export class TemplateTransformer {
 
     // 转换结束标签
     wxml = wxml.replace(closeTagRegex, (match, tagName) => {
-      const kebabName = this.toKebabCase(tagName)
+      const kebabName = toKebabCase(tagName)
       return `</${kebabName}>`
     })
 
     return wxml
-  }
-
-  /**
-   * 转换 Vue 属性绑定语法
-   */
-  private transformVueBindings(wxml: string): string {
-    // 特殊处理动态类绑定：合并静态 class 和动态 :class
-    wxml = this.transformDynamicClassBinding(wxml)
-
-    // 处理 :prop="value" -> prop="{{value}}" (排除已处理的 class)
-    wxml = wxml.replace(/:([a-zA-Z-]+)="([^"]*)"/g, (match, prop, value) => {
-      if (prop === 'class') {
-        // class 已经在 transformDynamicClassBinding 中处理
-        return match
-      }
-      // 如果值已经包含花括号，不要重复添加
-      const finalValue = value.includes('{{') ? value : `{{${value}}}`
-      logger.debug(`转换属性绑定: :${prop}="${value}" -> ${prop}="${finalValue}"`);
-      return `${prop}="${finalValue}"`
-    })
-
-    // 处理 v-bind:prop="value" -> prop="{{value}}"
-    wxml = wxml.replace(/v-bind:([a-zA-Z-]+)="([^"]*)"/g, (match, prop, value) => {
-      if (prop === 'class') {
-        // class 已经在 transformDynamicClassBinding 中处理
-        return match
-      }
-      const finalValue = value.includes('{{') ? value : `{{${value}}}`
-      logger.debug(`转换 v-bind: v-bind:${prop}="${value}" -> ${prop}="${finalValue}"`);
-      return `${prop}="${finalValue}"`
-    })
-
-    return wxml
-  }
-
-  /**
-   * 转换动态类绑定
-   * 处理同时存在 class="static" 和 :class="dynamic" 的情况
-   */
-  private transformDynamicClassBinding(wxml: string): string {
-    // 匹配同时包含静态 class 和动态 :class 的标签
-    // 修复正则表达式，允许 class 和 :class 相邻或有其他属性分隔
-    const classBindingRegex = /<([a-zA-Z-]+)([^>]*?)\sclass="([^"]*)"([^>]*?):class="([^"]*)"([^>]*)>/g
-
-    wxml = wxml.replace(classBindingRegex, (_match, tagName, beforeClass, staticClass, betweenClass, dynamicClass, afterClass) => {
-      logger.debug(`处理动态类绑定: 标签=${tagName}, 静态="${staticClass}", 动态="${dynamicClass}"`)
-
-      // 解析动态类表达式
-      let dynamicClassExpression = ''
-
-      // 处理对象语法：{ online: isOnline, active: isActive }
-      if (dynamicClass.trim().startsWith('{') && dynamicClass.trim().endsWith('}')) {
-        const objectContent = dynamicClass.trim().slice(1, -1)
-        const classConditions = objectContent.split(',').map((condition: string) => {
-          const [className, expression] = condition.split(':').map((s: string) => s.trim())
-          const cleanClassName = (className || '').replace(/['"]/g, '')
-          const cleanExpression = (expression || '').trim()
-          return `${cleanExpression} ? '${cleanClassName}' : ''`
-        }).filter((condition: string) => !condition.includes("'' ? '' : ''")) // 过滤掉无效条件
-
-        // 生成更简洁的表达式，避免使用 .trim() 方法
-        if (classConditions.length === 1) {
-          dynamicClassExpression = classConditions[0] || ''
-        } else if (classConditions.length > 1) {
-          dynamicClassExpression = `(${classConditions.join(' + " " + ')})`
-        } else {
-          dynamicClassExpression = ''
-        }
-      }
-      // 处理数组语法或简单表达式
-      else {
-        dynamicClassExpression = dynamicClass
-      }
-
-      // 合并静态和动态类
-      const combinedClassExpression = staticClass
-        ? `'${staticClass}' + ' ' + (${dynamicClassExpression})`
-        : dynamicClassExpression
-
-      // 移除 :class 属性，只保留合并后的 class
-      const cleanedAfterClass = afterClass.replace(/:class="[^"]*"/, '').trim()
-      const result = `<${tagName}${beforeClass} class="{{${combinedClassExpression}}}"${betweenClass}${cleanedAfterClass}>`
-      logger.debug(`动态类绑定转换结果: ${result}`)
-
-      return result
-    })
-
-    // 处理只有 :class 没有静态 class 的情况
-    const dynamicOnlyRegex = /:class="([^"]*)"/g
-    wxml = wxml.replace(dynamicOnlyRegex, (_match, dynamicClass) => {
-      logger.debug(`处理纯动态类绑定: "${dynamicClass}"`)
-
-      let dynamicClassExpression = ''
-
-      // 处理对象语法
-      if (dynamicClass.trim().startsWith('{') && dynamicClass.trim().endsWith('}')) {
-        const objectContent = dynamicClass.trim().slice(1, -1)
-        const classConditions = objectContent.split(',').map((condition: string) => {
-          const [className, expression] = condition.split(':').map((s: string) => s.trim())
-          const cleanClassName = (className || '').replace(/['"]/g, '')
-          const cleanExpression = (expression || '').trim()
-          return `${cleanExpression} ? '${cleanClassName}' : ''`
-        }).filter((condition: string) => !condition.includes("'' ? '' : ''")) // 过滤掉无效条件
-
-        // 生成更简洁的表达式，避免使用 .trim() 方法
-        if (classConditions.length === 1) {
-          dynamicClassExpression = classConditions[0] || ''
-        } else if (classConditions.length > 1) {
-          dynamicClassExpression = `(${classConditions.join(' + " " + ')})`
-        } else {
-          dynamicClassExpression = ''
-        }
-      }
-      // 处理数组语法或简单表达式
-      else {
-        dynamicClassExpression = dynamicClass
-      }
-
-      return `class="{{${dynamicClassExpression}}}"`
-    })
-
-    return wxml
-  }
-
-  /**
-   * 转换 Vue 事件绑定语法
-   */
-  private transformVueEvents(wxml: string): string {
-    // 处理 @event.modifier="handler" -> bind:event="handler" (忽略修饰符)
-    wxml = wxml.replace(/@([a-zA-Z-]+)(?:\.[a-zA-Z]+)*="([^"]*)"/g, (match, event, handler) => {
-      // 事件名映射
-      const eventMap: Record<string, string> = {
-        'click': 'tap',
-        'user-click': 'user-click', // 自定义事件保持原名
-        'send-message': 'send-message'
-      }
-
-      const mappedEvent = eventMap[event] || event
-      logger.debug(`转换事件绑定: ${match} -> bind:${mappedEvent}="${handler}"`)
-
-      return `bind:${mappedEvent}="${handler}"`
-    })
-
-    // 处理 v-on:event.modifier="handler" -> bind:event="handler"
-    wxml = wxml.replace(/v-on:([a-zA-Z-]+)(?:\.[a-zA-Z]+)*="([^"]*)"/g, (match, event, handler) => {
-      const eventMap: Record<string, string> = {
-        'click': 'tap'
-      }
-
-      const mappedEvent = eventMap[event] || event
-      logger.debug(`转换 v-on: ${match} -> bind:${mappedEvent}="${handler}"`)
-
-      return `bind:${mappedEvent}="${handler}"`
-    })
-
-    return wxml
-  }
-
-  /**
-   * 修复自闭合标签语法
-   */
-  private fixSelfClosingTags(wxml: string): string {
-    // 修复错误的自闭合标签语法，如 <image src="..." / attr> -> <image src="..." attr />
-    wxml = wxml.replace(/(<[^>]+)\s\/\s([^>]*>)/g, '$1 $2')
-
-    // 确保自闭合标签正确闭合
-    const selfClosingTags = ['image', 'input', 'icon', 'progress', 'slider', 'switch']
-    selfClosingTags.forEach(tag => {
-      // 修复未正确闭合的自闭合标签
-      const regex = new RegExp(`<${tag}([^>]*[^/])>`, 'g')
-      wxml = wxml.replace(regex, `<${tag}$1 />`)
-    })
-
-    return wxml
-  }
-
-  /**
-   * 修复三重花括号问题
-   */
-  private fixTripleBraces(wxml: string): string {
-    // 修复 {{{ -> {{
-    wxml = wxml.replace(/\{\{\{([^}]+)\}\}\}/g, '{{$1}}')
-    return wxml
-  }
-
-  /**
-   * 清理多余的空格和换行
-   */
-  private cleanupWhitespace(wxml: string): string {
-    return wxml
-      .replace(/\n\s*/g, ' ') // 将换行和缩进替换为单个空格
-      .replace(/\s{2,}/g, ' ') // 多个空格合并为一个
-      .trim()
-  }
-
-  /**
-   * 转换为 kebab-case
-   */
-  private toKebabCase(str: string): string {
-    return str.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '')
   }
 
   /**
