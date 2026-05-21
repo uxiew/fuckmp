@@ -8,6 +8,7 @@ import { ComponentGenerator, PageGenerator, ConfigGenerator } from '@/generator/
 import { ConfigManager } from './options.js'
 import { generateAppStyles } from './app-styles.js'
 import { createInitialTransformContext } from './transform-context.js'
+import { mergeScriptTransformContext } from './compiler-context-utils.js'
 import { PluginManager, createDefaultPluginManager } from '@/plugins/index.js'
 import { UserConfigManager } from '@/config/user-config.js'
 import { RuntimeInjector } from './runtime-injector'
@@ -255,75 +256,7 @@ export class Vue3MiniprogramCompiler {
 
       // 将脚本转换结果中的上下文合并到主上下文中
       if (results.script.context) {
-        const scriptContext = results.script.context
-
-        // 合并数据
-        Object.assign(context.data, scriptContext.data)
-
-        // 合并方法
-        Object.assign(context.methods, scriptContext.methods)
-
-        // 合并计算属性
-        Object.assign(context.computed, scriptContext.computed)
-
-        // 合并生命周期
-        Object.assign(context.lifecycle, scriptContext.lifecycle)
-
-        // 合并监听器
-        Object.assign(context.watch, scriptContext.watch)
-
-        // 合并原生目标降级记录
-        Object.assign(context.expose, scriptContext.expose)
-
-        if (scriptContext.defineOptions) {
-          context.defineOptions = scriptContext.defineOptions
-        }
-
-        if (scriptContext.defineSlots) {
-          context.defineSlots = scriptContext.defineSlots
-        }
-
-        if (scriptContext.watcherEffects) {
-          context.watcherEffects = scriptContext.watcherEffects
-        }
-
-        if (scriptContext.templateRefs) {
-          context.templateRefs = scriptContext.templateRefs
-        }
-
-        if (scriptContext.useIds) {
-          context.useIds = scriptContext.useIds
-        }
-
-        if (scriptContext.provideInject) {
-          context.provideInject = scriptContext.provideInject
-        }
-
-        // 合并props和emits
-        Object.assign(context.props, scriptContext.props)
-        context.emits = [...context.emits, ...scriptContext.emits]
-
-        // 合并导入和组件
-        scriptContext.imports.forEach((imp: string) => context.imports.add(imp))
-        scriptContext.components.forEach((path: string, name: string) => context.components.set(name, path))
-
-        // 合并样式导入
-        if (scriptContext.styleImports) {
-          context.styleImports = scriptContext.styleImports
-        }
-
-        // 合并响应式变量信息
-        if (scriptContext.reactiveVariables) {
-          context.reactiveVariables = scriptContext.reactiveVariables
-        }
-
-        if (scriptContext.propAliases) {
-          context.propAliases = scriptContext.propAliases
-        }
-
-        if (scriptContext.propNamespaces) {
-          context.propNamespaces = scriptContext.propNamespaces
-        }
+        mergeScriptTransformContext(context, results.script.context)
       }
     }
 
