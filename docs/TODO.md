@@ -49,12 +49,12 @@
 
 ## 后续约束 / 可选验收
 
-- [ ] 真机测试默认不跑；需要真实验收时设置 `FUCKMP_REAL_DEVICE_TESTS=1`，必要时设置 `WECHAT_IDE_CLI`。
+- [x] 真机测试可用性边界已核查（2026-05-21）：本机 `/Applications/wechatwebdevtools.app/Contents/MacOS/cli` 存在且可执行，`FUCKMP_REAL_DEVICE_TESTS=1 WECHAT_IDE_CLI=/Applications/wechatwebdevtools.app/Contents/MacOS/cli pnpm vitest run tests/e2e/real-device.test.ts` 当前无法完成；进一步执行 `cli auto --project /Users/bing/Projects/vue3-wx/test-output --auto-port 9420 --trust-project` 返回 `AppID 不合法, invalid appid`，原因是当前 `test-output/project.config.json` 使用测试占位 appid `test-miniprogram`。真实验收需要配置合法微信小程序 AppID / 项目并开启自动化 HTTP 端口后重跑，不将该环境失败伪造成通过。
 - [ ] 后续继续扩展单文件超过 700 行的模块时，优先拆分明确边界，避免重新逼近 730 行维护阈值。
 
 ## 后续优先任务
 
-1. 需要真实小程序端验收时，配置微信开发者工具 CLI 后运行 opt-in 真机测试。
+1. 需要真实小程序端验收时，配置合法微信小程序 AppID / 项目、确认微信开发者工具自动化 HTTP 端口可用后，运行 opt-in 真机测试。
 2. 如需继续做维护性瘦身，优先评估 `src/transformer/vue-template-transformer.ts`、`src/transformer/script-transformer.ts`、`src/generator/page-generator.ts`、`src/compiler/compiler.ts` 这类 700 行以上模块。
 3. `watch/watchEffect/onWatcherCleanup` 已明确降级；只有真实实现 Vue watcher 调度与 cleanup 语义后，才允许进入 runtime 白名单。
 4. 继续补齐最新 Vue 3.5 能力矩阵时，基础 slots 已原生映射，scoped/dynamic slots 与更复杂 DI 语义仍需真实方案或继续明确降级。
