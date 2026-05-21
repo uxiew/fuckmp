@@ -35,6 +35,7 @@
 | `withDefaults(defineProps())` | 已原生映射 | 静态默认值和数组/对象 factory 静态返回值写入 `Component.properties.value` | `tests/e2e/with-defaults-props.test.ts` |
 | Vue 3.5 响应式 props 解构 | 已原生映射 | 解构默认值合并到 `Component.properties`；模板中的局部别名静态还原为原始 prop 名 | `tests/e2e/reactive-props-destructure.test.ts` |
 | `defineExpose` | 明确降级 | 微信原生目标无 Vue template ref public instance 等价语义；产物输出降级注释和 exposed keys，不生成运行时桥接 | `tests/e2e/define-expose-degrade.test.ts` |
+| `defineOptions` | 明确降级 | 微信原生目标无完整 Vue component options 合并等价语义；产物输出降级注释和 option keys，不生成运行时桥接 | `tests/e2e/define-options-degrade.test.ts` |
 | `useTemplateRef` | 明确降级 | 微信原生目标无 Vue template ref / DOM 或组件实例等价桥接；产物输出降级注释和 template refs，不生成运行时代理 | `tests/e2e/use-template-ref-degrade.test.ts` |
 
 ## 原生微信小程序输出约束
@@ -52,8 +53,9 @@
 2. 已完成：`withDefaults(defineProps())` 默认值原生映射。
 3. 已完成：Vue 3.5 响应式 props 解构默认值与别名映射。
 4. 已完成：`defineExpose` 在微信原生目标下明确降级。
-5. 已完成：Vue 3.5 `useTemplateRef` 在微信原生目标下明确降级。
-6. 待评估：`watch/watchEffect` / `onWatcherCleanup` 只有真实实现后才允许进入 thin runtime 白名单。
+5. 已完成：`defineOptions` 在微信原生目标下明确降级。
+6. 已完成：Vue 3.5 `useTemplateRef` 在微信原生目标下明确降级。
+7. 待评估：`watch/watchEffect` / `onWatcherCleanup` 只有真实实现后才允许进入 thin runtime 白名单。
 
 补充约束：不得用旧版页面内联 `watch` 轮询 helper 代替 Vue 3.5 语义；在真实实现前，`watch/watchEffect` 仍保持未支持/待评估状态。
 

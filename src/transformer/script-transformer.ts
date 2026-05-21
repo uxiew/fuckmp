@@ -2,7 +2,7 @@
  * Script 转换器
  */
 
-import { traverseAST, generateCode, isCallExpression, isIdentifier, isVariableDeclaration, PathResolver, createPathResolver, createDefineExposeDegradeRecord, createUseTemplateRefDegradeRecord, mergeUseTemplateRefDegradeRecord } from '@/utils/index.js'
+import { traverseAST, generateCode, isCallExpression, isIdentifier, isVariableDeclaration, PathResolver, createPathResolver, createDefineExposeDegradeRecord, createDefineOptionsDegradeRecord, createUseTemplateRefDegradeRecord, mergeUseTemplateRefDegradeRecord } from '@/utils/index.js'
 import { VUE3_MACROS } from '@/types/index.js'
 import type { TransformContext, MacroHandler } from '@/types/index.js'
 import type { ScriptParseResult } from '@/parser/index.js'
@@ -91,6 +91,7 @@ export class ScriptTransformer {
         props: {},
         emits: [],
         expose: {},
+        defineOptions: {},
         templateRefs: {},
         data: {},
         methods: {},
@@ -172,6 +173,10 @@ export class ScriptTransformer {
         macroCalls.forEach(macroCall => this.processDefineExposeMacro(macroCall, context))
         return
       }
+      if (macroName === 'defineOptions') {
+        macroCalls.forEach(macroCall => this.processDefineOptionsMacro(macroCall, context))
+        return
+      }
 
       const handler = this.macroHandlers.get(macroName)
       if (handler) {
@@ -202,6 +207,16 @@ export class ScriptTransformer {
     context.expose = createDefineExposeDegradeRecord(macroCall.arguments?.[0], previousKeys)
 
     logger.warn(`defineExpose 已在原生小程序目标下降级: ${context.filename}`)
+  }
+
+  /**
+   * defineOptions 依赖 Vue component options 合并语义，原生目标暂不伪造等价支持。
+   */
+  private processDefineOptionsMacro(macroCall: any, context: TransformContext): void {
+    const previousKeys = Array.isArray(context.defineOptions?.keys) ? context.defineOptions.keys : []
+    context.defineOptions = createDefineOptionsDegradeRecord(macroCall.arguments?.[0], previousKeys)
+
+    logger.warn(`defineOptions 已在原生小程序目标下降级: ${context.filename}`)
   }
 
   /**
