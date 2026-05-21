@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { readdirSync, readFileSync, statSync } from 'fs'
 import { join, relative } from 'path'
 
-const MAX_SOURCE_LINES = 750
+const MAX_SOURCE_LINES = 740
 
 describe('源码文件体积约束', () => {
   it(`src/**/*.ts 单文件不应超过 ${MAX_SOURCE_LINES} 行`, () => {
