@@ -2,8 +2,21 @@
  * Script 转换器
  */
 
-import { traverseAST, generateCode, isCallExpression, isIdentifier, isVariableDeclaration, PathResolver, createPathResolver, createDefineExposeDegradeRecord, createDefineOptionsDegradeRecord, createDefineSlotsDegradeRecord, createProvideInjectDegradeRecord, createUseIdNativeRecord, createUseTemplateRefDegradeRecord, createWatcherDegradeRecord, generateUseIdComponentInitCode, getUseIdEntries, mergeUseTemplateRefDegradeRecord } from '@/utils/index.js'
-import { VUE3_MACROS } from '@/types/index.js'
+import {
+  createDefineExposeDegradeRecord,
+  createDefineOptionsDegradeRecord,
+  createDefineSlotsDegradeRecord,
+  createPathResolver,
+  createProvideInjectDegradeRecord,
+  createUseIdNativeRecord,
+  createUseTemplateRefDegradeRecord,
+  createWatcherDegradeRecord,
+  generateUseIdComponentInitCode,
+  getUseIdEntries,
+  logger,
+  mergeUseTemplateRefDegradeRecord
+} from '@/utils/index.js'
+import type { PathResolver } from '@/utils/index.js'
 import type { TransformContext, MacroHandler } from '@/types/index.js'
 import type { ScriptParseResult } from '@/parser/index.js'
 import {
@@ -15,16 +28,18 @@ import {
   createLifecycleHandler
 } from './macro-handlers/index.js'
 import { applyPropAccessMappingsToScript, hasPropAccessMappings, registerPropNamespace } from './prop-access-mapping.js'
-import { normalizeComputedGetter } from './computed-getter-utils.js'
 import { resolveTypeReferenceParameters } from './type-reference-resolver.js'
 import { createLiteralNodeFromValue, parseScriptInitValue } from './script-value-utils.js'
 import {
   appendLifecycleCode,
+  createMethodFromFunctionInitializer,
   createScriptTransformContext,
   getConstructorFromTypeName,
-  mergePropDefaults
+  isFunctionInitializer,
+  mergePropDefaults,
+  recordScriptImports,
+  transformComputedGetter
 } from './script-transformer-utils.js'
-import { logger } from '@/utils/index.js'
 
 /**
  * Script 转换结果
@@ -126,32 +141,7 @@ export class ScriptTransformer {
    * 处理导入
    */
   private processImports(parseResult: ScriptParseResult, context: TransformContext): void {
-    if (!parseResult.imports) {
-      return
-    }
-
-    parseResult.imports.forEach((importInfo, source) => {
-      if (importInfo.isVue) {
-        // Vue 导入
-        importInfo.specifiers.forEach(spec => {
-          context.imports.add(spec.local)
-        })
-      } else if (importInfo.isComponent) {
-        // 组件导入
-        importInfo.specifiers.forEach(spec => {
-          if (spec.type === 'default') {
-            context.components.set(spec.local, source)
-          }
-        })
-      } else if (importInfo.isStyle) {
-        // 样式导入 - 记录到上下文中，稍后在编译器中处理
-        if (!context.styleImports) {
-          context.styleImports = []
-        }
-        context.styleImports.push(source)
-        logger.debug(`发现样式导入: ${source}`)
-      }
-    })
+    recordScriptImports(parseResult.imports, context)
   }
 
   /**
@@ -278,7 +268,7 @@ export class ScriptTransformer {
         // 响应式变量
         if (variable.macroType === 'computed') {
           // 计算属性 - 转换 getter 中的响应式变量访问
-          const getter = this.transformComputedGetter(variable.init || 'return null', parseResult, context)
+          const getter = transformComputedGetter(variable.init || 'return null', parseResult, context)
           context.computed[name] = {
             getter
           }
@@ -304,18 +294,9 @@ export class ScriptTransformer {
         const initValue = variable.init
 
         // 检查是否为函数（包括箭头函数）
-        if (typeof initValue === 'string' &&
-          (initValue.includes('=>') ||
-            initValue.includes('function') ||
-            initValue.startsWith('(') && initValue.includes(') =>'))) {
+        if (isFunctionInitializer(initValue)) {
           // 函数类型，直接使用原始字符串，运行时库会处理响应式变量
-          context.methods[name] = {
-            name,
-            params: [],
-            isAsync: false,
-            isArrow: initValue.includes('=>'),
-            body: initValue
-          }
+          context.methods[name] = createMethodFromFunctionInitializer(name, initValue)
         } else {
           // 普通数据 - 确保保持原始数据类型
           context.data[name] = parseScriptInitValue(initValue)
@@ -479,38 +460,6 @@ export class ScriptTransformer {
       json: {}, // 由 generator 生成
       context
     }
-  }
-
-  /**
-   * 转换 computed 属性的 getter 函数
-   */
-  private transformComputedGetter(getter: string, parseResult: ScriptParseResult, context: TransformContext): string {
-    if (!getter || typeof getter !== 'string') {
-      return 'return null'
-    }
-
-    // 转换 computed(() => expr) 这类源码片段为可直接放入方法体的 return 语句。
-    let transformedGetter = normalizeComputedGetter(getter)
-
-    // 获取所有响应式变量
-    const reactiveVars = new Set<string>()
-    parseResult.variables.forEach((variable, name) => {
-      if (variable.isReactive && variable.macroType !== 'computed') {
-        reactiveVars.add(name)
-      }
-    })
-
-    // 转换每个响应式变量的访问
-    reactiveVars.forEach(varName => {
-      // 转换 varName.value 为 this.data.varName
-      const thisAccessRegex = new RegExp(`\\bthis\\.${varName}\\.value\\b`, 'g')
-      transformedGetter = transformedGetter.replace(thisAccessRegex, `this.data.${varName}`)
-
-      const bareAccessRegex = new RegExp(`(?<![\\w$.])${varName}\\.value\\b`, 'g')
-      transformedGetter = transformedGetter.replace(bareAccessRegex, `this.data.${varName}`)
-    })
-
-    return applyPropAccessMappingsToScript(transformedGetter, context)
   }
 
 }

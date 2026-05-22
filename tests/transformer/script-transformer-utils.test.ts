@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   appendLifecycleCode,
+  createMethodFromFunctionInitializer,
   createScriptTransformContext,
   getConstructorFromTypeName,
-  mergePropDefaults
+  isFunctionInitializer,
+  mergePropDefaults,
+  recordScriptImports,
+  transformComputedGetter
 } from '@/transformer/script-transformer-utils.js'
 
 describe('script-transformer utils', () => {
@@ -62,5 +66,72 @@ describe('script-transformer utils', () => {
     appendLifecycleCode(context, 'attached', 'this.initUseId()')
 
     expect(context.lifecycle.attached).toBe('this.initProps()\nthis.initUseId()')
+  })
+
+  it('记录 Vue、组件和样式导入到转换上下文', () => {
+    const context = createScriptTransformContext('pages/home.vue', true)
+
+    recordScriptImports(new Map([
+      ['vue', {
+        isVue: true,
+        isComponent: false,
+        isStyle: false,
+        specifiers: [
+          { type: 'named', imported: 'ref', local: 'ref' },
+          { type: 'named', imported: 'computed', local: 'computed' }
+        ]
+      }],
+      ['./UserCard.vue', {
+        isVue: false,
+        isComponent: true,
+        isStyle: false,
+        specifiers: [
+          { type: 'default', local: 'UserCard' }
+        ]
+      }],
+      ['../styles/page.scss', {
+        isVue: false,
+        isComponent: false,
+        isStyle: true,
+        specifiers: []
+      }]
+    ] as any), context)
+
+    expect([...context.imports]).toEqual(['ref', 'computed'])
+    expect(context.components.get('UserCard')).toBe('./UserCard.vue')
+    expect(context.styleImports).toEqual(['../styles/page.scss'])
+  })
+
+  it('识别函数初始化表达式并构造 setup 方法记录', () => {
+    expect(isFunctionInitializer('() => count.value++')).toBe(true)
+    expect(isFunctionInitializer('function save() {}')).toBe(true)
+    expect(isFunctionInitializer('123')).toBe(false)
+    expect(isFunctionInitializer(123)).toBe(false)
+
+    expect(createMethodFromFunctionInitializer('save', '() => count.value++')).toEqual({
+      name: 'save',
+      params: [],
+      isAsync: false,
+      isArrow: true,
+      body: '() => count.value++'
+    })
+  })
+
+  it('转换 computed getter 中的响应式变量和 props 访问', () => {
+    const context = createScriptTransformContext('components/card.vue', false)
+    context.propAliases!.set('displayTitle', 'title')
+
+    const getter = transformComputedGetter(
+      '() => count.value + displayTitle',
+      {
+        variables: new Map([
+          ['count', { isReactive: true, macroType: 'ref' }],
+          ['doubleCount', { isReactive: true, macroType: 'computed' }]
+        ])
+      },
+      context
+    )
+
+    expect(getter).toBe('return this.data.count + this.data.title')
   })
 })

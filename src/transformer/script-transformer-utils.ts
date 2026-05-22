@@ -3,7 +3,29 @@
  */
 
 import type { TransformContext } from '@/types/index.js'
+import type { ScriptParseResult } from '@/parser/index.js'
+import { logger } from '@/utils/index.js'
+import { normalizeComputedGetter } from './computed-getter-utils.js'
+import { applyPropAccessMappingsToScript } from './prop-access-mapping.js'
 import { inferConstructorFromValue } from './script-value-utils.js'
+
+/**
+ * Script import 解析结果所需的最小字段。
+ */
+export interface ScriptImportInfoLike {
+  /** import specifier 列表。 */
+  specifiers: Array<{
+    type: 'default' | 'named' | 'namespace'
+    imported?: string
+    local: string
+  }>
+  /** 是否来自 Vue。 */
+  isVue: boolean
+  /** 是否是组件导入。 */
+  isComponent: boolean
+  /** 是否是样式导入。 */
+  isStyle: boolean
+}
 
 /**
  * 创建脚本转换的初始上下文。
@@ -34,6 +56,93 @@ export function createScriptTransformContext(filename: string, isPage: boolean):
     propAliases: new Map(),
     propNamespaces: new Set()
   }
+}
+
+/**
+ * 将脚本 import 信息记录到转换上下文。
+ */
+export function recordScriptImports(
+  imports: Map<string, ScriptImportInfoLike> | undefined,
+  context: TransformContext
+): void {
+  if (!imports) {
+    return
+  }
+
+  imports.forEach((importInfo, source) => {
+    if (importInfo.isVue) {
+      importInfo.specifiers.forEach(spec => {
+        context.imports.add(spec.local)
+      })
+    } else if (importInfo.isComponent) {
+      importInfo.specifiers.forEach(spec => {
+        if (spec.type === 'default') {
+          context.components.set(spec.local, source)
+        }
+      })
+    } else if (importInfo.isStyle) {
+      if (!context.styleImports) {
+        context.styleImports = []
+      }
+      context.styleImports.push(source)
+      logger.debug(`发现样式导入: ${source}`)
+    }
+  })
+}
+
+/**
+ * 判断变量初始值是否是函数表达式源码。
+ */
+export function isFunctionInitializer(initValue: unknown): initValue is string {
+  return typeof initValue === 'string' &&
+    (initValue.includes('=>') ||
+      initValue.includes('function') ||
+      initValue.startsWith('(') && initValue.includes(') =>'))
+}
+
+/**
+ * 从函数表达式初始化值构造 setup 方法记录。
+ */
+export function createMethodFromFunctionInitializer(name: string, initValue: string): Record<string, any> {
+  return {
+    name,
+    params: [],
+    isAsync: false,
+    isArrow: initValue.includes('=>'),
+    body: initValue
+  }
+}
+
+/**
+ * 转换 computed 属性 getter 中的响应式变量与 props 访问。
+ */
+export function transformComputedGetter(
+  getter: string,
+  parseResult: Pick<ScriptParseResult, 'variables'>,
+  context: TransformContext
+): string {
+  if (!getter || typeof getter !== 'string') {
+    return 'return null'
+  }
+
+  let transformedGetter = normalizeComputedGetter(getter)
+
+  const reactiveVars = new Set<string>()
+  parseResult.variables.forEach((variable, name) => {
+    if (variable.isReactive && variable.macroType !== 'computed') {
+      reactiveVars.add(name)
+    }
+  })
+
+  reactiveVars.forEach(varName => {
+    const thisAccessRegex = new RegExp(`\\bthis\\.${varName}\\.value\\b`, 'g')
+    transformedGetter = transformedGetter.replace(thisAccessRegex, `this.data.${varName}`)
+
+    const bareAccessRegex = new RegExp(`(?<![\\w$.])${varName}\\.value\\b`, 'g')
+    transformedGetter = transformedGetter.replace(bareAccessRegex, `this.data.${varName}`)
+  })
+
+  return applyPropAccessMappingsToScript(transformedGetter, context)
 }
 
 /**
