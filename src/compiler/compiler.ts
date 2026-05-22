@@ -11,6 +11,7 @@ import { createInitialTransformContext } from './transform-context.js'
 import { applyUserConfigToJson } from './compiler-config-utils.js'
 import { mergeScriptTransformContext } from './compiler-context-utils.js'
 import { buildRuntimeInjectionEntries } from './compiler-runtime-utils.js'
+import { removeGeneratedOutputFiles } from './compiler-output-utils.js'
 import { PluginManager, createDefaultPluginManager } from '@/plugins/index.js'
 import { UserConfigManager } from '@/config/user-config.js'
 import { RuntimeInjector } from './runtime-injector'
@@ -508,9 +509,14 @@ export class Vue3MiniprogramCompiler {
       }
     })
 
-    watcher.on('unlink', (filePath) => {
+    watcher.on('unlink', async (filePath) => {
       logger.info(`删除文件: ${filePath}`)
-      // TODO: 清理对应的输出文件
+      try {
+        const removedFiles = await removeGeneratedOutputFiles(filePath, options.input, options.output)
+        logger.success(`已清理输出产物: ${removedFiles.length} 个`)
+      } catch (error) {
+        logger.error(`清理输出产物失败: ${filePath}`, error as Error)
+      }
     })
 
     logger.info('监听模式已启动，等待文件变更...')
