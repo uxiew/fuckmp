@@ -4,6 +4,7 @@
  * 这些函数只处理 WXML 字符串，不依赖 TemplateTransformer 实例状态。
  */
 import { logger } from '@/utils/index.js'
+import { VUE_DIRECTIVE_MAP } from '@/types/index.js'
 
 /**
  * 转换 Vue 属性绑定语法。
@@ -106,6 +107,76 @@ export function transformVueEvents(wxml: string): string {
   })
 
   return wxml
+}
+
+/**
+ * 执行标准 fallback 字符串模板转换管线。
+ */
+export function transformBasicTemplateSyntax(template: string): string {
+  let wxml = template
+
+  wxml = transformVueBindings(wxml)
+  wxml = transformVueEvents(wxml)
+  wxml = transformVModelDirectives(wxml)
+  wxml = transformVForDirectives(wxml)
+  wxml = transformBasicDirectives(wxml)
+  wxml = transformBasicTags(wxml)
+  wxml = fixSelfClosingTags(wxml)
+  wxml = fixTripleBraces(wxml)
+  wxml = cleanupWhitespace(wxml)
+
+  return wxml
+}
+
+/**
+ * 转换基础 Vue 指令名称为小程序指令。
+ */
+function transformBasicDirectives(wxml: string): string {
+  Object.entries(VUE_DIRECTIVE_MAP).forEach(([vueDirective, wxDirective]) => {
+    const regex = new RegExp(`\\s${vueDirective}=`, 'g')
+    wxml = wxml.replace(regex, ` ${wxDirective}=`)
+  })
+
+  return wxml
+}
+
+/**
+ * 转换基础 Vue/HTML 标签为小程序标签。
+ */
+function transformBasicTags(wxml: string): string {
+  const tagReplacements = [
+    ['<div', '<view'],
+    ['</div>', '</view>'],
+    ['<span', '<text'],
+    ['</span>', '</text>'],
+    ['<img', '<image'],
+    ['<p', '<text'],
+    ['</p>', '</text>']
+  ]
+
+  tagReplacements.forEach(([from, to]) => {
+    wxml = wxml.replace(new RegExp(from as string, 'g'), to as string)
+  })
+
+  return wxml
+}
+
+/**
+ * 转换 v-model 字符串指令。
+ */
+function transformVModelDirectives(wxml: string): string {
+  return wxml.replace(/v-model="([^"]+)"/g, (_match, expression) => {
+    return `value="{{${expression}}}" bindinput="_handleInput_${expression.replace(/\./g, '_')}"`
+  })
+}
+
+/**
+ * 转换 v-for 字符串指令。
+ */
+function transformVForDirectives(wxml: string): string {
+  return wxml.replace(/v-for="(\w+)(?:\s*,\s*(\w+))?\s+in\s+([^"]+)"/g, (_match, item, index, list) => {
+    return `wx:for="{{${list}}}" wx:for-item="${item}" wx:for-index="${index || 'index'}" wx:key="${item}"`
+  })
 }
 
 /**

@@ -9,12 +9,8 @@ import { logger } from '@/utils/index.js'
 import { EnhancedTemplateTransformer } from './enhanced-template-transformer.js'
 import {
   buildClassBindingExpression,
-  cleanupWhitespace,
-  fixSelfClosingTags,
-  fixTripleBraces,
   toKebabCase,
-  transformVueBindings,
-  transformVueEvents
+  transformBasicTemplateSyntax
 } from './template-string-utils.js'
 import { VueTemplateTransformer } from './vue-template-transformer.js'
 
@@ -448,53 +444,9 @@ export class TemplateTransformer {
     // 1. 处理 Vue 组件标签（转换为 kebab-case）
     wxml = this.transformVueComponents(wxml, result, context)
 
-    // 2. 处理 Vue 属性绑定语法 :prop="value" -> prop="{{value}}"
-    wxml = transformVueBindings(wxml)
-
-    // 3. 处理 Vue 事件绑定语法 @event="handler" -> bind:event="handler"
     logger.debug(`事件转换前: ${wxml.substring(0, 200)}...`)
-    wxml = transformVueEvents(wxml)
+    wxml = transformBasicTemplateSyntax(wxml)
     logger.debug(`事件转换后: ${wxml.substring(0, 200)}...`)
-
-    // 4. 基本的指令替换
-    Object.entries(VUE_DIRECTIVE_MAP).forEach(([vueDirective, wxDirective]) => {
-      const regex = new RegExp(`\\s${vueDirective}=`, 'g')
-      wxml = wxml.replace(regex, ` ${wxDirective}=`)
-    })
-
-    // 5. 标签替换
-    const tagReplacements = [
-      ['<div', '<view'],
-      ['</div>', '</view>'],
-      ['<span', '<text'],
-      ['</span>', '</text>'],
-      ['<img', '<image'],
-      ['<p', '<text'],
-      ['</p>', '</text>']
-    ]
-
-    tagReplacements.forEach(([from, to]) => {
-      wxml = wxml.replace(new RegExp(from as string, 'g'), to as string)
-    })
-
-    // 6. v-model 特殊处理
-    wxml = wxml.replace(/v-model="([^"]+)"/g, (match, expression) => {
-      return `value="{{${expression}}}" bindinput="_handleInput_${expression.replace(/\./g, '_')}"`
-    })
-
-    // 7. v-for 特殊处理
-    wxml = wxml.replace(/v-for="(\w+)(?:\s*,\s*(\w+))?\s+in\s+([^"]+)"/g, (match, item, index, list) => {
-      return `wx:for="{{${list}}}" wx:for-item="${item}" wx:for-index="${index || 'index'}" wx:key="${item}"`
-    })
-
-    // 8. 修复自闭合标签语法
-    wxml = fixSelfClosingTags(wxml)
-
-    // 9. 修复三重花括号问题
-    wxml = fixTripleBraces(wxml)
-
-    // 10. 清理多余的空格和换行
-    wxml = cleanupWhitespace(wxml)
 
     logger.debug(`字符串替换转换完成，转换后模板长度: ${wxml.length}`)
     return wxml

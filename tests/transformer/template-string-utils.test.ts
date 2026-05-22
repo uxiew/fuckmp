@@ -5,6 +5,7 @@ import {
   fixSelfClosingTags,
   fixTripleBraces,
   toKebabCase,
+  transformBasicTemplateSyntax,
   transformDynamicClassBinding,
   transformVueBindings,
   transformVueEvents
@@ -55,5 +56,22 @@ describe('template-string-utils', () => {
     expect(fixedTags).toBe('<image src="{{avatar}}" />')
     expect(fixedBraces).toBe('<text>{{title}}</text>')
     expect(cleaned).toBe('<view> <text>Hi</text> </view>')
+  })
+
+  it('按 fallback 字符串管线转换基础 Vue 模板语法', () => {
+    const result = transformBasicTemplateSyntax(`
+      <div v-if="visible">
+        <button @click.stop="save">保存</button>
+        <input v-model="form.name">
+        <p v-for="todo, index in todos">{{{todo.text}}}</p>
+      </div>
+    `)
+
+    expect(result).toContain('<view wx:if="visible">')
+    expect(result).toContain('bind:tap="save"')
+    expect(result).toContain('value="{{form.name}}" bindinput="_handleInput_form_name"')
+    expect(result).toContain('wx:for="{{todos}}" wx:for-item="todo" wx:for-index="index" wx:key="todo"')
+    expect(result).toContain('<text')
+    expect(result).not.toContain('{{{')
   })
 })
