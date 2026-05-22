@@ -114,6 +114,9 @@ export class Vue3MiniprogramCompiler {
       const generateResult = await this.generateCode(results, context)
 
       // 收集页面、组件和应用配置用于运行时注入
+      this.compiledPages.delete(filePath)
+      this.compiledComponents.delete(filePath)
+
       if (isAppComponent(filePath)) {
         // 应用入口文件
         this.appConfig = {
@@ -180,6 +183,8 @@ export class Vue3MiniprogramCompiler {
         return result
       }
 
+      this.resetCompilationState()
+
       // 扫描 Vue 文件
       const vueFiles = await scanVueFiles(options.input)
       result.stats.total = vueFiles.length
@@ -210,22 +215,7 @@ export class Vue3MiniprogramCompiler {
         }
       }
 
-      // 生成应用配置
-      await this.generateAppConfig(result.success)
-
-      // 生成应用样式
-      await generateAppStyles(options.output)
-
-      // 执行运行时注入
-      await this.performRuntimeInjection(options.output)
-
-      // 生成项目配置
-      await this.configGenerator.generateProjectConfig(options.output)
-      await this.configGenerator.generateSitemapConfig(options.output)
-
-      if (this.configManager.getFeature('typescript')) {
-        await this.configGenerator.generateTSConfig(options.output)
-      }
+      await this.refreshProjectOutputs()
 
       result.stats.duration = Date.now() - startTime
 
@@ -237,6 +227,46 @@ export class Vue3MiniprogramCompiler {
       logger.error('项目编译失败', error as Error)
       throw error
     }
+  }
+
+  /** 刷新依赖全局编译状态的项目级输出文件。 */
+  async refreshProjectOutputs(): Promise<void> {
+    const options = this.configManager.getOptions()
+    const compiledFiles = [
+      ...this.compiledPages.keys(),
+      ...this.compiledComponents.keys()
+    ]
+
+    await this.generateAppConfig(compiledFiles)
+    await generateAppStyles(options.output)
+    await this.performRuntimeInjection(options.output)
+    await this.configGenerator.generateProjectConfig(options.output)
+    await this.configGenerator.generateSitemapConfig(options.output)
+
+    if (this.configManager.getFeature('typescript')) {
+      await this.configGenerator.generateTSConfig(options.output)
+    }
+  }
+
+  /** 从增量编译状态中移除源文件并清理对应输出。 */
+  async removeSourceFile(filePath: string): Promise<string[]> {
+    const options = this.configManager.getOptions()
+
+    this.sourceFiles.delete(filePath)
+    this.compiledPages.delete(filePath)
+    this.compiledComponents.delete(filePath)
+
+    if (isAppComponent(filePath)) {
+      this.appConfig = {}
+    }
+
+    const removedFiles = isAppComponent(filePath)
+      ? []
+      : await removeGeneratedOutputFiles(filePath, options.input, options.output)
+
+    await this.refreshProjectOutputs()
+
+    return removedFiles
   }
 
   /**
@@ -493,6 +523,7 @@ export class Vue3MiniprogramCompiler {
       logger.info(`文件变更: ${filePath}`)
       try {
         await this.compileFile(filePath)
+        await this.refreshProjectOutputs()
         logger.success(`文件重新编译完成: ${filePath}`)
       } catch (error) {
         logger.error(`文件重新编译失败: ${filePath}`, error as Error)
@@ -503,6 +534,7 @@ export class Vue3MiniprogramCompiler {
       logger.info(`新增文件: ${filePath}`)
       try {
         await this.compileFile(filePath)
+        await this.refreshProjectOutputs()
         logger.success(`新文件编译完成: ${filePath}`)
       } catch (error) {
         logger.error(`新文件编译失败: ${filePath}`, error as Error)
@@ -512,7 +544,7 @@ export class Vue3MiniprogramCompiler {
     watcher.on('unlink', async (filePath) => {
       logger.info(`删除文件: ${filePath}`)
       try {
-        const removedFiles = await removeGeneratedOutputFiles(filePath, options.input, options.output)
+        const removedFiles = await this.removeSourceFile(filePath)
         logger.success(`已清理输出产物: ${removedFiles.length} 个`)
       } catch (error) {
         logger.error(`清理输出产物失败: ${filePath}`, error as Error)
@@ -553,5 +585,13 @@ export class Vue3MiniprogramCompiler {
     logger.info(`清理输出目录: ${options.output}`)
     await remove(options.output)
     logger.success('输出目录清理完成')
+  }
+
+  /** 重置当前编译器持有的项目级状态。 */
+  private resetCompilationState(): void {
+    this.sourceFiles.clear()
+    this.compiledPages.clear()
+    this.compiledComponents.clear()
+    this.appConfig = {}
   }
 }
