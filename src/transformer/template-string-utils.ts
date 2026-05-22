@@ -7,6 +7,135 @@ import { logger } from '@/utils/index.js'
 import { VUE_DIRECTIVE_MAP } from '@/types/index.js'
 
 /**
+ * Template AST 指令转换所需的最小字段。
+ */
+export interface TemplateDirectiveLike {
+  /** 指令表达式，例如 `foo in list` 或 `form.name` */
+  expression?: string
+  /** 指令参数，例如 `click` */
+  arg?: string
+  /** 指令修饰符，例如 `capture`、`number`、`trim` */
+  modifiers?: string[]
+}
+
+/**
+ * 转换 Vue/HTML 标签名为微信小程序标签名。
+ */
+export function transformTemplateTag(tag: string): string {
+  const tagMap: Record<string, string> = {
+    div: 'view',
+    span: 'text',
+    p: 'text',
+    img: 'image',
+    a: 'navigator',
+    ul: 'view',
+    li: 'view',
+    button: 'button',
+    input: 'input',
+    textarea: 'textarea',
+    select: 'picker',
+    option: 'picker-view-column'
+  }
+
+  return tagMap[tag] || tag
+}
+
+/**
+ * 转换 AST `v-model` 指令为小程序属性与输入事件。
+ */
+export function transformVModelDirective(directive: TemplateDirectiveLike): Record<string, any> {
+  const expression = directive.expression || 'modelValue'
+  const modifiers = directive.modifiers || []
+
+  let inputHandler = '_handleInput'
+  if (modifiers.includes('number')) {
+    inputHandler = '_handleNumberInput'
+  } else if (modifiers.includes('trim')) {
+    inputHandler = '_handleTrimInput'
+  }
+
+  return {
+    value: `{{${expression}}}`,
+    bindinput: `${inputHandler}_${expression.replace(/\./g, '_')}`
+  }
+}
+
+/**
+ * 转换 AST `v-for` 指令为小程序列表渲染属性。
+ */
+export function transformVForDirective(directive: TemplateDirectiveLike): Record<string, any> {
+  const expression = directive.expression
+  if (!expression) {
+    return {}
+  }
+
+  const match = expression.match(/(\w+)(?:\s*,\s*(\w+))?\s+in\s+(.+)/)
+
+  if (match) {
+    const [, item, index, list] = match
+    return {
+      'wx:for': `{{${list}}}`,
+      'wx:for-item': item,
+      'wx:for-index': index || 'index',
+      'wx:key': item
+    }
+  }
+
+  return {}
+}
+
+/**
+ * 转换 AST `v-on` 指令为小程序事件绑定。
+ */
+export function transformVOnDirective(directive: TemplateDirectiveLike): Record<string, any> {
+  const eventName = directive.arg
+  const handler = directive.expression
+  const modifiers = directive.modifiers || []
+
+  const eventMap: Record<string, string> = {
+    click: 'tap',
+    input: 'input',
+    change: 'change',
+    focus: 'focus',
+    blur: 'blur',
+    submit: 'submit',
+    touchstart: 'touchstart',
+    touchmove: 'touchmove',
+    touchend: 'touchend'
+  }
+
+  const mappedEvent = eventName ? eventMap[eventName] || eventName : ''
+  const bindType = modifiers.includes('capture') ? 'capture-bind:' : 'bind:'
+
+  return {
+    [`${bindType}${mappedEvent}`]: handler
+  }
+}
+
+/**
+ * 验证模板转换得到的 WXML 结果。
+ */
+export function validateWxmlTransformResult(result: { wxml: string }): { valid: boolean; errors: string[] } {
+  const errors: string[] = []
+
+  if (!result.wxml.trim()) {
+    errors.push('生成的 WXML 为空')
+  }
+
+  const openTags = result.wxml.match(/<(\w+)(?:\s[^>]*)?>/g) || []
+  const closeTags = result.wxml.match(/<\/(\w+)>/g) || []
+
+  if (openTags.length !== closeTags.length) {
+    errors.push('WXML 标签未正确闭合')
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors
+  }
+}
+
+/**
  * 转换 Vue 属性绑定语法。
  */
 export function transformVueBindings(wxml: string): string {

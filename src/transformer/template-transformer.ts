@@ -10,7 +10,12 @@ import { EnhancedTemplateTransformer } from './enhanced-template-transformer.js'
 import {
   buildClassBindingExpression,
   toKebabCase,
-  transformBasicTemplateSyntax
+  transformBasicTemplateSyntax,
+  transformTemplateTag,
+  transformVForDirective,
+  transformVModelDirective,
+  transformVOnDirective,
+  validateWxmlTransformResult
 } from './template-string-utils.js'
 import { VueTemplateTransformer } from './vue-template-transformer.js'
 
@@ -50,13 +55,13 @@ export class TemplateTransformer {
    */
   private initDirectiveTransformers(): void {
     // v-model 双向绑定
-    this.directiveTransformers.set('v-model', (node: any, directive: any) => {
-      return this.transformVModel(node, directive)
+    this.directiveTransformers.set('v-model', (_node: any, directive: any) => {
+      return transformVModelDirective(directive)
     })
 
     // v-for 列表渲染
-    this.directiveTransformers.set('v-for', (node: any, directive: any) => {
-      return this.transformVFor(node, directive)
+    this.directiveTransformers.set('v-for', (_node: any, directive: any) => {
+      return transformVForDirective(directive)
     })
 
     // v-if 条件渲染
@@ -80,8 +85,8 @@ export class TemplateTransformer {
     })
 
     // 事件处理
-    this.directiveTransformers.set('v-on', (node: any, directive: any) => {
-      return this.transformVOn(node, directive)
+    this.directiveTransformers.set('v-on', (_node: any, directive: any) => {
+      return transformVOnDirective(directive)
     })
   }
 
@@ -192,7 +197,7 @@ export class TemplateTransformer {
    * 转换元素节点
    */
   private transformElement(node: any, result: TemplateTransformResult, context: TransformContext): string {
-    const tag = this.transformTag(node.tag)
+    const tag = transformTemplateTag(node.tag)
     const attrs = this.transformAttributes(node.props || [], result, context)
     const children = this.transformChildren(node.children || [], result, context)
 
@@ -205,29 +210,6 @@ export class TemplateTransformer {
     } else {
       return `<${tag}${attrs}>${children}</${tag}>`
     }
-  }
-
-  /**
-   * 转换标签名
-   */
-  private transformTag(tag: string): string {
-    // Vue 标签到小程序标签的映射
-    const tagMap: Record<string, string> = {
-      'div': 'view',
-      'span': 'text',
-      'p': 'text',
-      'img': 'image',
-      'a': 'navigator',
-      'ul': 'view',
-      'li': 'view',
-      'button': 'button',
-      'input': 'input',
-      'textarea': 'textarea',
-      'select': 'picker',
-      'option': 'picker-view-column'
-    }
-
-    return tagMap[tag] || tag
   }
 
   /**
@@ -294,76 +276,6 @@ export class TemplateTransformer {
     }
 
     return {}
-  }
-
-  /**
-   * 转换 v-model
-   */
-  private transformVModel(node: any, directive: any): Record<string, any> {
-    const expression = directive.expression || 'modelValue'
-    const modifiers = directive.modifiers || []
-
-    // 根据修饰符生成不同的处理
-    let inputHandler = '_handleInput'
-    if (modifiers.includes('number')) {
-      inputHandler = '_handleNumberInput'
-    } else if (modifiers.includes('trim')) {
-      inputHandler = '_handleTrimInput'
-    }
-
-    return {
-      'value': `{{${expression}}}`,
-      'bindinput': `${inputHandler}_${expression.replace(/\./g, '_')}`
-    }
-  }
-
-  /**
-   * 转换 v-for
-   */
-  private transformVFor(node: any, directive: any): Record<string, any> {
-    const expression = directive.expression
-    const match = expression.match(/(\w+)(?:\s*,\s*(\w+))?\s+in\s+(.+)/)
-
-    if (match) {
-      const [, item, index, list] = match
-      return {
-        'wx:for': `{{${list}}}`,
-        'wx:for-item': item,
-        'wx:for-index': index || 'index',
-        'wx:key': item
-      }
-    }
-
-    return {}
-  }
-
-  /**
-   * 转换 v-on
-   */
-  private transformVOn(node: any, directive: any): Record<string, any> {
-    const eventName = directive.arg
-    const handler = directive.expression
-    const modifiers = directive.modifiers || []
-
-    // 事件名映射
-    const eventMap: Record<string, string> = {
-      'click': 'tap',
-      'input': 'input',
-      'change': 'change',
-      'focus': 'focus',
-      'blur': 'blur',
-      'submit': 'submit',
-      'touchstart': 'touchstart',
-      'touchmove': 'touchmove',
-      'touchend': 'touchend'
-    }
-
-    const mappedEvent = eventMap[eventName] || eventName
-    const bindType = modifiers.includes('capture') ? 'capture-bind:' : 'bind:'
-
-    return {
-      [`${bindType}${mappedEvent}`]: handler
-    }
   }
 
   /**
@@ -501,24 +413,6 @@ export class TemplateTransformer {
    * 验证模板转换结果
    */
   validateTransformResult(result: TemplateTransformResult): { valid: boolean; errors: string[] } {
-    const errors: string[] = []
-
-    // 检查 WXML 语法
-    if (!result.wxml.trim()) {
-      errors.push('生成的 WXML 为空')
-    }
-
-    // 检查未闭合的标签
-    const openTags = result.wxml.match(/<(\w+)(?:\s[^>]*)?>/g) || []
-    const closeTags = result.wxml.match(/<\/(\w+)>/g) || []
-
-    if (openTags.length !== closeTags.length) {
-      errors.push('WXML 标签未正确闭合')
-    }
-
-    return {
-      valid: errors.length === 0,
-      errors
-    }
+    return validateWxmlTransformResult(result)
   }
 }

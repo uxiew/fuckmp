@@ -7,8 +7,13 @@ import {
   toKebabCase,
   transformBasicTemplateSyntax,
   transformDynamicClassBinding,
+  transformTemplateTag,
+  transformVForDirective,
+  transformVModelDirective,
+  transformVOnDirective,
   transformVueBindings,
-  transformVueEvents
+  transformVueEvents,
+  validateWxmlTransformResult
 } from '@/transformer/template-string-utils'
 
 describe('template-string-utils', () => {
@@ -30,6 +35,52 @@ describe('template-string-utils', () => {
       `'status' + ' ' + (isOnline ? 'online' : '')`
     )
     expect(buildClassBindingExpression('', 'dynamicClass')).toBe('dynamicClass')
+  })
+
+  it('映射 AST 标签名到小程序标签', () => {
+    expect(transformTemplateTag('div')).toBe('view')
+    expect(transformTemplateTag('span')).toBe('text')
+    expect(transformTemplateTag('CustomCard')).toBe('CustomCard')
+  })
+
+  it('转换 AST v-model 指令为 value 与输入 handler', () => {
+    expect(transformVModelDirective({ expression: 'form.name', modifiers: [] })).toEqual({
+      value: '{{form.name}}',
+      bindinput: '_handleInput_form_name'
+    })
+    expect(transformVModelDirective({ expression: 'count', modifiers: ['number'] }).bindinput).toBe(
+      '_handleNumberInput_count'
+    )
+    expect(transformVModelDirective({ expression: 'title', modifiers: ['trim'] }).bindinput).toBe(
+      '_handleTrimInput_title'
+    )
+  })
+
+  it('转换 AST v-for 指令表达式', () => {
+    expect(transformVForDirective({ expression: 'item, idx in list' })).toEqual({
+      'wx:for': '{{list}}',
+      'wx:for-item': 'item',
+      'wx:for-index': 'idx',
+      'wx:key': 'item'
+    })
+    expect(transformVForDirective({ expression: 'todo in todos' })['wx:for-index']).toBe('index')
+    expect(transformVForDirective({ expression: 'bad expression' })).toEqual({})
+    expect(transformVForDirective({})).toEqual({})
+  })
+
+  it('转换 AST v-on 指令并处理 capture 修饰符', () => {
+    expect(transformVOnDirective({ arg: 'click', expression: 'save', modifiers: [] })).toEqual({
+      'bind:tap': 'save'
+    })
+    expect(transformVOnDirective({ arg: 'touchstart', expression: 'start', modifiers: ['capture'] })).toEqual({
+      'capture-bind:touchstart': 'start'
+    })
+  })
+
+  it('验证 WXML 转换结果边界', () => {
+    expect(validateWxmlTransformResult({ wxml: '<view></view>' })).toEqual({ valid: true, errors: [] })
+    expect(validateWxmlTransformResult({ wxml: '' }).errors).toContain('生成的 WXML 为空')
+    expect(validateWxmlTransformResult({ wxml: '<view><text></view>' }).errors).toContain('WXML 标签未正确闭合')
   })
 
   it('转换属性绑定并跳过已处理的 class', () => {
