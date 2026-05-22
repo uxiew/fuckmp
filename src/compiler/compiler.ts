@@ -12,6 +12,13 @@ import { applyUserConfigToJson } from './compiler-config-utils.js'
 import { mergeScriptTransformContext } from './compiler-context-utils.js'
 import { buildRuntimeInjectionEntries } from './compiler-runtime-utils.js'
 import { removeGeneratedOutputFiles } from './compiler-output-utils.js'
+import {
+  createImportedStyleParseOptions,
+  createImportedStyleTransformOptions,
+  createVueStyleParseOptions,
+  createVueStyleTransformOptions,
+  inferStyleLanguage
+} from './compiler-style-utils.js'
 import { PluginManager, createDefaultPluginManager } from '@/plugins/index.js'
 import { UserConfigManager } from '@/config/user-config.js'
 import { RuntimeInjector } from './runtime-injector'
@@ -315,33 +322,23 @@ export class Vue3MiniprogramCompiler {
     // 处理 Vue 文件中的样式
     if (parseResult.styles.length > 0) {
       for (const style of parseResult.styles) {
-        const parseOptions: any = {
-          sourcemap: this.configManager.getOptimization('sourcemap'),
-          baseDir: path.dirname(context.filename)
-        }
-
-        if (style.scoped !== undefined) {
-          parseOptions.scoped = style.scoped
-        }
-
         const styleParseResult = await this.styleParser.parseStyle(
           style.content,
           style.lang,
           context.filename,
-          parseOptions
+          createVueStyleParseOptions(
+            style,
+            context.filename,
+            this.configManager.getOptimization('sourcemap')
+          )
         )
-        const transformOptions: any = {
-          minify: this.configManager.getOptimization('minify')
-        }
-
-        if (style.scoped !== undefined) {
-          transformOptions.scoped = style.scoped
-        }
-
         const styleTransformResult = await this.styleTransformer.transformStyle(
           styleParseResult,
           context,
-          transformOptions
+          createVueStyleTransformOptions(
+            style,
+            this.configManager.getOptimization('minify')
+          )
         )
         results.styles.push(styleTransformResult)
       }
@@ -357,33 +354,23 @@ export class Vue3MiniprogramCompiler {
           // 读取样式文件内容
           const styleContent = await readFile(resolvedStylePath)
 
-          // 确定样式语言
-          const styleLang = styleImportPath.endsWith('.scss') ? 'scss' :
-            styleImportPath.endsWith('.sass') ? 'sass' : 'css'
-
-          // 解析样式
-          const parseOptions = {
-            scoped: false, // 导入的样式文件默认不使用 scoped
-            sourcemap: this.configManager.getOptimization('sourcemap'),
-            baseDir: path.dirname(resolvedStylePath)
-          }
           const styleParseResult = await this.styleParser.parseStyle(
             styleContent,
-            styleLang,
+            inferStyleLanguage(styleImportPath),
             resolvedStylePath,
-            parseOptions
+            createImportedStyleParseOptions(
+              resolvedStylePath,
+              this.configManager.getOptimization('sourcemap')
+            )
           )
 
-          // 转换样式
-          const transformOptions = {
-            scoped: false,
-            minify: this.configManager.getOptimization('minify'),
-            sourcemap: this.configManager.getOptimization('sourcemap')
-          }
           const styleTransformResult = await this.styleTransformer.transformStyle(
             styleParseResult,
             context,
-            transformOptions
+            createImportedStyleTransformOptions(
+              this.configManager.getOptimization('minify'),
+              this.configManager.getOptimization('sourcemap')
+            )
           )
 
           results.styles.push(styleTransformResult)
