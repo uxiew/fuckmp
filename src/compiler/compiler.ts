@@ -13,6 +13,12 @@ import { mergeScriptTransformContext } from './compiler-context-utils.js'
 import { buildRuntimeInjectionEntries } from './compiler-runtime-utils.js'
 import { removeGeneratedOutputFiles } from './compiler-output-utils.js'
 import {
+  createCompileError,
+  createCompileResult,
+  createMissingInputMessage,
+  createMissingInputResult
+} from './compiler-result-utils.js'
+import {
   createImportedStyleParseOptions,
   createImportedStyleTransformOptions,
   createVueStyleParseOptions,
@@ -165,29 +171,13 @@ export class Vue3MiniprogramCompiler {
     logger.info('开始编译项目')
     logger.info(this.configManager.getSummary())
 
-    const result: CompileResult = {
-      success: [],
-      errors: [],
-      stats: {
-        total: 0,
-        success: 0,
-        failed: 0,
-        duration: 0
-      }
-    }
+    const result = createCompileResult()
 
     try {
       if (!(await isDirectory(options.input))) {
-        const message = `输入目录不存在或不可访问: ${options.input}`
+        const message = createMissingInputMessage(options.input)
         logger.error(message)
-        result.errors.push({
-          file: options.input,
-          message
-        })
-        result.stats.total = 1
-        result.stats.failed = 1
-        result.stats.duration = Date.now() - startTime
-        return result
+        return createMissingInputResult(options.input, Date.now() - startTime)
       }
 
       this.resetCompilationState()
@@ -208,16 +198,7 @@ export class Vue3MiniprogramCompiler {
           result.success.push(filePath)
           result.stats.success++
         } catch (error) {
-          const errorObj: any = {
-            file: filePath,
-            message: (error as Error).message
-          }
-
-          if ((error as Error).stack) {
-            errorObj.stack = (error as Error).stack
-          }
-
-          result.errors.push(errorObj)
+          result.errors.push(createCompileError(filePath, error))
           result.stats.failed++
         }
       }
