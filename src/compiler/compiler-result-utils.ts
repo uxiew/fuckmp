@@ -21,6 +21,28 @@ export function createCompileResult(): CompileResult {
 }
 
 /**
+ * 顺序编译文件并维护 CompileResult 的成功/失败统计。
+ */
+export async function compileFilesWithResult(
+  files: string[],
+  result: CompileResult,
+  compileFile: (filePath: string) => Promise<void>
+): Promise<void> {
+  result.stats.total = files.length
+
+  for (const filePath of files) {
+    try {
+      await compileFile(filePath)
+      result.success.push(filePath)
+      result.stats.success++
+    } catch (error) {
+      result.errors.push(createCompileError(filePath, error))
+      result.stats.failed++
+    }
+  }
+}
+
+/**
  * 创建输入目录缺失时的编译结果。
  */
 export function createMissingInputResult(inputPath: string, duration: number): CompileResult {

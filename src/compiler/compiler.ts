@@ -17,7 +17,7 @@ import {
   writeGeneratedOutputFiles
 } from './compiler-output-utils.js'
 import {
-  createCompileError,
+  compileFilesWithResult,
   createCompileResult,
   createMissingInputMessage,
   createMissingInputResult
@@ -180,7 +180,6 @@ export class Vue3MiniprogramCompiler {
 
       // 扫描 Vue 文件
       const vueFiles = await scanVueFiles(options.input)
-      result.stats.total = vueFiles.length
 
       logger.info(`发现 ${vueFiles.length} 个 Vue 文件`)
 
@@ -188,16 +187,7 @@ export class Vue3MiniprogramCompiler {
       await ensureDir(options.output)
 
       // 编译每个文件
-      for (const filePath of vueFiles) {
-        try {
-          await this.compileFile(filePath)
-          result.success.push(filePath)
-          result.stats.success++
-        } catch (error) {
-          result.errors.push(createCompileError(filePath, error))
-          result.stats.failed++
-        }
-      }
+      await compileFilesWithResult(vueFiles, result, filePath => this.compileFile(filePath))
 
       await this.refreshProjectOutputs()
 
