@@ -172,6 +172,86 @@ export function createComputedProxy<T>(getter: () => T, context?: any): RuntimeC
 }
 
 /**
+ * Create an optimized Proxy-backed reactive object and sync mutations to context.
+ */
+export function createReactiveProxy<T extends object>(target: T, context?: any): T {
+  const key = `reactive_${Math.random().toString(36).substr(2, 9)}`
+  const proxyCache = new WeakMap<object, any>()
+
+  function createProxy(obj: any, path: string[] = []): any {
+    if (proxyCache.has(obj)) {
+      return proxyCache.get(obj)
+    }
+
+    if (!obj || typeof obj !== 'object') {
+      return obj
+    }
+
+    const proxy = new Proxy(obj, {
+      get(target, prop: string | symbol): any {
+        const value = target[prop]
+
+        if (value && typeof value === 'object' && typeof prop === 'string') {
+          return createProxy(value, [...path, prop])
+        }
+
+        return value
+      },
+
+      set(target, prop: string | symbol, newValue: any): boolean {
+        if (typeof prop === 'string') {
+          const oldValue = target[prop]
+
+          if (newValue !== oldValue) {
+            target[prop] = newValue
+            syncContextData(context, key, path, prop, newValue)
+          }
+        }
+
+        return true
+      },
+
+      has(target, prop: string | symbol): boolean {
+        return prop in target
+      },
+
+      ownKeys(target): (string | symbol)[] {
+        return Reflect.ownKeys(target)
+      },
+
+      getOwnPropertyDescriptor(target, prop: string | symbol) {
+        return Reflect.getOwnPropertyDescriptor(target, prop)
+      },
+
+      deleteProperty(target, prop: string | symbol): boolean {
+        if (typeof prop === 'string') {
+          const hadProperty = prop in target
+          const result = Reflect.deleteProperty(target, prop)
+
+          if (hadProperty && result) {
+            syncContextData(context, key, path, prop, undefined)
+          }
+
+          return result
+        }
+        return Reflect.deleteProperty(target, prop)
+      }
+    })
+
+    proxyCache.set(obj, proxy)
+    return proxy
+  }
+
+  const proxy = createProxy(target)
+
+  if (context && typeof context.setData === 'function') {
+    context.setData({ [key]: target })
+  }
+
+  return proxy
+}
+
+/**
  * Resolve a computed value with dirty and circular-computation protection.
  */
 function resolveComputedValue<T>(
@@ -209,4 +289,25 @@ function resolveComputedValue<T>(
   }
 
   return getValue()
+}
+
+/**
+ * Sync one reactive mutation to the mini-program context when available.
+ */
+function syncContextData(
+  context: any,
+  rootKey: string,
+  path: string[],
+  prop: string,
+  value: any
+): void {
+  if (!context || typeof context.setData !== 'function') {
+    return
+  }
+
+  const fullPath = path.length > 0
+    ? `${rootKey}.${[...path, prop].join('.')}`
+    : `${rootKey}.${prop}`
+
+  context.setData({ [fullPath]: value })
 }

@@ -6,6 +6,7 @@
 import { logger } from '../utils/logger'
 import {
   createComputedProxy,
+  createReactiveProxy,
   createRefProxy,
   type RuntimeComputed,
   type RuntimeRef
@@ -117,100 +118,7 @@ export class Reactivity {
    * 创建 reactive 对象 (优化的 Proxy 实现)
    */
   reactive<T extends object>(target: T, context?: any): T {
-    const key = `reactive_${Math.random().toString(36).substr(2, 9)}`
-
-    // 用于跟踪已代理的对象，避免重复代理
-    const proxyCache = new WeakMap()
-
-    function createProxy(obj: any, path: string[] = []): any {
-      // 如果已经是代理对象，直接返回
-      if (proxyCache.has(obj)) {
-        return proxyCache.get(obj)
-      }
-
-      // 如果不是对象或者是 null，直接返回
-      if (!obj || typeof obj !== 'object') {
-        return obj
-      }
-
-      const proxy = new Proxy(obj, {
-        get(target, prop: string | symbol): any {
-          const value = target[prop]
-
-          // 如果是对象，递归创建代理
-          if (value && typeof value === 'object' && typeof prop === 'string') {
-            return createProxy(value, [...path, prop])
-          }
-
-          return value
-        },
-
-        set(target, prop: string | symbol, newValue: any): boolean {
-          if (typeof prop === 'string') {
-            const oldValue = target[prop]
-
-            if (newValue !== oldValue) {
-              target[prop] = newValue
-
-              // 如果有上下文，自动调用 setData
-              if (context && typeof context.setData === 'function') {
-                const fullPath = path.length > 0
-                  ? `${key}.${[...path, prop].join('.')}`
-                  : `${key}.${prop}`
-
-                context.setData({ [fullPath]: newValue })
-              }
-            }
-          }
-
-          return true
-        },
-
-        has(target, prop: string | symbol): boolean {
-          return prop in target
-        },
-
-        ownKeys(target): (string | symbol)[] {
-          return Reflect.ownKeys(target)
-        },
-
-        getOwnPropertyDescriptor(target, prop: string | symbol) {
-          return Reflect.getOwnPropertyDescriptor(target, prop)
-        },
-
-        deleteProperty(target, prop: string | symbol): boolean {
-          if (typeof prop === 'string') {
-            const hadProperty = prop in target
-            const result = Reflect.deleteProperty(target, prop)
-
-            if (hadProperty && result && context && typeof context.setData === 'function') {
-              // 删除属性时也需要更新 setData
-              const fullPath = path.length > 0
-                ? `${key}.${[...path, prop].join('.')}`
-                : `${key}.${prop}`
-
-              context.setData({ [fullPath]: undefined })
-            }
-
-            return result
-          }
-          return Reflect.deleteProperty(target, prop)
-        }
-      })
-
-      // 缓存代理对象
-      proxyCache.set(obj, proxy)
-      return proxy
-    }
-
-    const proxy = createProxy(target)
-
-    // 如果有上下文，初始化数据
-    if (context && typeof context.setData === 'function') {
-      context.setData({ [key]: target })
-    }
-
-    return proxy
+    return createReactiveProxy(target, context)
   }
 
   /**
