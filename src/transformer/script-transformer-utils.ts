@@ -187,6 +187,43 @@ export function getConstructorFromTypeName(typeName: string | undefined): any {
 }
 
 /**
+ * 将 defineModel 变量信息写入原生小程序 property 与 update 事件。
+ */
+export function applyDefineModelVariable(variable: any, context: TransformContext): void {
+  const modelInfo = variable.init || {}
+  const propName = modelInfo.property || 'modelValue'
+  const propType = getConstructorFromTypeName(modelInfo.type)
+
+  context.props[propName] = {
+    type: propType,
+    default: modelInfo.default,
+    required: Boolean(modelInfo.required)
+  }
+
+  const updateEvent = `update:${propName}`
+  if (!context.emits.includes(updateEvent)) {
+    context.emits.push(updateEvent)
+  }
+}
+
+/**
+ * 将响应式 props 解构的默认值与局部别名合并到转换上下文。
+ */
+export function applyDefinePropsDestructureVariable(variable: any, context: TransformContext): void {
+  const defaults = variable.init?.defaults || {}
+  const aliases = variable.init?.aliases || {}
+
+  mergePropDefaults(defaults, context)
+
+  if (!context.propAliases) {
+    context.propAliases = new Map()
+  }
+  Object.entries(aliases).forEach(([localName, propName]) => {
+    context.propAliases!.set(localName, String(propName))
+  })
+}
+
+/**
  * 追加生命周期代码，避免覆盖用户已有生命周期转换结果。
  */
 export function appendLifecycleCode(

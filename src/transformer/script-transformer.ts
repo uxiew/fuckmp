@@ -31,10 +31,11 @@ import { applyPropAccessMappingsToScript, hasPropAccessMappings, registerPropNam
 import { resolveTypeReferenceParameters } from './type-reference-resolver.js'
 import { createLiteralNodeFromValue, parseScriptInitValue } from './script-value-utils.js'
 import {
+  applyDefineModelVariable,
+  applyDefinePropsDestructureVariable,
   appendLifecycleCode,
   createMethodFromFunctionInitializer,
   createScriptTransformContext,
-  getConstructorFromTypeName,
   isFunctionInitializer,
   mergePropDefaults,
   recordScriptImports,
@@ -247,7 +248,7 @@ export class ScriptTransformer {
 
     parseResult.variables.forEach((variable, name) => {
       if (variable.macroType === 'defineModel') {
-        this.processDefineModelVariable(variable, context)
+        applyDefineModelVariable(variable, context)
       } else if (variable.macroType === 'defineProps') {
         registerPropNamespace(context, variable.init?.variable || variable.name)
       } else if (variable.macroType === 'defineEmits') {
@@ -255,7 +256,7 @@ export class ScriptTransformer {
       } else if (variable.macroType === 'withDefaults') {
         this.processWithDefaultsVariable(variable, context)
       } else if (variable.macroType === 'definePropsDestructure') {
-        this.processDefinePropsDestructureVariable(variable, context)
+        applyDefinePropsDestructureVariable(variable, context)
       } else if (variable.macroType === 'defineSlots') {
         this.processDefineSlotsVariable(variable, context)
       } else if (variable.macroType === 'useTemplateRef') {
@@ -312,43 +313,6 @@ export class ScriptTransformer {
     const defaults = variable.init?.defaults || {}
 
     mergePropDefaults(defaults, context)
-  }
-
-  /**
-   * 将响应式 props 解构的默认值与局部别名合并进上下文。
-   */
-  private processDefinePropsDestructureVariable(variable: any, context: TransformContext): void {
-    const defaults = variable.init?.defaults || {}
-    const aliases = variable.init?.aliases || {}
-
-    mergePropDefaults(defaults, context)
-
-    if (!context.propAliases) {
-      context.propAliases = new Map()
-    }
-    Object.entries(aliases).forEach(([localName, propName]) => {
-      context.propAliases!.set(localName, String(propName))
-    })
-  }
-
-  /**
-   * 将 defineModel 编译为原生小程序 property 与 update 事件。
-   */
-  private processDefineModelVariable(variable: any, context: TransformContext): void {
-    const modelInfo = variable.init || {}
-    const propName = modelInfo.property || 'modelValue'
-    const propType = getConstructorFromTypeName(modelInfo.type)
-
-    context.props[propName] = {
-      type: propType,
-      default: modelInfo.default,
-      required: Boolean(modelInfo.required)
-    }
-
-    const updateEvent = `update:${propName}`
-    if (!context.emits.includes(updateEvent)) {
-      context.emits.push(updateEvent)
-    }
   }
 
   /**

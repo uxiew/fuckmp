@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyDefineModelVariable,
+  applyDefinePropsDestructureVariable,
   appendLifecycleCode,
   createMethodFromFunctionInitializer,
   createScriptTransformContext,
@@ -57,6 +59,62 @@ describe('script-transformer utils', () => {
     expect(getConstructorFromTypeName('Object')).toBe(Object)
     expect(getConstructorFromTypeName('String')).toBe(String)
     expect(getConstructorFromTypeName(undefined)).toBe(String)
+  })
+
+  it('将 defineModel 变量写入原生 property 与 update 事件', () => {
+    const context = createScriptTransformContext('components/input.vue', false)
+
+    applyDefineModelVariable({
+      name: 'model',
+      init: {
+        property: 'checked',
+        type: 'Boolean',
+        default: false,
+        required: true
+      }
+    }, context)
+
+    expect(context.props.checked).toEqual({
+      type: Boolean,
+      default: false,
+      required: true
+    })
+    expect(context.emits).toEqual(['update:checked'])
+
+    applyDefineModelVariable({
+      name: 'model',
+      init: {
+        property: 'checked',
+        type: 'Boolean'
+      }
+    }, context)
+
+    expect(context.emits).toEqual(['update:checked'])
+  })
+
+  it('合并 defineProps 解构默认值并登记局部别名', () => {
+    const context = createScriptTransformContext('components/card.vue', false)
+
+    applyDefinePropsDestructureVariable({
+      name: 'props',
+      init: {
+        defaults: {
+          title: 'Untitled'
+        },
+        aliases: {
+          localTitle: 'title',
+          count: 'count'
+        }
+      }
+    }, context)
+
+    expect(context.props.title).toEqual({
+      type: String,
+      default: 'Untitled',
+      required: false
+    })
+    expect(context.propAliases?.get('localTitle')).toBe('title')
+    expect(context.propAliases?.get('count')).toBe('count')
   })
 
   it('追加生命周期代码时保留已有代码顺序', () => {
