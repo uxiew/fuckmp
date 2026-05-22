@@ -17,7 +17,13 @@ import {
 import { applyPropAccessMappingsToScript, hasPropAccessMappings, registerPropNamespace } from './prop-access-mapping.js'
 import { normalizeComputedGetter } from './computed-getter-utils.js'
 import { resolveTypeReferenceParameters } from './type-reference-resolver.js'
-import { createLiteralNodeFromValue, inferConstructorFromValue, parseScriptInitValue } from './script-value-utils.js'
+import { createLiteralNodeFromValue, parseScriptInitValue } from './script-value-utils.js'
+import {
+  appendLifecycleCode,
+  createScriptTransformContext,
+  getConstructorFromTypeName,
+  mergePropDefaults
+} from './script-transformer-utils.js'
 import { logger } from '@/utils/index.js'
 
 /**
@@ -88,31 +94,7 @@ export class ScriptTransformer {
       logger.debug(`转换脚本: ${filename}`)
 
       // 初始化转换上下文
-      const context: TransformContext = {
-        filename,
-        isPage,
-        hasScoped: false, // 默认为 false，稍后会根据样式信息更新
-        props: {},
-        emits: [],
-        expose: {},
-        defineOptions: {},
-        defineSlots: {},
-        watcherEffects: {},
-        templateRefs: {},
-        useIds: {},
-        provideInject: {},
-        templateUnsupported: {},
-        data: {},
-        methods: {},
-        computed: {},
-        watch: {},
-        lifecycle: {},
-        imports: new Set(),
-        components: new Map(),
-        reactiveVariables: new Map(),
-        propAliases: new Map(),
-        propNamespaces: new Set()
-      }
+      const context = createScriptTransformContext(filename, isPage)
 
       // 处理导入
       this.processImports(parseResult, context)
@@ -348,7 +330,7 @@ export class ScriptTransformer {
   private processWithDefaultsVariable(variable: any, context: TransformContext): void {
     const defaults = variable.init?.defaults || {}
 
-    this.mergePropDefaults(defaults, context)
+    mergePropDefaults(defaults, context)
   }
 
   /**
@@ -358,7 +340,7 @@ export class ScriptTransformer {
     const defaults = variable.init?.defaults || {}
     const aliases = variable.init?.aliases || {}
 
-    this.mergePropDefaults(defaults, context)
+    mergePropDefaults(defaults, context)
 
     if (!context.propAliases) {
       context.propAliases = new Map()
@@ -369,34 +351,12 @@ export class ScriptTransformer {
   }
 
   /**
-   * 将 prop 默认值合并到 defineProps 生成的 properties。
-   */
-  private mergePropDefaults(defaults: Record<string, any>, context: TransformContext): void {
-    Object.entries(defaults).forEach(([propName, defaultValue]) => {
-      const existingProp = context.props[propName]
-      if (existingProp && typeof existingProp === 'object') {
-        context.props[propName] = {
-          ...existingProp,
-          default: defaultValue
-        }
-        return
-      }
-
-      context.props[propName] = {
-        type: inferConstructorFromValue(defaultValue),
-        default: defaultValue,
-        required: false
-      }
-    })
-  }
-
-  /**
    * 将 defineModel 编译为原生小程序 property 与 update 事件。
    */
   private processDefineModelVariable(variable: any, context: TransformContext): void {
     const modelInfo = variable.init || {}
     const propName = modelInfo.property || 'modelValue'
-    const propType = this.getConstructorFromTypeName(modelInfo.type)
+    const propType = getConstructorFromTypeName(modelInfo.type)
 
     context.props[propName] = {
       type: propType,
@@ -439,7 +399,7 @@ export class ScriptTransformer {
     context.data[variableName] = entry.baseId
 
     if (!context.isPage) {
-      this.appendLifecycleCode(context, 'attached', generateUseIdComponentInitCode(entry))
+      appendLifecycleCode(context, 'attached', generateUseIdComponentInitCode(entry))
     }
 
     logger.info(`useId 已编译为原生小程序稳定 id: ${context.filename}`)
@@ -468,25 +428,6 @@ export class ScriptTransformer {
   }
 
   /**
-   * 将类型名称映射为小程序 property 构造函数。
-   */
-  private getConstructorFromTypeName(typeName: string): any {
-    switch (typeName) {
-      case 'Number':
-        return Number
-      case 'Boolean':
-        return Boolean
-      case 'Array':
-        return Array
-      case 'Object':
-        return Object
-      case 'String':
-      default:
-        return String
-    }
-  }
-
-  /**
    * 处理函数声明
    */
   private processFunctions(parseResult: ScriptParseResult, context: TransformContext): void {
@@ -497,16 +438,6 @@ export class ScriptTransformer {
     parseResult.functions.forEach((func, name) => {
       context.methods[name] = func
     })
-  }
-
-  /**
-   * 追加生命周期代码，避免覆盖用户已有生命周期转换结果。
-   */
-  private appendLifecycleCode(context: TransformContext, lifecycleName: string, code: string): void {
-    const existingCode = context.lifecycle[lifecycleName]
-    context.lifecycle[lifecycleName] = existingCode && existingCode.trim()
-      ? `${existingCode.trim()}\n${code}`
-      : code
   }
 
   /**
