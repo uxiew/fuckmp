@@ -8,10 +8,14 @@ import { ComponentGenerator, PageGenerator, ConfigGenerator } from '@/generator/
 import { ConfigManager } from './options.js'
 import { generateAppStyles } from './app-styles.js'
 import { createInitialTransformContext } from './transform-context.js'
-import { applyUserConfigToJson } from './compiler-config-utils.js'
 import { mergeScriptTransformContext } from './compiler-context-utils.js'
 import { buildRuntimeInjectionEntries, collectCompiledRuntimeRecord } from './compiler-runtime-utils.js'
-import { removeGeneratedOutputFiles } from './compiler-output-utils.js'
+import {
+  buildCompiledFileList,
+  buildPageRoutesFromFiles,
+  removeGeneratedOutputFiles,
+  writeGeneratedOutputFiles
+} from './compiler-output-utils.js'
 import {
   createCompileError,
   createCompileResult,
@@ -29,7 +33,7 @@ import { PluginManager, createDefaultPluginManager } from '@/plugins/index.js'
 import { UserConfigManager } from '@/config/user-config.js'
 import { RuntimeInjector } from './runtime-injector'
 import type { CompilerOptions, CompileResult, ParseResult, TransformContext } from '@/types/index.js'
-import { logger, scanVueFiles, getOutputPath, isPageComponent, isAppComponent, writeFile, ensureDir, getRelativePath, normalizePath, PathResolver, createPathResolver, readFile, isDirectory } from '@/utils/index.js'
+import { logger, scanVueFiles, isAppComponent, ensureDir, PathResolver, createPathResolver, readFile, isDirectory } from '@/utils/index.js'
 import path from 'path'
 
 /**
@@ -138,7 +142,15 @@ export class Vue3MiniprogramCompiler {
 
       // 写入文件（应用入口文件由运行时注入器处理）
       if (!isAppComponent(filePath)) {
-        await this.writeFiles(filePath, generateResult)
+        const options = this.configManager.getOptions()
+        await writeGeneratedOutputFiles({
+          inputPath: filePath,
+          inputRoot: options.input,
+          outputRoot: options.output,
+          generateResult,
+          userConfig: this.userConfigManager.getConfig(),
+          pathResolver: this.pathResolver
+        })
       }
 
       logger.success(`文件编译完成: ${filePath}`)
@@ -208,10 +220,7 @@ export class Vue3MiniprogramCompiler {
   /** 刷新依赖全局编译状态的项目级输出文件。 */
   async refreshProjectOutputs(): Promise<void> {
     const options = this.configManager.getOptions()
-    const compiledFiles = [
-      ...this.compiledPages.keys(),
-      ...this.compiledComponents.keys()
-    ]
+    const compiledFiles = buildCompiledFileList(this.compiledPages, this.compiledComponents)
 
     await this.generateAppConfig(compiledFiles)
     await generateAppStyles(options.output)
@@ -374,42 +383,6 @@ export class Vue3MiniprogramCompiler {
   }
 
   /**
-   * 写入文件
-   */
-  private async writeFiles(inputPath: string, generateResult: any): Promise<void> {
-    const options = this.configManager.getOptions()
-    let outputPath = getOutputPath(inputPath, options.input, options.output)
-
-    // 移除 .vue 扩展名
-    outputPath = outputPath.replace(/\.vue$/, '')
-
-    // 写入 JavaScript 文件
-    await writeFile(`${outputPath}.js`, generateResult.js)
-
-    // 应用用户自定义配置到 JSON 文件
-    const finalJsonConfig = applyUserConfigToJson({
-      inputPath,
-      defaultConfig: generateResult.json,
-      inputRoot: options.input,
-      userConfig: this.userConfigManager.getConfig(),
-      pathResolver: this.pathResolver
-    })
-    logger.debug(`最终 JSON 配置 (${inputPath}):`, finalJsonConfig)
-    await writeFile(`${outputPath}.json`, JSON.stringify(finalJsonConfig, null, 2))
-
-    // 写入 WXML 模板文件
-    await writeFile(`${outputPath}.wxml`, generateResult.wxml)
-
-    // 写入 WXSS 样式文件
-    await writeFile(`${outputPath}.wxss`, generateResult.wxss)
-
-    // 如果有 Source Map，写入 Source Map 文件
-    if (generateResult.sourceMap) {
-      await writeFile(`${outputPath}.js.map`, generateResult.sourceMap)
-    }
-  }
-
-  /**
    * 执行运行时注入
    */
   private async performRuntimeInjection(outputDir: string): Promise<void> {
@@ -444,17 +417,8 @@ export class Vue3MiniprogramCompiler {
 
     logger.debug(`生成应用配置，成功文件: ${successFiles.length} 个`)
 
-    // 提取页面路径
-    const pageFiles = successFiles.filter(file => isPageComponent(file))
-    logger.debug(`页面文件: ${pageFiles.length} 个`, pageFiles)
-
-    const pages = pageFiles.map(file => {
-      // 获取相对于输入目录的路径，并移除 .vue 后缀
-      const relativePath = getRelativePath(options.input, file)
-      const outputPath = normalizePath(relativePath).replace(/\.vue$/, '')
-      logger.debug(`页面路径转换: ${file} -> ${outputPath}`)
-      return outputPath
-    })
+    const pages = buildPageRoutesFromFiles(successFiles, options.input)
+    logger.debug(`页面文件: ${pages.length} 个`, pages)
 
     logger.debug(`最终页面路径:`, pages)
 

@@ -16,7 +16,7 @@
 - [x] 监听模式输出清理：删除 `.vue` 源文件时清理对应 `.js/.json/.wxml/.wxss/.js.map` 编译产物，并限定删除范围在输出目录内。
 - [x] 监听模式项目级刷新：新增、变更或删除 `.vue` 源文件后同步刷新 `app.json`、runtime injection 和项目配置，避免页面列表与运行时特性分析残留旧状态。
 - [x] 类型检查基线：`pnpm type-check` 当前通过，范围限定为源码 `src/**/*`。
-- [x] 测试基线：`pnpm test:run` 当前通过 51 个测试文件、跳过 1 个显式 opt-in 真机测试文件；209 个测试通过、5 个真机测试跳过。
+- [x] 测试基线：`pnpm test:run` 当前通过 51 个测试文件、跳过 1 个显式 opt-in 真机测试文件；212 个测试通过、5 个真机测试跳过。
 - [x] 构建基线：`pnpm build` 当前通过，DTS 生成通过。
 - [x] Sass 弃用告警：运行时代码使用 Dart Sass namespace import，测试 SCSS 使用 `sass:color` 模块函数。
 - [x] 旧运行时兼容层：删除无引用旧文件和 `setupRuntime/cleanupRuntime` 兼容导出，当前保留 `src/runtime/core/*`。
@@ -49,7 +49,7 @@
 - [x] Vue 3.5 `useId` 原生目标映射：非 SSR 微信原生目标下生成稳定 `data` id，组件实例 `attached` 时追加唯一后缀，不生成 ID runtime；覆盖 `tests/e2e/use-id-native.test.ts`。
 - [x] Vue 3.5 `useTemplateRef` 原生目标降级：微信原生目标无 Vue template ref / DOM 或组件实例等价桥接，产物输出降级注释和 template refs，不生成 runtime 代理；覆盖 `tests/e2e/use-template-ref-degrade.test.ts`。
 - [x] Vue 3.5 Native-first 文档一致性审计：README、TODO、latest baseline 与 runtime boundary 中的测试引用必须存在，公开矩阵必须覆盖核心 Vue 3.5 能力测试面；覆盖 `tests/quality/vue35-docs-consistency.test.ts`。
-- [x] 单文件行数约束：当前 `src/**/*` 未超过 600 行维护阈值；`src/runtime/core/reactivity.ts` 已拆出 ref/computed Proxy helper 并降至 460 行，`src/compiler/compiler.ts` 已拆出用户配置合并、组件路径解析、样式选项、结果构造和运行时记录收集 helper，当前为 553 行；`src/transformer/template-transformer.ts` 已复用 class 绑定表达式 helper 并抽出 fallback 字符串管线，当前为 524 行；`src/compiler/code-generator.ts` 已拆出文件头、runtime 相对路径、option 过滤、prop 类型映射与模板 handler 生成 helper，当前为 540 行，`src/generator/page-generator.ts` 已拆出页面 WXSS 合并 helper 并降至 529 行，`src/generator/component-generator.ts` 已抽出组件 methods 生成 helper 并降至 274 行，`src/transformer/script-transformer.ts` 已拆出上下文初始化、props 默认值与生命周期追加 helper，当前为 516 行，`src/cli/commands/create.ts` 已抽出 create 模板定义并降至 101 行，新增 `src/cli/commands/create-templates.ts` 当前为 456 行，`src/parser/script-parser.ts` 已抽出宏信息提取 helper 并降至 394 行，新增 `src/parser/script-macro-utils.ts` 当前为 175 行，并由 `tests/quality/source-size.test.ts` 固化。
+- [x] 单文件行数约束：当前 `src/**/*` 未超过 600 行维护阈值；`src/runtime/core/reactivity.ts` 已拆出 ref/computed Proxy helper 并降至 460 行，`src/compiler/compiler.ts` 已拆出用户配置合并、组件路径解析、样式选项、结果构造、运行时记录收集与输出写入 helper，当前为 517 行；`src/transformer/template-transformer.ts` 已复用 class 绑定表达式 helper 并抽出 fallback 字符串管线，当前为 524 行；`src/compiler/code-generator.ts` 已拆出文件头、runtime 相对路径、option 过滤、prop 类型映射与模板 handler 生成 helper，当前为 540 行，`src/generator/page-generator.ts` 已拆出页面 WXSS 合并 helper 并降至 529 行，`src/generator/component-generator.ts` 已抽出组件 methods 生成 helper 并降至 274 行，`src/transformer/script-transformer.ts` 已拆出上下文初始化、props 默认值与生命周期追加 helper，当前为 516 行，`src/cli/commands/create.ts` 已抽出 create 模板定义并降至 101 行，新增 `src/cli/commands/create-templates.ts` 当前为 456 行，`src/parser/script-parser.ts` 已抽出宏信息提取 helper 并降至 394 行，新增 `src/parser/script-macro-utils.ts` 当前为 175 行，并由 `tests/quality/source-size.test.ts` 固化。
 - [x] 默认测试输出：Browserslist 过期提示已在 Vitest 环境中静默；真机测试默认跳过，需 `FUCKMP_REAL_DEVICE_TESTS=1` 显式启用。
 
 ## 后续约束 / 可选验收
@@ -61,6 +61,6 @@
 ## 后续优先任务
 
 1. 需要更深入真实小程序端验收时，使用合法微信小程序 AppID / 登录态运行 opt-in 真机测试，并可按 `examples/real-miniprogram/README.md` 接入 `wechat-devtools-mcp`。
-2. 如需继续做维护性瘦身，当前已无 600 行以上源码文件；后续重点关注 `src/compiler/compiler.ts` 553 行、`src/compiler/code-generator.ts` 540 行与 `src/transformer/template-transformer.ts` 524 行等接近门禁模块。
+2. 如需继续做维护性瘦身，当前已无 600 行以上源码文件；后续重点关注 `src/compiler/code-generator.ts` 540 行、`src/generator/page-generator.ts` 529 行与 `src/transformer/template-transformer.ts` 524 行等接近门禁模块。
 3. `watch/watchEffect/onWatcherCleanup` 已明确降级；只有真实实现 Vue watcher 调度与 cleanup 语义后，才允许进入 runtime 白名单。
 4. 继续补齐最新 Vue 3.5 能力矩阵时，基础 slots 已原生映射；scoped/dynamic slots 与 `Transition` / `KeepAlive` 已明确降级；更复杂 DI 语义仍需真实方案或继续明确降级。

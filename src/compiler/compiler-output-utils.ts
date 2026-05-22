@@ -3,9 +3,43 @@
  */
 
 import path from 'path'
-import { getOutputPath, remove } from '@/utils/index.js'
+import type { UserConfig } from '@/config/user-config.js'
+import {
+  getOutputPath,
+  getRelativePath,
+  isPageComponent,
+  normalizePath,
+  remove,
+  writeFile,
+  type PathResolver
+} from '@/utils/index.js'
+import { applyUserConfigToJson } from './compiler-config-utils.js'
 
 const GENERATED_OUTPUT_EXTENSIONS = ['.js', '.json', '.wxml', '.wxss', '.js.map'] as const
+
+/**
+ * 写入单个 Vue 文件对应的小程序生成产物时所需的上下文。
+ */
+export interface WriteGeneratedOutputFilesOptions {
+  /** 当前输入 Vue 文件路径。 */
+  inputPath: string
+  /** 编译输入根目录。 */
+  inputRoot: string
+  /** 编译输出根目录。 */
+  outputRoot: string
+  /** 生成器输出结果。 */
+  generateResult: {
+    js: string
+    json: any
+    wxml: string
+    wxss: string
+    sourceMap?: string
+  }
+  /** 用户配置对象。 */
+  userConfig?: UserConfig
+  /** 组件路径解析器。 */
+  pathResolver: PathResolver
+}
 
 /**
  * 获取 Vue 源文件对应的小程序生成产物路径列表。
@@ -34,6 +68,58 @@ export async function removeGeneratedOutputFiles(
   await Promise.all(files.map(file => remove(file)))
 
   return files
+}
+
+/**
+ * 合并页面和组件编译记录路径，用于刷新依赖项目全局状态的输出文件。
+ */
+export function buildCompiledFileList(
+  compiledPages: Map<string, unknown>,
+  compiledComponents: Map<string, unknown>
+): string[] {
+  return [
+    ...compiledPages.keys(),
+    ...compiledComponents.keys()
+  ]
+}
+
+/**
+ * 从编译成功文件列表中构造 app.json 需要的页面路由。
+ */
+export function buildPageRoutesFromFiles(successFiles: string[], inputRoot: string): string[] {
+  return successFiles
+    .filter(file => isPageComponent(file))
+    .map(file => normalizePath(getRelativePath(inputRoot, file)).replace(/\.vue$/, ''))
+}
+
+/**
+ * 写入单个 Vue 文件生成出的 JS/JSON/WXML/WXSS/SourceMap 产物。
+ */
+export async function writeGeneratedOutputFiles({
+  inputPath,
+  inputRoot,
+  outputRoot,
+  generateResult,
+  userConfig,
+  pathResolver
+}: WriteGeneratedOutputFilesOptions): Promise<void> {
+  const outputPath = getOutputPath(inputPath, inputRoot, outputRoot).replace(/\.vue$/, '')
+  const finalJsonConfig = applyUserConfigToJson({
+    inputPath,
+    defaultConfig: generateResult.json,
+    inputRoot,
+    ...(userConfig && { userConfig }),
+    pathResolver
+  })
+
+  await writeFile(`${outputPath}.js`, generateResult.js)
+  await writeFile(`${outputPath}.json`, JSON.stringify(finalJsonConfig, null, 2))
+  await writeFile(`${outputPath}.wxml`, generateResult.wxml)
+  await writeFile(`${outputPath}.wxss`, generateResult.wxss)
+
+  if (generateResult.sourceMap) {
+    await writeFile(`${outputPath}.js.map`, generateResult.sourceMap)
+  }
 }
 
 /**
