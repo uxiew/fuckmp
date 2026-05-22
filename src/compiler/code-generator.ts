@@ -8,6 +8,11 @@ import type { BundleResult } from './runtime-bundler'
 import { ObjectLiteralSerializer } from './codegen/object-serializer'
 import { RuntimeInjectionGenerator } from './codegen/runtime-injection-generator'
 import { filterInvalidOptions, generateCodeFileHeader, getRelativeRuntimePath, mapVueTypeToMiniProgram } from './codegen/code-generator-utils'
+import {
+  generateComponentTemplateHandlers,
+  generateComputedRuntimeMethods,
+  generatePageTemplateHandlers
+} from './codegen/native-template-handler-generator'
 import { logger } from '@/utils/logger'
 
 /**
@@ -145,10 +150,11 @@ App({
   generatePageCode(pageData: any, pagePath: string): GeneratedFile {
     // 提取上下文和小程序配置
     const context = pageData.context
+    const templateResult = pageData.template
     const config = pageData.context ? null : pageData // 如果没有context，说明pageData就是配置
 
     // 生成页面选项对象
-    const pageOptions = this.generatePageOptions(context, config)
+    const pageOptions = this.generatePageOptions(context, config, templateResult)
 
     const content = `${generateCodeFileHeader(this.config, this.options)}
 
@@ -176,9 +182,10 @@ Page(createPage(pageOptions));
   generateComponentCode(componentData: any, componentPath: string): GeneratedFile {
     // 只提取上下文，不使用小程序配置
     const context = componentData.context
+    const templateResult = componentData.template
 
     // 生成组件选项对象（不传递配置）
-    const componentOptions = this.generateComponentOptions(context, null)
+    const componentOptions = this.generateComponentOptions(context, null, templateResult)
 
     const content = `${generateCodeFileHeader(this.config, this.options)}
 
@@ -232,7 +239,7 @@ Component(createComponent(componentOptions));
   /**
    * 生成页面选项对象
    */
-  private generatePageOptions(context: any, config: any): string {
+  private generatePageOptions(context: any, config: any, templateResult?: any): string {
     const options: any = {}
 
     // 如果有上下文，添加 Vue 相关选项
@@ -244,8 +251,11 @@ Component(createComponent(componentOptions));
         // Vue 组件方法（页面方法直接放在根级别）
         ...this.generateMethods(context.methods),
 
+        // 模板派生事件处理器
+        ...generatePageTemplateHandlers(templateResult),
+
         // Vue 计算属性
-        ...this.generateComputed(context.computed),
+        ...generateComputedRuntimeMethods(context.computed),
 
         // Vue 监听器
         ...this.generateWatchers(context.watch),
@@ -278,7 +288,7 @@ Component(createComponent(componentOptions));
   /**
    * 生成组件选项对象
    */
-  private generateComponentOptions(context: any, config: any): string {
+  private generateComponentOptions(context: any, config: any, templateResult?: any): string {
     if (!context) {
       // 如果没有上下文，返回空对象
       return '{}'
@@ -292,10 +302,11 @@ Component(createComponent(componentOptions));
       properties: this.generateProperties(context.props),
 
       // Vue 组件方法
-      methods: this.generateMethods(context.methods),
-
-      // Vue 计算属性（在小程序中作为方法实现）
-      ...this.generateComputed(context.computed),
+      methods: {
+        ...this.generateMethods(context.methods),
+        ...generateComponentTemplateHandlers(templateResult, context.emits),
+        ...generateComputedRuntimeMethods(context.computed)
+      },
 
       // Vue 监听器
       ...this.generateWatchers(context.watch),

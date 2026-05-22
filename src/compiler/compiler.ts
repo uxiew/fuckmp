@@ -134,17 +134,20 @@ export class Vue3MiniprogramCompiler {
         // 应用入口文件
         this.appConfig = {
           config: generateResult.json,
-          context: context
+          context: context,
+          template: results.template
         }
       } else if (context.isPage) {
         this.compiledPages.set(filePath, {
           config: generateResult.json,
-          context: context
+          context: context,
+          template: results.template
         })
       } else {
         this.compiledComponents.set(filePath, {
           config: generateResult.json,
-          context: context
+          context: context,
+          template: results.template
         })
       }
 

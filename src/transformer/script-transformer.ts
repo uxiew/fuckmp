@@ -503,8 +503,11 @@ export class ScriptTransformer {
     // 转换每个响应式变量的访问
     reactiveVars.forEach(varName => {
       // 转换 varName.value 为 this.data.varName
-      const regex = new RegExp(`\\b${varName}\\.value\\b`, 'g')
-      transformedGetter = transformedGetter.replace(regex, `this.data.${varName}`)
+      const thisAccessRegex = new RegExp(`\\bthis\\.${varName}\\.value\\b`, 'g')
+      transformedGetter = transformedGetter.replace(thisAccessRegex, `this.data.${varName}`)
+
+      const bareAccessRegex = new RegExp(`(?<![\\w$.])${varName}\\.value\\b`, 'g')
+      transformedGetter = transformedGetter.replace(bareAccessRegex, `this.data.${varName}`)
     })
 
     return applyPropAccessMappingsToScript(transformedGetter, context)

@@ -2,6 +2,7 @@
  * 编译器运行时注入数据转换工具。
  */
 import type { TransformContext } from '@/types/index.js'
+import type { TemplateTransformResult } from '@/transformer/index.js'
 import { getRelativePath } from '@/utils/index.js'
 
 /**
@@ -10,6 +11,7 @@ import { getRelativePath } from '@/utils/index.js'
 export interface CompiledRuntimeRecord {
   config: any
   context: TransformContext
+  template?: TemplateTransformResult
 }
 
 /**
@@ -23,10 +25,14 @@ export function buildRuntimeInjectionEntries(
 
   for (const [filePath, record] of compiledRecords) {
     const relativePath = getRelativePath(inputRoot, filePath).replace(/\.vue$/, '')
-    entries.set(relativePath, {
+    const entry: CompiledRuntimeRecord = {
       config: record.config,
       context: record.context
-    })
+    }
+    if (record.template) {
+      entry.template = record.template
+    }
+    entries.set(relativePath, entry)
   }
 
   return entries

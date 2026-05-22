@@ -10,17 +10,17 @@ export class ObjectLiteralSerializer {
    */
   stringifyWithFunctions(obj: any): string {
     const functionPlaceholders = new Map<string, string>()
-    let placeholderIndex = 0
+    const placeholderState = { index: 0 }
 
     // 第一步：深度克隆对象并处理函数和表达式
-    const processedObj = this.deepCloneWithPlaceholders(obj, functionPlaceholders, placeholderIndex)
+    const processedObj = this.deepCloneWithPlaceholders(obj, functionPlaceholders, placeholderState)
 
     // 第二步：序列化对象，使用自定义格式
     let result = this.stringifyObjectLiteral(processedObj, 2)
 
     // 第三步：恢复函数
     for (const [placeholder, functionCode] of functionPlaceholders) {
-      result = result.replace(`"${placeholder}"`, functionCode)
+      result = result.split(`"${placeholder}"`).join(functionCode)
     }
 
     // 第四步：转换所有剩余的箭头函数为普通函数
@@ -32,47 +32,58 @@ export class ObjectLiteralSerializer {
   /**
    * 深度克隆对象并处理函数和表达式
    */
-  private deepCloneWithPlaceholders(obj: any, placeholders: Map<string, string>, placeholderIndex: number): any {
+  private deepCloneWithPlaceholders(
+    obj: any,
+    placeholders: Map<string, string>,
+    placeholderState: { index: number }
+  ): any {
     if (obj === null || typeof obj !== 'object') {
       return obj
     }
 
     if (Array.isArray(obj)) {
-      return obj.map(item => this.deepCloneWithPlaceholders(item, placeholders, placeholderIndex))
+      return obj.map(item => this.deepCloneWithPlaceholders(item, placeholders, placeholderState))
     }
 
     const cloned: any = {}
     for (const [key, value] of Object.entries(obj)) {
       if (typeof value === 'function') {
-        const placeholder = `__FUNCTION_PLACEHOLDER_${placeholderIndex++}__`
+        const placeholder = this.createPlaceholder('FUNCTION', placeholderState)
         placeholders.set(placeholder, value.toString())
         cloned[key] = placeholder
       } else if (typeof value === 'string' && this.isFunctionString(value)) {
         // 检查是否为函数字符串，并转换箭头函数为普通函数
-        const placeholder = `__FUNCTION_PLACEHOLDER_${placeholderIndex++}__`
+        const placeholder = this.createPlaceholder('FUNCTION', placeholderState)
         const convertedFunction = this.convertArrowFunctionToRegular(value)
         placeholders.set(placeholder, convertedFunction)
         cloned[key] = placeholder
       } else if (typeof value === 'string' && this.isExpressionString(value)) {
         // 检查是否为表达式字符串（如 new Date(), 对象字面量等）
-        const placeholder = `__EXPRESSION_PLACEHOLDER_${placeholderIndex++}__`
+        const placeholder = this.createPlaceholder('EXPRESSION', placeholderState)
         // 修复日期表达式中的八进制字面量问题
         const fixedValue = this.fixDateExpression(value)
         placeholders.set(placeholder, fixedValue)
         cloned[key] = placeholder
       } else if (typeof value === 'string' && ['String', 'Number', 'Boolean', 'Object', 'Array'].includes(value)) {
         // 特殊处理小程序类型构造函数，避免被JSON.stringify包装成字符串
-        const placeholder = `__TYPE_PLACEHOLDER_${placeholderIndex++}__`
+        const placeholder = this.createPlaceholder('TYPE', placeholderState)
         placeholders.set(placeholder, value)
         cloned[key] = placeholder
       } else if (typeof value === 'object') {
-        cloned[key] = this.deepCloneWithPlaceholders(value, placeholders, placeholderIndex)
+        cloned[key] = this.deepCloneWithPlaceholders(value, placeholders, placeholderState)
       } else {
         cloned[key] = value
       }
     }
 
     return cloned
+  }
+
+  /**
+   * 生成全局唯一的序列化占位符。
+   */
+  private createPlaceholder(kind: string, placeholderState: { index: number }): string {
+    return `__${kind}_PLACEHOLDER_${placeholderState.index++}__`
   }
 
   /**
