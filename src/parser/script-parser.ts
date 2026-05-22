@@ -7,6 +7,13 @@ import { VUE3_MACROS } from '@/types/index.js'
 import type { File, ImportDeclaration, CallExpression, VariableDeclaration } from '@babel/types'
 import { logger } from '@/utils/index.js'
 import { extractArgumentValue } from './script-codegen-utils.js'
+import {
+  extractDefineModelInfo,
+  extractDefinePropsDestructureInfo,
+  extractUseTemplateRefInfo,
+  extractWithDefaultsInfo,
+  getArrayPatternFirstIdentifier
+} from './script-macro-utils.js'
 
 /**
  * Script 解析结果
@@ -216,7 +223,7 @@ export class ScriptParser {
         const variableInfo: VariableInfo = {
           name: `__definePropsDestructure_${result.variables.size}`,
           type: node.kind as 'const' | 'let' | 'var',
-          init: this.extractDefinePropsDestructureInfo(declarator.id, result),
+          init: extractDefinePropsDestructureInfo(declarator.id, result),
           isReactive: false,
           macroType: 'definePropsDestructure'
         }
@@ -227,7 +234,7 @@ export class ScriptParser {
         isCallExpression(declarator.init) &&
         isIdentifier(declarator.init.callee) &&
         declarator.init.callee.name === 'defineModel') {
-        const modelVariableName = this.getArrayPatternFirstIdentifier(declarator.id)
+        const modelVariableName = getArrayPatternFirstIdentifier(declarator.id)
         if (!modelVariableName) {
           return
         }
@@ -235,7 +242,7 @@ export class ScriptParser {
         const variableInfo: VariableInfo = {
           name: modelVariableName,
           type: node.kind as 'const' | 'let' | 'var',
-          init: this.extractDefineModelInfo(declarator.init, modelVariableName, result),
+          init: extractDefineModelInfo(declarator.init, modelVariableName, result),
           isReactive: false,
           macroType: 'defineModel'
         }
@@ -259,7 +266,7 @@ export class ScriptParser {
             }
           } else if (calleeName === 'defineModel') {
             macroType = calleeName
-            initValue = this.extractDefineModelInfo(declarator.init, name, result)
+            initValue = extractDefineModelInfo(declarator.init, name, result)
           } else if (calleeName === 'defineProps') {
             macroType = calleeName
             initValue = { variable: name }
@@ -268,13 +275,13 @@ export class ScriptParser {
             initValue = { variable: name }
           } else if (calleeName === 'withDefaults') {
             macroType = calleeName
-            initValue = this.extractWithDefaultsInfo(declarator.init, result)
+            initValue = extractWithDefaultsInfo(declarator.init, result)
           } else if (calleeName === 'defineSlots') {
             macroType = calleeName
             initValue = { variable: name }
           } else if (calleeName === 'useTemplateRef') {
             macroType = calleeName
-            initValue = this.extractUseTemplateRefInfo(declarator.init, name, result)
+            initValue = extractUseTemplateRefInfo(declarator.init, name, result)
           } else if (calleeName === 'useId') {
             macroType = calleeName
             initValue = { variable: name }
@@ -302,159 +309,6 @@ export class ScriptParser {
         result.variables.set(name, variableInfo)
       }
     })
-  }
-
-
-  /**
-   * 提取 Vue 3.5 defineProps 响应式解构的默认值和别名。
-   */
-  private extractDefinePropsDestructureInfo(pattern: any, result: ScriptParseResult): Record<string, any> {
-    const defaults: Record<string, any> = {}
-    const aliases: Record<string, string> = {}
-
-    pattern.properties.forEach((property: any) => {
-      if (property.type !== 'ObjectProperty') return
-
-      const propName = this.getObjectPropertyKey(property.key)
-      const localName = this.getDestructureLocalName(property.value)
-      if (!propName || !localName) return
-
-      aliases[localName] = propName
-
-      if (property.value.type === 'AssignmentPattern') {
-        defaults[propName] = this.extractDefaultValue(property.value.right, result)
-      }
-    })
-
-    return { defaults, aliases }
-  }
-
-  /**
-   * 获取对象属性 key。
-   */
-  private getObjectPropertyKey(key: any): string {
-    if (key.type === 'Identifier') return key.name
-    if (key.type === 'StringLiteral' || key.type === 'NumericLiteral') return String(key.value)
-    return ''
-  }
-
-  /**
-   * 获取数组解构的第一个标识符，用于 defineModel tuple 返回值。
-   */
-  private getArrayPatternFirstIdentifier(pattern: any): string {
-    const firstElement = pattern.elements?.[0]
-    return firstElement?.type === 'Identifier' ? firstElement.name : ''
-  }
-
-  /**
-   * 获取 defineProps 解构后的局部变量名。
-   */
-  private getDestructureLocalName(value: any): string {
-    if (value.type === 'Identifier') return value.name
-    if (value.type === 'AssignmentPattern' && value.left.type === 'Identifier') return value.left.name
-    return ''
-  }
-
-
-  /**
-   * 提取 withDefaults(defineProps(), defaults) 中的默认值。
-   */
-  private extractWithDefaultsInfo(node: CallExpression, result: ScriptParseResult): Record<string, any> {
-    const defaultsNode = node.arguments[1]
-    return {
-      defaults: defaultsNode ? this.extractDefaultsObject(defaultsNode, result) : {}
-    }
-  }
-
-  /**
-   * 提取 withDefaults 的对象字面量默认值。
-   */
-  private extractDefaultsObject(node: any, result: ScriptParseResult): Record<string, any> {
-    if (!node || node.type !== 'ObjectExpression') {
-      return {}
-    }
-
-    const defaults: Record<string, any> = {}
-    node.properties.forEach((property: any) => {
-      if (property.type !== 'ObjectProperty') return
-
-      const key = property.key.type === 'Identifier' ? property.key.name : property.key.value
-      defaults[key] = this.extractDefaultValue(property.value, result)
-    })
-
-    return defaults
-  }
-
-  /**
-   * 提取单个 prop 默认值；数组/对象 factory 会取其返回的静态值。
-   */
-  private extractDefaultValue(node: any, result: ScriptParseResult): any {
-    if (!node) {
-      return undefined
-    }
-
-    if (node.type === 'ArrowFunctionExpression' || node.type === 'FunctionExpression') {
-      if (node.body?.type === 'BlockStatement') {
-        const returnStatement = node.body.body?.find((statement: any) => statement.type === 'ReturnStatement')
-        return returnStatement?.argument ? extractArgumentValue(returnStatement.argument, result.variables) : undefined
-      }
-      return extractArgumentValue(node.body, result.variables)
-    }
-
-    return extractArgumentValue(node, result.variables)
-  }
-
-  /**
-   * 提取 defineModel 变量信息。
-   */
-  private extractDefineModelInfo(node: CallExpression, variableName: string, result: ScriptParseResult): Record<string, any> {
-    const firstArg = node.arguments[0]
-    const secondArg = node.arguments[1]
-    const hasNamedModel = firstArg?.type === 'StringLiteral'
-    const optionsNode = hasNamedModel ? secondArg : firstArg
-    const options = optionsNode ? extractArgumentValue(optionsNode, result.variables) : {}
-
-    return {
-      property: hasNamedModel ? (firstArg as any).value : 'modelValue',
-      variable: variableName,
-      type: this.extractDefineModelType(node),
-      default: options && typeof options === 'object' && 'default' in options ? options.default : undefined,
-      required: options && typeof options === 'object' && 'required' in options ? options.required : false
-    }
-  }
-
-  /**
-   * 从 defineModel 泛型或默认值中推断小程序 property 类型。
-   */
-  private extractDefineModelType(node: CallExpression): string {
-    const typeParam = (node as any).typeParameters?.params?.[0]
-    switch (typeParam?.type) {
-      case 'TSNumberKeyword':
-        return 'Number'
-      case 'TSBooleanKeyword':
-        return 'Boolean'
-      case 'TSArrayType':
-        return 'Array'
-      case 'TSTypeLiteral':
-      case 'TSTypeReference':
-        return 'Object'
-      case 'TSStringKeyword':
-      default:
-        return 'String'
-    }
-  }
-
-  /**
-   * 提取 Vue 3.5 useTemplateRef 的 ref key。
-   */
-  private extractUseTemplateRefInfo(node: CallExpression, variableName: string, result: ScriptParseResult): Record<string, any> {
-    const firstArg = node.arguments[0]
-    const refName = firstArg ? extractArgumentValue(firstArg, result.variables) : variableName
-
-    return {
-      variable: variableName,
-      ref: typeof refName === 'string' ? refName : variableName
-    }
   }
 
   /**
