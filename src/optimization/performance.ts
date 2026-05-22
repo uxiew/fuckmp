@@ -5,6 +5,13 @@
 import { Worker } from 'worker_threads'
 import { cpus } from 'os'
 import { logger } from '@/utils/index.js'
+import {
+  createCacheEntry,
+  estimateCacheMemoryUsage,
+  findOldestCacheKey,
+  formatBytes,
+  shouldTriggerGC
+} from './performance-utils.js'
 
 /**
  * 性能监控器
@@ -63,7 +70,7 @@ export class PerformanceMonitor {
       
       if (metric.memoryUsageEnd) {
         const memoryGrowth = metric.memoryUsageEnd.heapUsed - metric.memoryUsage.heapUsed
-        reports.push(`  内存增长: ${this.formatBytes(memoryGrowth)}`)
+        reports.push(`  内存增长: ${formatBytes(memoryGrowth)}`)
       }
     })
 
@@ -77,22 +84,6 @@ export class PerformanceMonitor {
     this.metrics.clear()
   }
 
-  /**
-   * 格式化字节数
-   */
-  private formatBytes(bytes: number): string {
-    const units = ['B', 'KB', 'MB', 'GB']
-    let size = Math.abs(bytes)
-    let unitIndex = 0
-
-    while (size >= 1024 && unitIndex < units.length - 1) {
-      size /= 1024
-      unitIndex++
-    }
-
-    const sign = bytes < 0 ? '-' : ''
-    return `${sign}${size.toFixed(1)} ${units[unitIndex]}`
-  }
 }
 
 /**
@@ -262,11 +253,7 @@ export class CacheManager {
       this.evictOldest()
     }
 
-    this.cache.set(key, {
-      value,
-      timestamp: Date.now(),
-      lastAccess: Date.now()
-    })
+    this.cache.set(key, createCacheEntry(value))
   }
 
   /**
@@ -311,15 +298,7 @@ export class CacheManager {
    * 驱逐最旧的缓存项
    */
   private evictOldest(): void {
-    let oldestKey = ''
-    let oldestTime = Date.now()
-
-    for (const [key, entry] of this.cache.entries()) {
-      if (entry.lastAccess < oldestTime) {
-        oldestTime = entry.lastAccess
-        oldestKey = key
-      }
-    }
+    const oldestKey = findOldestCacheKey(this.cache)
 
     if (oldestKey) {
       this.cache.delete(oldestKey)
@@ -330,13 +309,7 @@ export class CacheManager {
    * 估算内存使用量
    */
   private estimateMemoryUsage(): number {
-    let size = 0
-    for (const [key, entry] of this.cache.entries()) {
-      size += key.length * 2 // 字符串大小
-      size += JSON.stringify(entry.value).length * 2 // 值大小估算
-      size += 64 // 对象开销
-    }
-    return size
+    return estimateCacheMemoryUsage(this.cache)
   }
 }
 
@@ -376,7 +349,7 @@ export class MemoryOptimizer {
   checkMemory(): void {
     const usage = process.memoryUsage()
     
-    if (usage.heapUsed > this.gcThreshold && Date.now() - this.lastGC > 5000) {
+    if (shouldTriggerGC(usage.heapUsed, this.gcThreshold, Date.now(), this.lastGC)) {
       this.forceGC()
     }
   }
@@ -391,7 +364,7 @@ export class MemoryOptimizer {
       const after = process.memoryUsage().heapUsed
       const freed = before - after
       
-      logger.debug(`垃圾回收完成，释放内存: ${this.formatBytes(freed)}`)
+      logger.debug(`垃圾回收完成，释放内存: ${formatBytes(freed)}`)
       this.lastGC = Date.now()
     }
   }
@@ -403,27 +376,11 @@ export class MemoryOptimizer {
     const usage = process.memoryUsage()
     
     return `内存使用报告:
-- RSS: ${this.formatBytes(usage.rss)}
-- Heap Total: ${this.formatBytes(usage.heapTotal)}
-- Heap Used: ${this.formatBytes(usage.heapUsed)}
-- External: ${this.formatBytes(usage.external)}
-- Array Buffers: ${this.formatBytes(usage.arrayBuffers)}`
-  }
-
-  /**
-   * 格式化字节数
-   */
-  private formatBytes(bytes: number): string {
-    const units = ['B', 'KB', 'MB', 'GB']
-    let size = bytes
-    let unitIndex = 0
-
-    while (size >= 1024 && unitIndex < units.length - 1) {
-      size /= 1024
-      unitIndex++
-    }
-
-    return `${size.toFixed(1)} ${units[unitIndex]}`
+- RSS: ${formatBytes(usage.rss)}
+- Heap Total: ${formatBytes(usage.heapTotal)}
+- Heap Used: ${formatBytes(usage.heapUsed)}
+- External: ${formatBytes(usage.external)}
+- Array Buffers: ${formatBytes(usage.arrayBuffers)}`
   }
 }
 
