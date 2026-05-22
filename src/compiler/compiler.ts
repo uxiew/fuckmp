@@ -6,13 +6,10 @@ import { SFCParser, ScriptParser, TemplateParser, StyleParser } from '@/parser/i
 import { ScriptTransformer, TemplateTransformer, StyleTransformer } from '@/transformer/index.js'
 import { ComponentGenerator, PageGenerator, ConfigGenerator } from '@/generator/index.js'
 import { ConfigManager } from './options.js'
-import { generateAppStyles } from './app-styles.js'
 import { createInitialTransformContext } from './transform-context.js'
 import { mergeScriptTransformContext } from './compiler-context-utils.js'
-import { buildRuntimeInjectionEntries, collectCompiledRuntimeRecord } from './compiler-runtime-utils.js'
+import { collectCompiledRuntimeRecord } from './compiler-runtime-utils.js'
 import {
-  buildCompiledFileList,
-  buildPageRoutesFromFiles,
   removeGeneratedOutputFiles,
   writeGeneratedOutputFiles
 } from './compiler-output-utils.js'
@@ -26,6 +23,7 @@ import {
   transformImportedStyleFiles,
   transformVueStyleBlocks
 } from './compiler-style-utils.js'
+import { refreshProjectOutputFiles } from './compiler-project-output-utils.js'
 import { PluginManager, createDefaultPluginManager } from '@/plugins/index.js'
 import { UserConfigManager } from '@/config/user-config.js'
 import { RuntimeInjector } from './runtime-injector'
@@ -206,17 +204,18 @@ export class Vue3MiniprogramCompiler {
   /** 刷新依赖全局编译状态的项目级输出文件。 */
   async refreshProjectOutputs(): Promise<void> {
     const options = this.configManager.getOptions()
-    const compiledFiles = buildCompiledFileList(this.compiledPages, this.compiledComponents)
 
-    await this.generateAppConfig(compiledFiles)
-    await generateAppStyles(options.output)
-    await this.performRuntimeInjection(options.output)
-    await this.configGenerator.generateProjectConfig(options.output)
-    await this.configGenerator.generateSitemapConfig(options.output)
-
-    if (this.configManager.getFeature('typescript')) {
-      await this.configGenerator.generateTSConfig(options.output)
-    }
+    await refreshProjectOutputFiles({
+      inputRoot: options.input,
+      outputRoot: options.output,
+      sourceFiles: this.sourceFiles,
+      appConfig: this.appConfig,
+      compiledPages: this.compiledPages,
+      compiledComponents: this.compiledComponents,
+      configGenerator: this.configGenerator,
+      runtimeInjector: this.runtimeInjector,
+      typescript: this.configManager.getFeature('typescript')
+    })
   }
 
   /** 从增量编译状态中移除源文件并清理对应输出。 */
@@ -319,49 +318,6 @@ export class Vue3MiniprogramCompiler {
         context
       )
     }
-  }
-
-  /**
-   * 执行运行时注入
-   */
-  private async performRuntimeInjection(outputDir: string): Promise<void> {
-    try {
-      logger.info('开始执行运行时注入...')
-
-      const inputRoot = this.configManager.getOptions().input
-      const pages = buildRuntimeInjectionEntries(this.compiledPages, inputRoot)
-      const components = buildRuntimeInjectionEntries(this.compiledComponents, inputRoot)
-
-      // 执行运行时注入
-      await this.runtimeInjector.injectRuntime(
-        this.sourceFiles,
-        outputDir,
-        this.appConfig,
-        pages,
-        components
-      )
-
-      logger.success('运行时注入完成')
-    } catch (error) {
-      logger.error('运行时注入失败:', error as Error)
-      // 不抛出错误，让编译继续进行
-    }
-  }
-
-  /**
-   * 生成应用配置
-   */
-  private async generateAppConfig(successFiles: string[]): Promise<void> {
-    const options = this.configManager.getOptions()
-
-    logger.debug(`生成应用配置，成功文件: ${successFiles.length} 个`)
-
-    const pages = buildPageRoutesFromFiles(successFiles, options.input)
-    logger.debug(`页面文件: ${pages.length} 个`, pages)
-
-    logger.debug(`最终页面路径:`, pages)
-
-    await this.configGenerator.generateAppConfig(pages, options.output)
   }
 
   /**
