@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { getProjectTemplate } from '@/cli/commands/create-templates.js'
+import { createBasicTemplateFiles } from '@/cli/commands/create-basic-template-files.js'
+import { createAdvancedTemplateFiles, createEcommerceTemplateFiles } from '@/cli/commands/create-business-template-files.js'
 
 describe('create templates', () => {
   it('生成 TypeScript + SCSS 基础模板', () => {
@@ -34,5 +36,30 @@ describe('create templates', () => {
   it('未知模板名抛出明确错误', () => {
     expect(() => getProjectTemplate('unknown', { typescript: false, scss: false }))
       .toThrow('未知的模板: unknown')
+  })
+
+  it('基础模板文件生成器按特性切换脚本和样式扩展', () => {
+    const files = createBasicTemplateFiles({ typescript: false, scss: true })
+
+    expect(files).not.toHaveProperty('tsconfig.json')
+    expect(files['src/pages/index/index.vue']).toContain('<script setup lang="js">')
+    expect(files['src/pages/index/index.vue']).toContain('<style lang="scss" scoped>')
+    expect(files['package.json']).toContain('"sass": "^1.69.0"')
+  })
+
+  it('业务模板文件生成器只追加对应业务文件', () => {
+    const advancedFiles = createAdvancedTemplateFiles()
+    const ecommerceFiles = createEcommerceTemplateFiles()
+
+    expect(Object.keys(advancedFiles).sort()).toEqual([
+      'src/pages/profile/index.vue',
+      'src/store/index.ts',
+      'src/utils/request.ts'
+    ])
+    expect(Object.keys(ecommerceFiles).sort()).toEqual([
+      'src/components/ProductCard.vue',
+      'src/pages/cart/index.vue',
+      'src/pages/products/index.vue'
+    ])
   })
 })
