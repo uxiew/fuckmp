@@ -79,6 +79,127 @@ export function filterInvalidOptions(options: any): any {
 }
 
 /**
+ * 过滤 data 初始化阶段不能安全写入的字段。
+ */
+export function filterDataInitializationFields(data: any): any {
+  const filteredData: any = {}
+
+  Object.entries(data).forEach(([key, value]) => {
+    const valueStr = String(value)
+
+    if (
+      valueStr.includes('defineProps') ||
+      valueStr.includes('defineEmits') ||
+      valueStr.includes('withDefaults') ||
+      key === 'props' ||
+      key === 'emit'
+    ) {
+      return
+    }
+
+    if (
+      ['attached', 'onReady', 'onShow', 'onHide', 'onUnload'].includes(key) &&
+      typeof value === 'string' &&
+      value.includes('无效的回调函数')
+    ) {
+      return
+    }
+
+    if (typeof value === 'string' && value.includes('this.')) {
+      return
+    }
+
+    if (['now', 'lastActive'].includes(key)) {
+      return
+    }
+
+    filteredData[key] = value
+  })
+
+  return filteredData
+}
+
+/**
+ * 将编译出的 computed getter 转成小程序可调用方法。
+ */
+export function createComputedOptions(computed: any): any {
+  if (!computed || Object.keys(computed).length === 0) {
+    return {}
+  }
+
+  const result: any = {}
+  Object.entries(computed).forEach(([name, comp]: [string, any]) => {
+    if (comp && comp.getter) {
+      result[`get${name.charAt(0).toUpperCase() + name.slice(1)}`] = comp.getter
+    }
+  })
+  return result
+}
+
+/**
+ * 将编译出的 watcher 转成小程序 observers 选项。
+ */
+export function createWatcherOptions(watchers: any): any {
+  if (!watchers || Object.keys(watchers).length === 0) {
+    return {}
+  }
+
+  return {
+    observers: watchers
+  }
+}
+
+/**
+ * 将已映射的小程序生命周期 handler 转成页面/组件 options。
+ */
+export function createLifecycleOptions(lifecycle: any): any {
+  if (!lifecycle || Object.keys(lifecycle).length === 0) {
+    return {}
+  }
+
+  const result: any = {}
+
+  Object.entries(lifecycle).forEach(([hookName, handler]: [string, any]) => {
+    if (!handler || typeof handler !== 'string' || !handler.trim()) {
+      return
+    }
+
+    if (hookName === 'onLoad') {
+      result[hookName] = `function(options) {\n    ${handler.trim()}\n  }`
+    } else if (hookName.startsWith('pageLifetimes.')) {
+      const pageLifetimeName = hookName.replace('pageLifetimes.', '')
+      result.pageLifetimes ??= {}
+      result.pageLifetimes[pageLifetimeName] = `function() {\n    ${handler.trim()}\n  }`
+    } else if (['created', 'attached', 'detached', 'moved'].includes(hookName)) {
+      result.lifetimes ??= {}
+      result.lifetimes[hookName] = `function() {\n    ${handler.trim()}\n  }`
+    } else {
+      result[hookName] = `function() {\n    ${handler.trim()}\n  }`
+    }
+  })
+
+  return result
+}
+
+/**
+ * 将 Vue props 定义转成小程序 Component.properties。
+ */
+export function createPropertyOptions(props: any): any {
+  if (!props || Object.keys(props).length === 0) {
+    return {}
+  }
+
+  const result: any = {}
+  Object.entries(props).forEach(([name, prop]: [string, any]) => {
+    result[name] = {
+      type: mapVueTypeToMiniProgram(prop.type),
+      value: prop.default
+    }
+  })
+  return result
+}
+
+/**
  * 将类型名规整为小程序类型构造函数名。
  */
 function mapTypeName(typeName: string): string {
