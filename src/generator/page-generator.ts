@@ -5,7 +5,15 @@
 import type { TransformContext, GenerateResult, CompilerOptions } from '@/types/index.js'
 import type { ScriptTransformResult, TemplateTransformResult, StyleTransformResult } from '@/transformer/index.js'
 import { generateDefineExposeDegradeComment, generateDefineOptionsDegradeComment, generateDefineSlotsDegradeComment, generateProvideInjectDegradeComment, generateUseIdNativeComment, generateUseTemplateRefDegradeComment, generateUnsupportedTemplateDegradeComment, generateWatcherDegradeComment, logger } from '@/utils/index.js'
-import { generatePageWXSS } from './page-generator-utils.js'
+import {
+  generatePageComputedMethods,
+  generatePageComputedUpdate,
+  generatePageLifecycleCode,
+  generatePageMethodsCode,
+  generatePageReactivitySetup,
+  generatePageTemplateEventHandlers,
+  generatePageWXSS
+} from './page-generator-utils.js'
 import { addScopeAttributes, generateScopeId, generateUsingComponents, removeCtxPrefixes } from './shared-generator-utils.js'
 
 /**
@@ -67,28 +75,28 @@ export class PageGenerator {
     }
 
     // 页面生命周期函数
-    const lifecycleCode = this.generateLifecycle(lifecycle)
+    const lifecycleCode = generatePageLifecycleCode(lifecycle)
     if (lifecycleCode) {
       parts.push(`  // 页面生命周期函数
 ${lifecycleCode}`)
     }
 
     // 页面方法
-    const methodsCode = this.generateMethods(methods)
+    const methodsCode = generatePageMethodsCode(methods)
     if (methodsCode) {
       parts.push(`  // 页面方法
 ${methodsCode}`)
     }
 
     // 模板生成的必要事件处理器
-    const templateEventHandlers = this.generateTemplateEventHandlers(templateResult)
+    const templateEventHandlers = generatePageTemplateEventHandlers(templateResult)
     if (templateEventHandlers) {
       parts.push(`  // 模板事件处理器
 ${templateEventHandlers}`)
     }
 
     // 计算属性方法
-    const computedMethods = this.generateComputedMethods(computed)
+    const computedMethods = generatePageComputedMethods(computed)
     if (computedMethods) {
       parts.push(`  // 计算属性方法
 ${computedMethods}`)
@@ -103,16 +111,21 @@ ${eventHandlers}`)
       }
     }
 
+    const reactivitySetup = generatePageReactivitySetup({
+      hasComputed: Object.keys(computed).length > 0,
+      includeLoadingState: !this.options.pureMode && this.options.page.loadingState
+    })
+
     // 响应式系统设置（始终生成，支撑程序运行）
     parts.push(`  // 响应式系统设置
   _setupReactivity() {
-${this.generateReactivitySetup(context)}
+${reactivitySetup}
   }`)
 
     // 更新计算属性（始终生成，支撑程序运行）
     parts.push(`  // 更新计算属性
   _updateComputed() {
-${this.generateComputedUpdate(computed)}
+${generatePageComputedUpdate(computed)}
   }`)
 
     // 页面分享（仅在配置启用时生成）
@@ -216,166 +229,6 @@ ${parts.join(',\n\n')}
     })
   }
 
-  /**
-   * 生成生命周期函数
-   */
-  private generateLifecycle(lifecycle: Record<string, string>): string {
-    const pageLifecycles = ['onLoad', 'onShow', 'onReady', 'onHide', 'onUnload', 'onPullDownRefresh', 'onReachBottom']
-    const entries: string[] = []
-
-    pageLifecycles.forEach(lifecycleName => {
-      const code = lifecycle[lifecycleName]
-      if (code && code.trim()) {
-        const params = lifecycleName === 'onLoad' ? 'options' : ''
-        const setupCall = lifecycleName === 'onLoad' ? 'this._setupReactivity()' : ''
-        entries.push(`  ${lifecycleName}(${params}) {
-    ${setupCall}
-    ${code.trim()}
-  }`)
-      } else if (lifecycleName === 'onLoad') {
-        // 确保 onLoad 存在，响应式设置是必需的
-        entries.push(`  onLoad(options) {
-    this._setupReactivity()
-    // 页面加载完成
-  }`)
-      }
-    })
-
-    return entries.join(',\n\n')
-  }
-
-  /**
-   * 生成方法
-   */
-  private generateMethods(methods: Record<string, any>): string {
-    const entries = Object.entries(methods).map(([name, method]) => {
-      if (typeof method === 'function') {
-        const funcStr = method.toString()
-        return `  ${name}${funcStr.substring(funcStr.indexOf('('))}`
-      } else if (method && typeof method === 'object' && method.body) {
-        // 如果是包含函数体的对象
-        const body = method.body.trim()
-
-        // 处理箭头函数
-        if (body.includes('=>')) {
-          // 匹配箭头函数的参数和函数体
-          const arrowMatch = body.match(/^\((.*?)\)\s*=>\s*(.*)$/s)
-          if (arrowMatch) {
-            const params = arrowMatch[1]
-            let functionBody = arrowMatch[2].trim()
-
-            if (functionBody.startsWith('{') && functionBody.endsWith('}')) {
-              // 块语句，移除外层大括号
-              functionBody = functionBody.slice(1, -1).trim()
-              return `  ${name}(${params}) {
-    ${functionBody}
-  }`
-            } else {
-              // 表达式，添加return
-              return `  ${name}(${params}) {
-    return ${functionBody}
-  }`
-            }
-          }
-        }
-
-        // 处理普通函数
-        if (body.includes('function')) {
-          const funcMatch = body.match(/function\s*\((.*?)\)\s*(.+)/)
-          if (funcMatch) {
-            const params = funcMatch[1]
-            const functionBody = funcMatch[2]
-            return `  ${name}(${params}) ${functionBody}`
-          }
-        }
-
-        // 如果解析失败，使用原始body
-        return `  ${name}() {
-    ${body}
-  }`
-      } else if (typeof method === 'string') {
-        // 如果method直接是字符串（函数体）
-        const body = method.trim()
-
-        if (body.includes('=>')) {
-          // 处理字符串形式的箭头函数
-          const arrowMatch = body.match(/^\((.*?)\)\s*=>\s*(.*)$/s)
-          if (arrowMatch) {
-            const params = arrowMatch[1]
-            let functionBody = arrowMatch[2]?.trim() || ''
-
-            if (functionBody.startsWith('{') && functionBody.endsWith('}')) {
-              functionBody = functionBody.slice(1, -1).trim()
-              return `  ${name}(${params}) {
-    ${functionBody}
-  }`
-            } else {
-              return `  ${name}(${params}) {
-    return ${functionBody}
-  }`
-            }
-          }
-        }
-
-        return `  ${name}() {
-    ${body}
-  }`
-      } else {
-        return `  ${name}() {
-    // 方法实现
-  }`
-      }
-    })
-
-    // 如果没有方法，返回空字符串
-    if (entries.length === 0) {
-      return ''
-    }
-
-    return entries.join(',\n\n')
-  }
-
-
-
-  /**
-   * 生成计算属性方法
-   */
-  private generateComputedMethods(computed: Record<string, any>): string {
-    const entries = Object.entries(computed).map(([name, config]) => {
-      return `  _computed_${name}() {
-    ${config.getter || 'return null'}
-  }`
-    })
-
-    // 如果没有计算属性，返回空字符串
-    if (entries.length === 0) {
-      return ''
-    }
-
-    return entries.join(',\n\n')
-  }
-
-
-  /**
-   * 生成模板必须的事件处理器。
-   */
-  private generateTemplateEventHandlers(templateResult: TemplateTransformResult): string {
-    const handlers: string[] = []
-
-    templateResult.eventHandlers.forEach((handlerCode, handlerName) => {
-      if (handlerName.startsWith('_handleUpdate_')) {
-        const fieldName = handlerName.replace('_handleUpdate_', '')
-        handlers.push(`  ${handlerName}(event) {
-    this.setData({
-      ${fieldName}: event.detail
-    })
-    this._updateComputed()
-  }`)
-      }
-    })
-
-    return handlers.join(',\n\n')
-  }
 
   /**
    * 生成事件处理器
@@ -446,44 +299,6 @@ ${parts.join(',\n\n')}
   }
 
 
-  /**
-   * 生成响应式设置
-   */
-  private generateReactivitySetup(context: TransformContext): string {
-    const setup: string[] = []
-
-    if (Object.keys(context.computed).length > 0) {
-      setup.push('    this._updateComputed()')
-    }
-
-    // 初始化加载状态（仅在配置启用时）
-    if (!this.options.pureMode && this.options.page.loadingState) {
-      setup.push(`    // 初始化页面状态
-    this.setData({
-      loading: false,
-      hasMore: true
-    })`)
-    }
-
-    return setup.join('\n')
-  }
-
-  /**
-   * 生成计算属性更新
-   */
-  private generateComputedUpdate(computed: Record<string, any>): string {
-    const computedKeys = Object.keys(computed)
-
-    if (computedKeys.length === 0) {
-      return '    // 没有计算属性需要更新'
-    }
-
-    const updates = computedKeys.map(key => `      ${key}: this._computed_${key}()`)
-
-    return `    this.setData({
-${updates.join(',\n')}
-    })`
-  }
 
   /**
    * 获取页面标题
