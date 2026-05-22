@@ -10,7 +10,7 @@ import { generateAppStyles } from './app-styles.js'
 import { createInitialTransformContext } from './transform-context.js'
 import { applyUserConfigToJson } from './compiler-config-utils.js'
 import { mergeScriptTransformContext } from './compiler-context-utils.js'
-import { buildRuntimeInjectionEntries } from './compiler-runtime-utils.js'
+import { buildRuntimeInjectionEntries, collectCompiledRuntimeRecord } from './compiler-runtime-utils.js'
 import { removeGeneratedOutputFiles } from './compiler-output-utils.js'
 import {
   createCompileError,
@@ -126,30 +126,15 @@ export class Vue3MiniprogramCompiler {
       // 生成代码
       const generateResult = await this.generateCode(results, context)
 
-      // 收集页面、组件和应用配置用于运行时注入
-      this.compiledPages.delete(filePath)
-      this.compiledComponents.delete(filePath)
-
-      if (isAppComponent(filePath)) {
-        // 应用入口文件
-        this.appConfig = {
-          config: generateResult.json,
-          context: context,
-          template: results.template
-        }
-      } else if (context.isPage) {
-        this.compiledPages.set(filePath, {
-          config: generateResult.json,
-          context: context,
-          template: results.template
-        })
-      } else {
-        this.compiledComponents.set(filePath, {
-          config: generateResult.json,
-          context: context,
-          template: results.template
-        })
-      }
+      this.appConfig = collectCompiledRuntimeRecord({
+        filePath,
+        context,
+        generateResult,
+        template: results.template,
+        currentAppConfig: this.appConfig,
+        compiledPages: this.compiledPages,
+        compiledComponents: this.compiledComponents
+      })
 
       // 写入文件（应用入口文件由运行时注入器处理）
       if (!isAppComponent(filePath)) {

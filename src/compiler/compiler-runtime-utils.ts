@@ -3,7 +3,7 @@
  */
 import type { TransformContext } from '@/types/index.js'
 import type { TemplateTransformResult } from '@/transformer/index.js'
-import { getRelativePath } from '@/utils/index.js'
+import { getRelativePath, isAppComponent } from '@/utils/index.js'
 
 /**
  * 编译过程中为运行时注入保留的单文件数据。
@@ -12,6 +12,48 @@ export interface CompiledRuntimeRecord {
   config: any
   context: TransformContext
   template?: TemplateTransformResult
+}
+
+/**
+ * 编译记录收集参数。
+ */
+export interface CollectCompiledRuntimeRecordOptions {
+  /** 当前编译文件路径。 */
+  filePath: string
+  /** 当前转换上下文。 */
+  context: TransformContext
+  /** 生成结果，至少包含 JSON 配置。 */
+  generateResult: { json: any }
+  /** 模板转换结果。 */
+  template?: TemplateTransformResult
+  /** 当前 app 配置记录。 */
+  currentAppConfig: any
+  /** 页面编译记录集合。 */
+  compiledPages: Map<string, CompiledRuntimeRecord>
+  /** 组件编译记录集合。 */
+  compiledComponents: Map<string, CompiledRuntimeRecord>
+}
+
+/**
+ * 将单文件编译结果收集到运行时注入所需的 app/page/component 状态中。
+ */
+export function collectCompiledRuntimeRecord(options: CollectCompiledRuntimeRecordOptions): any {
+  const record = createCompiledRuntimeRecord(options.generateResult, options.context, options.template)
+
+  options.compiledPages.delete(options.filePath)
+  options.compiledComponents.delete(options.filePath)
+
+  if (isAppComponent(options.filePath)) {
+    return record
+  }
+
+  if (options.context.isPage) {
+    options.compiledPages.set(options.filePath, record)
+    return options.currentAppConfig
+  }
+
+  options.compiledComponents.set(options.filePath, record)
+  return options.currentAppConfig
 }
 
 /**
@@ -36,4 +78,24 @@ export function buildRuntimeInjectionEntries(
   }
 
   return entries
+}
+
+/**
+ * 创建单文件运行时编译记录，避免可选字段写入 undefined。
+ */
+function createCompiledRuntimeRecord(
+  generateResult: { json: any },
+  context: TransformContext,
+  template?: TemplateTransformResult
+): CompiledRuntimeRecord {
+  const record: CompiledRuntimeRecord = {
+    config: generateResult.json,
+    context
+  }
+
+  if (template) {
+    record.template = template
+  }
+
+  return record
 }
