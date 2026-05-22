@@ -23,18 +23,14 @@ import {
   createMissingInputResult
 } from './compiler-result-utils.js'
 import {
-  createImportedStyleParseOptions,
-  createImportedStyleTransformOptions,
-  createVueStyleParseOptions,
-  createVueStyleTransformOptions,
-  inferStyleLanguage
+  transformImportedStyleFiles,
+  transformVueStyleBlocks
 } from './compiler-style-utils.js'
 import { PluginManager, createDefaultPluginManager } from '@/plugins/index.js'
 import { UserConfigManager } from '@/config/user-config.js'
 import { RuntimeInjector } from './runtime-injector'
 import type { CompilerOptions, CompileResult, ParseResult, TransformContext } from '@/types/index.js'
 import { logger, scanVueFiles, isAppComponent, ensureDir, PathResolver, createPathResolver, readFile, isDirectory } from '@/utils/index.js'
-import path from 'path'
 
 /**
  * 主编译器类
@@ -297,66 +293,19 @@ export class Vue3MiniprogramCompiler {
     // 解析和转换样式
     results.styles = []
 
-    // 处理 Vue 文件中的样式
-    if (parseResult.styles.length > 0) {
-      for (const style of parseResult.styles) {
-        const styleParseResult = await this.styleParser.parseStyle(
-          style.content,
-          style.lang,
-          context.filename,
-          createVueStyleParseOptions(
-            style,
-            context.filename,
-            this.configManager.getOptimization('sourcemap')
-          )
-        )
-        const styleTransformResult = await this.styleTransformer.transformStyle(
-          styleParseResult,
-          context,
-          createVueStyleTransformOptions(
-            style,
-            this.configManager.getOptimization('minify')
-          )
-        )
-        results.styles.push(styleTransformResult)
-      }
+    const styleDependencies = {
+      styleParser: this.styleParser,
+      styleTransformer: this.styleTransformer
+    }
+    const styleOptions = {
+      minify: this.configManager.getOptimization('minify'),
+      sourcemap: this.configManager.getOptimization('sourcemap')
     }
 
-    // 处理从 JavaScript 导入的样式文件
-    if (context.styleImports && context.styleImports.length > 0) {
-      for (const styleImportPath of context.styleImports) {
-        try {
-          // 解析样式文件路径
-          const resolvedStylePath = path.resolve(path.dirname(context.filename), styleImportPath)
-
-          // 读取样式文件内容
-          const styleContent = await readFile(resolvedStylePath)
-
-          const styleParseResult = await this.styleParser.parseStyle(
-            styleContent,
-            inferStyleLanguage(styleImportPath),
-            resolvedStylePath,
-            createImportedStyleParseOptions(
-              resolvedStylePath,
-              this.configManager.getOptimization('sourcemap')
-            )
-          )
-
-          const styleTransformResult = await this.styleTransformer.transformStyle(
-            styleParseResult,
-            context,
-            createImportedStyleTransformOptions(
-              this.configManager.getOptimization('minify'),
-              this.configManager.getOptimization('sourcemap')
-            )
-          )
-
-          results.styles.push(styleTransformResult)
-        } catch (error) {
-          logger.error(`处理导入的样式文件失败: ${styleImportPath}`, error as Error)
-        }
-      }
-    }
+    results.styles.push(
+      ...(await transformVueStyleBlocks(parseResult.styles, context, styleDependencies, styleOptions)),
+      ...(await transformImportedStyleFiles(context.styleImports, context, styleDependencies, styleOptions))
+    )
 
     return results
   }
