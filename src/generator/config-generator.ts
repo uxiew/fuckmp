@@ -9,7 +9,7 @@
  * 5. 移除了硬编码的组件样式隔离设置
  * 6. 移除了硬编码的 TabBar 页面识别关键词
  *
- * 现在所有配置都通过用户配置系统 (vue3mp.config.json) 管理：
+ * 现在所有配置都通过用户配置系统 (vue3mp 配置文件) 管理：
  * - 图标路径: app.tabBar.defaultIcons.{iconPath, selectedIconPath}
  * - TabBar 样式: app.tabBar.{color, selectedColor, backgroundColor, borderStyle}
  * - 项目信息: project.{description, projectname}
@@ -468,7 +468,7 @@ export class ConfigGenerator {
    * 获取页面标题
    *
    * 修复说明：移除硬编码的页面标题映射，改为使用用户配置系统
-   * 这样用户可以通过 vue3mp.config.json 中的 pageTitles 字段自定义页面标题
+   * 这样用户可以通过 vue3mp 配置文件中的 pageTitles 字段自定义页面标题
    */
   private getPageTitle(pagePath: string): string {
     const pageName = pagePath.split('/').pop() || 'Page'

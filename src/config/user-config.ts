@@ -3,7 +3,9 @@
  */
 
 import { readFileSync, existsSync } from 'fs'
-import { resolve } from 'path'
+import { createRequire } from 'module'
+import { resolve, dirname } from 'path'
+import { Script, createContext } from 'vm'
 import { logger } from '@/utils/index.js'
 
 /**
@@ -211,6 +213,9 @@ export class UserConfigManager {
    * 加载用户配置
    */
   loadConfig(projectRoot: string): UserConfig {
+    this.config = {}
+    this.configPath = ''
+
     // 查找配置文件
     const configFiles = [
       'vue3mp.config.js',
@@ -224,10 +229,13 @@ export class UserConfigManager {
     for (const configFile of configFiles) {
       const configPath = resolve(projectRoot, configFile)
       if (existsSync(configPath)) {
-        this.configPath = configPath
-        this.config = this.loadConfigFile(configPath)
-        logger.info(`加载用户配置: ${configFile}`)
-        break
+        const loadedConfig = this.loadConfigFile(configPath)
+        if (loadedConfig) {
+          this.configPath = configPath
+          this.config = loadedConfig
+          logger.info(`加载用户配置: ${configFile}`)
+          break
+        }
       }
     }
 
@@ -292,22 +300,73 @@ export class UserConfigManager {
   /**
    * 加载配置文件
    */
-  private loadConfigFile(configPath: string): UserConfig {
+  private loadConfigFile(configPath: string): UserConfig | null {
     try {
       if (configPath.endsWith('.json')) {
-        // JSON 配置文件
         const content = readFileSync(configPath, 'utf-8')
         return JSON.parse(content)
-      } else {
-        // JavaScript/TypeScript 配置文件
-        // 注意：这里需要动态导入，在实际项目中可能需要使用 eval 或其他方式
-        logger.warn('JavaScript/TypeScript 配置文件暂不支持，请使用 JSON 格式')
-        return {}
       }
+
+      if (configPath.endsWith('.js')) {
+        return this.loadJavaScriptConfigFile(configPath)
+      }
+
+      logger.warn(`TypeScript 配置文件暂不支持，已跳过: ${configPath}`)
+      return null
     } catch (error) {
       logger.error(`加载配置文件失败: ${configPath}`, error as Error)
       return {}
     }
+  }
+
+  /**
+   * 同步加载 JavaScript 用户配置。
+   */
+  private loadJavaScriptConfigFile(configPath: string): UserConfig {
+    const content = readFileSync(configPath, 'utf-8')
+    const moduleObject: { exports: unknown } = { exports: {} }
+    const sandbox = {
+      module: moduleObject,
+      exports: moduleObject.exports,
+      require: createRequire(configPath),
+      __dirname: dirname(configPath),
+      __filename: configPath,
+      process,
+      console,
+      defineConfig: <T>(config: T): T => config
+    }
+    const script = new Script(this.normalizeJavaScriptConfigSource(content), {
+      filename: configPath
+    })
+
+    script.runInContext(createContext(sandbox), { timeout: 1000 })
+
+    return this.normalizeConfigExport(moduleObject.exports)
+  }
+
+  /**
+   * 兼容简单的 ESM default export 写法。
+   */
+  private normalizeJavaScriptConfigSource(content: string): string {
+    return content.replace(/^\s*export\s+default\s+/m, 'module.exports = ')
+  }
+
+  /**
+   * 归一化 CommonJS / default export 配置对象。
+   */
+  private normalizeConfigExport(exported: unknown): UserConfig {
+    const defaultExport = (
+      exported && typeof exported === 'object' && 'default' in exported
+        ? (exported as { default?: unknown }).default
+        : undefined
+    )
+    const config = defaultExport ?? exported
+
+    if (!config || typeof config !== 'object' || Array.isArray(config)) {
+      return {}
+    }
+
+    return config as UserConfig
   }
 
   /**
