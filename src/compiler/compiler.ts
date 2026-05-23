@@ -7,7 +7,6 @@ import { ScriptTransformer, TemplateTransformer, StyleTransformer } from '@/tran
 import { ComponentGenerator, PageGenerator, ConfigGenerator } from '@/generator/index.js'
 import { ConfigManager } from './options.js'
 import { createInitialTransformContext } from './transform-context.js'
-import { mergeScriptTransformContext } from './compiler-context-utils.js'
 import { collectCompiledRuntimeRecord } from './compiler-runtime-utils.js'
 import {
   removeGeneratedOutputFiles,
@@ -19,10 +18,7 @@ import {
   createMissingInputMessage,
   createMissingInputResult
 } from './compiler-result-utils.js'
-import {
-  transformImportedStyleFiles,
-  transformVueStyleBlocks
-} from './compiler-style-utils.js'
+import { parseAndTransformSfcSections } from './compiler-transform-pipeline.js'
 import { refreshProjectOutputFiles } from './compiler-project-output-utils.js'
 import { PluginManager, createDefaultPluginManager } from '@/plugins/index.js'
 import { UserConfigManager } from '@/config/user-config.js'
@@ -243,60 +239,22 @@ export class Vue3MiniprogramCompiler {
    * 解析和转换
    */
   private async parseAndTransform(parseResult: ParseResult, context: TransformContext) {
-    const results: any = {}
-
-    // 解析和转换脚本
-    if (parseResult.script) {
-      const scriptParseResult = await this.scriptParser.parseScript(
-        parseResult.script.content,
-        context.filename
-      )
-      results.script = await this.scriptTransformer.transformScript(
-        scriptParseResult,
-        context.filename,
-        context.isPage
-      )
-
-      // 将脚本转换结果中的上下文合并到主上下文中
-      if (results.script.context) {
-        mergeScriptTransformContext(context, results.script.context)
+    return parseAndTransformSfcSections(
+      parseResult,
+      context,
+      {
+        scriptParser: this.scriptParser,
+        scriptTransformer: this.scriptTransformer,
+        templateParser: this.templateParser,
+        templateTransformer: this.templateTransformer,
+        styleParser: this.styleParser,
+        styleTransformer: this.styleTransformer
+      },
+      {
+        minify: this.configManager.getOptimization('minify'),
+        sourcemap: this.configManager.getOptimization('sourcemap')
       }
-    }
-
-    // 解析和转换模板
-    if (parseResult.template) {
-      const templateParseResult = await this.templateParser.parseTemplate(
-        parseResult.template.content,
-        context.filename
-      )
-      results.template = await this.templateTransformer.transformTemplate(
-        templateParseResult,
-        context
-      )
-
-      if (results.script?.context && context.templateUnsupported) {
-        results.script.context.templateUnsupported = context.templateUnsupported
-      }
-    }
-
-    // 解析和转换样式
-    results.styles = []
-
-    const styleDependencies = {
-      styleParser: this.styleParser,
-      styleTransformer: this.styleTransformer
-    }
-    const styleOptions = {
-      minify: this.configManager.getOptimization('minify'),
-      sourcemap: this.configManager.getOptimization('sourcemap')
-    }
-
-    results.styles.push(
-      ...(await transformVueStyleBlocks(parseResult.styles, context, styleDependencies, styleOptions)),
-      ...(await transformImportedStyleFiles(context.styleImports, context, styleDependencies, styleOptions))
     )
-
-    return results
   }
 
   /**
