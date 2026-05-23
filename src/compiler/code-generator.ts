@@ -5,23 +5,12 @@
 
 import type { Vue3FeatureUsage, RuntimeInjectionConfig } from './runtime-injector'
 import type { BundleResult } from './runtime-bundler'
-import { ObjectLiteralSerializer } from './codegen/object-serializer'
 import { RuntimeInjectionGenerator } from './codegen/runtime-injection-generator'
 import {
-  createComputedOptions,
-  createLifecycleOptions,
-  createPropertyOptions,
-  createWatcherOptions,
-  filterDataInitializationFields,
-  filterInvalidOptions,
   generateCodeFileHeader,
   getRelativeRuntimePath
 } from './codegen/code-generator-utils'
-import {
-  generateComponentTemplateHandlers,
-  generateComputedRuntimeMethods,
-  generatePageTemplateHandlers
-} from './codegen/native-template-handler-generator'
+import { MiniProgramOptionsGenerator } from './codegen/mini-program-options-generator'
 import { logger } from '@/utils/logger'
 
 /**
@@ -58,8 +47,8 @@ export interface GeneratedFile {
 export class CodeGenerator {
   private config: RuntimeInjectionConfig
   private options: CodeGenerationOptions
-  private serializer = new ObjectLiteralSerializer()
   private runtimeInjectionGenerator: RuntimeInjectionGenerator
+  private optionsGenerator = new MiniProgramOptionsGenerator()
 
   constructor(config: RuntimeInjectionConfig, options: Partial<CodeGenerationOptions> = {}) {
     this.config = config
@@ -100,7 +89,7 @@ export class CodeGenerator {
   generateAppCode(appData: any): GeneratedFile {
     // 提取应用上下文（如果存在）
     const context = appData?.context
-    const appOptions = context ? this.generateAppOptions(context) : '{}'
+    const appOptions = context ? this.optionsGenerator.generateAppOptions(context) : '{}'
 
     const content = `${generateCodeFileHeader(this.config, this.options)}
 
@@ -163,7 +152,7 @@ App({
     const config = pageData.context ? null : pageData // 如果没有context，说明pageData就是配置
 
     // 生成页面选项对象
-    const pageOptions = this.generatePageOptions(context, config, templateResult)
+    const pageOptions = this.optionsGenerator.generatePageOptions(context, config, templateResult)
 
     const content = `${generateCodeFileHeader(this.config, this.options)}
 
@@ -194,7 +183,7 @@ Page(createPage(pageOptions));
     const templateResult = componentData.template
 
     // 生成组件选项对象（不传递配置）
-    const componentOptions = this.generateComponentOptions(context, null, templateResult)
+    const componentOptions = this.optionsGenerator.generateComponentOptions(context, null, templateResult)
 
     const content = `${generateCodeFileHeader(this.config, this.options)}
 
@@ -214,155 +203,6 @@ Component(createComponent(componentOptions));
       type: 'js',
       isRuntime: false
     }
-  }
-
-  /**
-   * 生成应用选项对象
-   */
-  private generateAppOptions(context: any): string {
-    if (!context) {
-      return '{}'
-    }
-
-    const options: any = {
-      // Vue 组件数据
-      data: this.generateDataFunction(context.data),
-
-      // Vue 组件方法
-      ...this.generateMethods(context.methods),
-
-      // Vue 计算属性
-      ...createComputedOptions(context.computed),
-
-      // Vue 监听器
-      ...createWatcherOptions(context.watch),
-
-      // Vue 生命周期
-      ...createLifecycleOptions(context.lifecycle)
-    }
-
-    // 过滤掉无效的属性
-    return this.serializer.stringifyWithFunctions(filterInvalidOptions(options))
-  }
-
-  /**
-   * 生成页面选项对象
-   */
-  private generatePageOptions(context: any, config: any, templateResult?: any): string {
-    const options: any = {}
-
-    // 如果有上下文，添加 Vue 相关选项
-    if (context) {
-      Object.assign(options, {
-        // Vue 组件数据
-        data: this.generateDataFunction(context.data),
-
-        // Vue 组件方法（页面方法直接放在根级别）
-        ...this.generateMethods(context.methods),
-
-        // 模板派生事件处理器
-        ...generatePageTemplateHandlers(templateResult),
-
-        // Vue 计算属性
-        ...generateComputedRuntimeMethods(context.computed),
-
-        // Vue 监听器
-        ...createWatcherOptions(context.watch),
-
-        // Vue 生命周期
-        ...createLifecycleOptions(context.lifecycle)
-      })
-
-      // 添加响应式变量信息（供运行时使用）
-      if (context.reactiveVariables && context.reactiveVariables.size > 0) {
-        const reactiveVarsArray = Array.from(context.reactiveVariables.values())
-        options._reactiveVariables = reactiveVarsArray
-      }
-    }
-
-    // 如果有配置，添加小程序配置选项
-    if (config) {
-      Object.assign(options, config)
-    }
-
-    // 如果既没有上下文也没有配置，返回空对象
-    if (!context && !config) {
-      return '{}'
-    }
-
-    // 过滤掉无效的属性
-    return this.serializer.stringifyWithFunctions(filterInvalidOptions(options))
-  }
-
-  /**
-   * 生成组件选项对象
-   */
-  private generateComponentOptions(context: any, config: any, templateResult?: any): string {
-    if (!context) {
-      // 如果没有上下文，返回空对象
-      return '{}'
-    }
-
-    const options: any = {
-      // Vue 组件数据
-      data: this.generateDataFunction(context.data),
-
-      // Vue 组件属性
-      properties: createPropertyOptions(context.props),
-
-      // Vue 组件方法
-      methods: {
-        ...this.generateMethods(context.methods),
-        ...generateComponentTemplateHandlers(templateResult, context.emits),
-        ...generateComputedRuntimeMethods(context.computed)
-      },
-
-      // Vue 监听器
-      ...createWatcherOptions(context.watch),
-
-      // Vue 生命周期
-      ...createLifecycleOptions(context.lifecycle)
-    }
-
-    // 添加响应式变量信息（供运行时使用）
-    if (context.reactiveVariables && context.reactiveVariables.size > 0) {
-      const reactiveVarsArray = Array.from(context.reactiveVariables.values())
-      options._reactiveVariables = reactiveVarsArray
-    }
-
-    return this.serializer.stringifyWithFunctions(options)
-  }
-
-  /**
-   * 生成数据函数
-   */
-  private generateDataFunction(data: any): any {
-    if (!data || Object.keys(data).length === 0) {
-      return function () { return {} }
-    }
-
-    // 创建一个包含实际数据的函数字符串，使用 stringifyObjectLiteral 生成正确的小程序格式
-    const dataStr = this.serializer.stringifyObjectLiteral(filterDataInitializationFields(data), 2)
-    return `${dataStr}`
-  }
-
-  /**
-   * 生成方法
-   */
-  private generateMethods(methods: any): any {
-    if (!methods || Object.keys(methods).length === 0) {
-      return {}
-    }
-
-    const result: any = {}
-    Object.entries(methods).forEach(([name, method]: [string, any]) => {
-      if (method && typeof method.body === 'string') {
-        // 检测并转换事件处理函数
-        const convertedBody = this.serializer.convertEventHandlerFunction(name, method.body)
-        result[name] = convertedBody
-      }
-    })
-    return result
   }
 
   /**
