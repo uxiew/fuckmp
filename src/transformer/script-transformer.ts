@@ -3,18 +3,8 @@
  */
 
 import {
-  createDefineExposeDegradeRecord,
-  createDefineOptionsDegradeRecord,
-  createDefineSlotsDegradeRecord,
   createPathResolver,
-  createProvideInjectDegradeRecord,
-  createUseIdNativeRecord,
-  createUseTemplateRefDegradeRecord,
-  createWatcherDegradeRecord,
-  generateUseIdComponentInitCode,
-  getUseIdEntries,
-  logger,
-  mergeUseTemplateRefDegradeRecord
+  logger
 } from '@/utils/index.js'
 import type { PathResolver } from '@/utils/index.js'
 import type { TransformContext, MacroHandler } from '@/types/index.js'
@@ -31,9 +21,18 @@ import { applyPropAccessMappingsToScript, hasPropAccessMappings, registerPropNam
 import { resolveTypeReferenceParameters } from './type-reference-resolver.js'
 import { createLiteralNodeFromValue, parseScriptInitValue } from './script-value-utils.js'
 import {
+  applyDefineExposeMacro,
+  applyDefineOptionsMacro,
+  applyDefineSlotsVariable,
+  applyInjectVariable,
+  applyProvideInjectMacro,
+  applyUseIdVariable,
+  applyUseTemplateRefVariable,
+  applyWatcherMacro
+} from './script-native-boundary-utils.js'
+import {
   applyDefineModelVariable,
   applyDefinePropsDestructureVariable,
-  appendLifecycleCode,
   createMethodFromFunctionInitializer,
   createScriptTransformContext,
   isFunctionInitializer,
@@ -155,19 +154,19 @@ export class ScriptTransformer {
 
     parseResult.macros.forEach((macroCalls, macroName) => {
       if (macroName === 'defineExpose') {
-        macroCalls.forEach(macroCall => this.processDefineExposeMacro(macroCall, context))
+        macroCalls.forEach(macroCall => applyDefineExposeMacro(macroCall, context))
         return
       }
       if (macroName === 'defineOptions') {
-        macroCalls.forEach(macroCall => this.processDefineOptionsMacro(macroCall, context))
+        macroCalls.forEach(macroCall => applyDefineOptionsMacro(macroCall, context))
         return
       }
       if (['watch', 'watchEffect', 'onWatcherCleanup'].includes(macroName)) {
-        macroCalls.forEach(macroCall => this.processWatcherMacro(macroCall, context))
+        macroCalls.forEach(macroCall => applyWatcherMacro(macroCall, context))
         return
       }
       if (['provide', 'inject'].includes(macroName)) {
-        macroCalls.forEach(macroCall => this.processProvideInjectMacro(macroCall, context))
+        macroCalls.forEach(macroCall => applyProvideInjectMacro(macroCall, context))
         return
       }
 
@@ -195,50 +194,6 @@ export class ScriptTransformer {
   }
 
   /**
-   * defineExpose 依赖 Vue public instance/template ref，原生小程序目标无法可靠等价映射。
-   */
-  private processDefineExposeMacro(macroCall: any, context: TransformContext): void {
-    const previousKeys = Array.isArray(context.expose?.keys) ? context.expose.keys : []
-    context.expose = createDefineExposeDegradeRecord(macroCall.arguments?.[0], previousKeys)
-
-    logger.warn(`defineExpose 已在原生小程序目标下降级: ${context.filename}`)
-  }
-
-  /**
-   * defineOptions 依赖 Vue component options 合并语义，原生目标暂不伪造等价支持。
-   */
-  private processDefineOptionsMacro(macroCall: any, context: TransformContext): void {
-    const previousKeys = Array.isArray(context.defineOptions?.keys) ? context.defineOptions.keys : []
-    context.defineOptions = createDefineOptionsDegradeRecord(macroCall.arguments?.[0], previousKeys)
-
-    logger.warn(`defineOptions 已在原生小程序目标下降级: ${context.filename}`)
-  }
-
-  /**
-   * watch/watchEffect/onWatcherCleanup 依赖 Vue watcher 调度与 cleanup 语义，原生目标暂不伪造等价支持。
-   */
-  private processWatcherMacro(macroCall: any, context: TransformContext): void {
-    const previousApis = Array.isArray(context.watcherEffects?.apis) ? context.watcherEffects.apis : []
-    context.watcherEffects = createWatcherDegradeRecord(macroCall.name, previousApis)
-
-    logger.warn(`${macroCall.name} 已在原生小程序目标下降级: ${context.filename}`)
-  }
-
-  /**
-   * provide/inject 依赖 Vue 实例树注入上下文，原生目标暂不伪造等价支持。
-   */
-  private processProvideInjectMacro(macroCall: any, context: TransformContext): void {
-    context.provideInject = createProvideInjectDegradeRecord(
-      macroCall.name,
-      String(macroCall.arguments?.[0] || ''),
-      '',
-      context.provideInject || {}
-    )
-
-    logger.warn(`${macroCall.name} 已在原生小程序目标下降级: ${context.filename}`)
-  }
-
-  /**
    * 处理变量声明
    */
   private processVariables(parseResult: ScriptParseResult, context: TransformContext): void {
@@ -258,13 +213,13 @@ export class ScriptTransformer {
       } else if (variable.macroType === 'definePropsDestructure') {
         applyDefinePropsDestructureVariable(variable, context)
       } else if (variable.macroType === 'defineSlots') {
-        this.processDefineSlotsVariable(variable, context)
+        applyDefineSlotsVariable(variable, context)
       } else if (variable.macroType === 'useTemplateRef') {
-        this.processUseTemplateRefVariable(variable, context)
+        applyUseTemplateRefVariable(variable, context)
       } else if (variable.macroType === 'useId') {
-        this.processUseIdVariable(variable, context)
+        applyUseIdVariable(variable, context)
       } else if (variable.macroType === 'inject') {
-        this.processInjectVariable(variable, context)
+        applyInjectVariable(variable, context)
       } else if (variable.isReactive) {
         // 响应式变量
         if (variable.macroType === 'computed') {
@@ -313,63 +268,6 @@ export class ScriptTransformer {
     const defaults = variable.init?.defaults || {}
 
     mergePropDefaults(defaults, context)
-  }
-
-  /**
-   * useTemplateRef 依赖 Vue template ref / DOM 或组件实例，原生小程序目标无法可靠等价映射。
-   */
-  private processUseTemplateRefVariable(variable: any, context: TransformContext): void {
-    const refInfo = variable.init || {}
-    const previousRefs = Array.isArray(context.templateRefs?.refs) ? context.templateRefs!.refs : []
-    const record = createUseTemplateRefDegradeRecord(refInfo.ref, refInfo.variable || variable.name, previousRefs)
-    context.templateRefs = mergeUseTemplateRefDegradeRecord(context.templateRefs, record)
-
-    logger.warn(`useTemplateRef 已在原生小程序目标下降级: ${context.filename}`)
-  }
-
-  /**
-   * 将 useId 编译为原生 data 中的稳定 id。
-   */
-  private processUseIdVariable(variable: any, context: TransformContext): void {
-    const variableName = variable.init?.variable || variable.name
-    const previousIds = getUseIdEntries(context.useIds || {})
-    context.useIds = createUseIdNativeRecord(context.filename, variableName, previousIds)
-
-    const entry = getUseIdEntries(context.useIds)
-      .find(item => item.variable === variableName)
-    if (!entry) {
-      return
-    }
-
-    context.data[variableName] = entry.baseId
-
-    if (!context.isPage) {
-      appendLifecycleCode(context, 'attached', generateUseIdComponentInitCode(entry))
-    }
-
-    logger.info(`useId 已编译为原生小程序稳定 id: ${context.filename}`)
-  }
-
-  /**
-   * inject 变量在原生目标下擦除，不落入 data。
-   */
-  private processInjectVariable(variable: any, context: TransformContext): void {
-    context.provideInject = createProvideInjectDegradeRecord(
-      'inject',
-      String(variable.init?.key || ''),
-      variable.init?.variable || variable.name,
-      context.provideInject || {}
-    )
-
-    logger.warn(`inject 已在原生小程序目标下降级: ${context.filename}`)
-  }
-
-  /**
-   * defineSlots 当前仅作为类型宏擦除，不生成 Vue slots 对象桥接。
-   */
-  private processDefineSlotsVariable(variable: any, context: TransformContext): void {
-    context.defineSlots = createDefineSlotsDegradeRecord(variable.init?.variable || variable.name)
-    logger.warn(`defineSlots 已在原生小程序目标下降级: ${context.filename}`)
   }
 
   /**
