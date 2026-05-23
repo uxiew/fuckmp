@@ -7,12 +7,16 @@ import { compileTemplate } from '@vue/compiler-sfc'
 import { recordUnsupportedTemplateCapabilities, logger } from '@/utils/index.js'
 import type { TransformContext } from '@/types/index.js'
 import type { TemplateParseResult } from '@/parser/index.js'
-import { applyPropAccessMappingsToTemplate } from './prop-access-mapping.js'
 import {
+  extractVueTemplateExpression,
+  isVueTemplateSelfClosingTag,
   mapVueTemplateEventName,
+  resolveVueTemplateForKeyExpression,
   transformVueTemplateClassBinding,
   transformVueTemplateEventHandler,
   transformVueTemplateFallbackString,
+  transformVueTemplateInterpolationNode,
+  transformVueTemplateTextNode,
   transformVueTemplateTagName,
   transformVueTemplateVModel
 } from './vue-template-node-utils.js'
@@ -93,9 +97,9 @@ export class VueTemplateTransformer {
       case 1: // ELEMENT
         return this.transformElementNode(node, result, context)
       case 2: // TEXT
-        return this.transformTextNode(node)
+        return transformVueTemplateTextNode(node)
       case 5: // INTERPOLATION (插值表达式)
-        return this.transformInterpolationNode(node, context)
+        return transformVueTemplateInterpolationNode(node, context)
       case 9: // IF
         return this.transformIfNode(node, result, context)
       case 11: // FOR
@@ -114,57 +118,6 @@ export class VueTemplateTransformer {
   }
 
   /**
-   * 转换文本节点
-   */
-  private transformTextNode(node: any): string {
-    return node.content || ''
-  }
-
-  /**
-   * 转换插值表达式节点
-   */
-  private transformInterpolationNode(node: any, context: TransformContext): string {
-    if (!node.content) return ''
-
-    // 处理简单表达式 (type: 4)
-    if (node.content.type === 4 && node.content.content) {
-      let expression = node.content.content
-      if (expression.startsWith('_ctx.')) {
-        expression = expression.substring(5) // 移除 '_ctx.' 前缀
-      }
-      expression = this.applyPropAliases(expression, context)
-      return `{{${expression}}}`
-    }
-
-    // 处理复合表达式 (type: 8)
-    if (node.content.type === 8) {
-      // 优先使用 loc.source，这是原始的表达式内容
-      if (node.content.loc && node.content.loc.source) {
-        return `{{${this.applyPropAliases(node.content.loc.source, context)}}}`
-      }
-
-      // 如果没有 loc.source，从子节点中提取表达式
-      if (node.content.children) {
-        const expressions = node.content.children
-          .filter((child: any) => child.type === 4)
-          .map((child: any) => child.content)
-          .join('')
-
-        if (expressions) {
-          return `{{${this.applyPropAliases(expressions, context)}}}`
-        }
-      }
-    }
-
-    // 如果有 loc.source，直接使用原始源码
-    if (node.content.loc && node.content.loc.source) {
-      return `{{${this.applyPropAliases(node.content.loc.source, context)}}}`
-    }
-
-    return ''
-  }
-
-  /**
    * 转换 v-if 节点
    */
   private transformIfNode(node: any, result: TemplateTransformResult, context: TransformContext): string {
@@ -174,7 +127,7 @@ export class VueTemplateTransformer {
     if (node.branches) {
       node.branches.forEach((branch: any, index: number) => {
         if (branch.condition) {
-          const condition = this.extractExpression(branch.condition, context)
+          const condition = extractVueTemplateExpression(branch.condition, context)
           if (index === 0) {
             // v-if
             output += `<view wx:if="{{${condition}}}">`
@@ -205,35 +158,10 @@ export class VueTemplateTransformer {
    * 转换 v-for 节点
    */
   private transformForNode(node: any, result: TemplateTransformResult, context: TransformContext): string {
-    const source = this.extractExpression(node.source, context)
+    const source = extractVueTemplateExpression(node.source, context)
     const valueAlias = node.valueAlias?.content || 'item'
     const keyAlias = node.keyAlias?.content || 'index'
-
-    // 查找原始元素的 :key 属性
-    let keyExpression = valueAlias // 默认使用 item 变量
-    if (node.children && node.children.length > 0) {
-      const firstChild = node.children[0]
-      if (firstChild && firstChild.props) {
-        const keyProp = firstChild.props.find((prop: any) =>
-          prop.type === 7 && prop.name === 'bind' && prop.arg?.content === 'key'
-        )
-        if (keyProp && keyProp.exp) {
-          const fullKeyExpression = this.extractExpression(keyProp.exp, context)
-          // 智能提取 key 属性名
-          // 如果是 item.id 形式，提取 id 部分
-          if (fullKeyExpression.includes('.')) {
-            const parts = fullKeyExpression.split('.')
-            if (parts.length === 2 && parts[0] === valueAlias) {
-              keyExpression = parts[1]
-            } else {
-              keyExpression = fullKeyExpression
-            }
-          } else {
-            keyExpression = fullKeyExpression
-          }
-        }
-      }
-    }
+    const keyExpression = resolveVueTemplateForKeyExpression(node, valueAlias, context)
 
     let output = `<view wx:for="{{${source}}}" wx:for-item="${valueAlias}" wx:for-index="${keyAlias}" wx:key="${keyExpression}">`
 
@@ -253,7 +181,7 @@ export class VueTemplateTransformer {
    */
   private transformElementNode(node: any, result: TemplateTransformResult, context: TransformContext): string {
     // 转换标签名
-    const tagName = this.transformTagName(node.tag)
+    const tagName = transformVueTemplateTagName(node.tag)
 
     // 转换属性
     const attributes = this.transformElementProps(node.props || [], result, context, node.tag)
@@ -264,21 +192,13 @@ export class VueTemplateTransformer {
       .join('')
 
     // 检查是否为自闭合标签
-    const selfClosingTags = ['input', 'image', 'icon', 'progress', 'slider', 'switch']
-    const isSelfClosing = selfClosingTags.includes(tagName) && !children.trim()
+    const isSelfClosing = isVueTemplateSelfClosingTag(tagName, children)
 
     if (isSelfClosing) {
       return `<${tagName}${attributes} />`
     } else {
       return `<${tagName}${attributes}>${children}</${tagName}>`
     }
-  }
-
-  /**
-   * 转换标签名
-   */
-  private transformTagName(tagName: string): string {
-    return transformVueTemplateTagName(tagName)
   }
 
   /**
@@ -302,7 +222,7 @@ export class VueTemplateTransformer {
         case 7: // DIRECTIVE (指令)
           // 特殊处理 :class 指令
           if (prop.name === 'bind' && prop.arg?.content === 'class') {
-            dynamicClass = this.extractExpression(prop.exp, context)
+            dynamicClass = extractVueTemplateExpression(prop.exp, context)
           } else {
             const transformed = this.transformDirective(prop, result, context, tagName)
             if (transformed) {
@@ -334,7 +254,7 @@ export class VueTemplateTransformer {
   private transformDirective(directive: any, result: TemplateTransformResult, context: TransformContext, tagName?: string): string | string[] | null {
     const name = directive.name
     const arg = directive.arg?.content
-    const exp = directive.exp ? this.extractExpression(directive.exp, context) : ''
+    const exp = directive.exp ? extractVueTemplateExpression(directive.exp, context) : ''
 
     switch (name) {
       case 'bind':
@@ -375,35 +295,6 @@ export class VueTemplateTransformer {
         logger.warn(`未处理的指令: v-${name}`)
         return null
     }
-  }
-
-  /**
-   * 提取表达式内容并移除 _ctx 前缀
-   */
-  private extractExpression(exp: any, context?: TransformContext): string {
-    let expression = ''
-
-    if (typeof exp === 'string') {
-      expression = exp
-    } else if (exp && exp.content) {
-      expression = exp.content
-    } else if (exp && exp.loc && exp.loc.source) {
-      expression = exp.loc.source
-    }
-
-    // 移除 _ctx. 前缀
-    if (expression.startsWith('_ctx.')) {
-      expression = expression.substring(5)
-    }
-
-    return this.applyPropAliases(expression, context)
-  }
-
-  /**
-   * 将 Vue 3.5 props 解构局部别名还原为原生小程序 property 名。
-   */
-  private applyPropAliases(expression: string, context?: TransformContext): string {
-    return applyPropAccessMappingsToTemplate(expression, context)
   }
 
   /**

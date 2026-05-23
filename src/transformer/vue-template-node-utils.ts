@@ -7,6 +7,10 @@
 import { logger } from '@/utils/index.js'
 import { EVENT_MAP, TAG_MAP } from './template-constants.js'
 import type { TemplateTransformResult } from './template-transformer.js'
+import type { TransformContext } from '@/types/index.js'
+import { applyPropAccessMappingsToTemplate } from './prop-access-mapping.js'
+
+const SELF_CLOSING_TEMPLATE_TAGS = ['input', 'image', 'icon', 'progress', 'slider', 'switch']
 
 /**
  * 将 Vue/HTML 标签名转换为微信小程序目标标签名。
@@ -17,6 +21,106 @@ export function transformVueTemplateTagName(tagName: string): string {
   }
 
   return TAG_MAP[tagName.toLowerCase() as keyof typeof TAG_MAP] || tagName
+}
+
+/**
+ * 转换 Vue AST 文本节点。
+ */
+export function transformVueTemplateTextNode(node: any): string {
+  return node.content || ''
+}
+
+/**
+ * 转换 Vue AST 插值节点为 WXML moustache 表达式。
+ */
+export function transformVueTemplateInterpolationNode(node: any, context?: TransformContext): string {
+  if (!node.content) return ''
+
+  if (node.content.type === 4 && node.content.content) {
+    return `{{${extractVueTemplateExpression(node.content.content, context)}}}`
+  }
+
+  if (node.content.type === 8) {
+    if (node.content.loc?.source) {
+      return `{{${extractVueTemplateExpression(node.content.loc.source, context)}}}`
+    }
+
+    if (node.content.children) {
+      const expressions = node.content.children
+        .filter((child: any) => child.type === 4)
+        .map((child: any) => child.content)
+        .join('')
+
+      if (expressions) {
+        return `{{${extractVueTemplateExpression(expressions, context)}}}`
+      }
+    }
+  }
+
+  if (node.content.loc?.source) {
+    return `{{${extractVueTemplateExpression(node.content.loc.source, context)}}}`
+  }
+
+  return ''
+}
+
+/**
+ * 提取 Vue AST 表达式内容，移除 `_ctx.` 前缀并应用 props 别名映射。
+ */
+export function extractVueTemplateExpression(exp: any, context?: TransformContext): string {
+  let expression = ''
+
+  if (typeof exp === 'string') {
+    expression = exp
+  } else if (exp?.content) {
+    expression = exp.content
+  } else if (exp?.loc?.source) {
+    expression = exp.loc.source
+  }
+
+  if (expression.startsWith('_ctx.')) {
+    expression = expression.substring(5)
+  }
+
+  return applyPropAccessMappingsToTemplate(expression, context)
+}
+
+/**
+ * 从 `v-for` 子节点上的 `:key` 推断 WXML `wx:key` 表达式。
+ */
+export function resolveVueTemplateForKeyExpression(
+  node: any,
+  valueAlias: string,
+  context?: TransformContext
+): string {
+  const firstChild = node.children?.[0]
+  const keyProp = firstChild?.props?.find((prop: any) =>
+    prop.type === 7 && prop.name === 'bind' && prop.arg?.content === 'key'
+  )
+
+  if (!keyProp?.exp) {
+    return valueAlias
+  }
+
+  const fullKeyExpression = extractVueTemplateExpression(keyProp.exp, context)
+
+  if (!fullKeyExpression.includes('.')) {
+    return fullKeyExpression
+  }
+
+  const parts = fullKeyExpression.split('.')
+  if (parts.length === 2 && parts[0] === valueAlias) {
+    return parts[1] || valueAlias
+  }
+
+  return fullKeyExpression
+}
+
+/**
+ * 判断 Vue AST 元素是否应输出为 WXML 自闭合标签。
+ */
+export function isVueTemplateSelfClosingTag(tagName: string, children: string): boolean {
+  return SELF_CLOSING_TEMPLATE_TAGS.includes(tagName) && !children.trim()
 }
 
 /**
