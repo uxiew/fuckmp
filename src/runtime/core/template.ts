@@ -4,6 +4,11 @@
  */
 
 import { logger } from '../utils/logger'
+import {
+  evaluateTemplateCondition,
+  evaluateTemplateItems,
+  processRuntimeTemplate
+} from './template-utils'
 
 /**
  * 插槽定义
@@ -257,12 +262,12 @@ class TemplateInstance {
 
       // 如果有内容，返回内容
       if (slot.content) {
-        return this.processTemplate(slot.content, slotProps)
+        return processRuntimeTemplate(slot.content, slotProps, this.instance.data, this.logTemplateError)
       }
 
       // 否则返回fallback
       if (slot.fallback) {
-        return this.processTemplate(slot.fallback, slotProps)
+        return processRuntimeTemplate(slot.fallback, slotProps, this.instance.data, this.logTemplateError)
       }
 
       return null
@@ -283,12 +288,12 @@ class TemplateInstance {
     }
 
     try {
-      const condition = this.evaluateCondition(conditional.condition)
+      const condition = evaluateTemplateCondition(conditional.condition, this.instance.data, this.logTemplateError)
       
       if (condition) {
-        return this.processTemplate(conditional.template)
+        return processRuntimeTemplate(conditional.template, undefined, this.instance.data, this.logTemplateError)
       } else if (conditional.elseTemplate) {
-        return this.processTemplate(conditional.elseTemplate)
+        return processRuntimeTemplate(conditional.elseTemplate, undefined, this.instance.data, this.logTemplateError)
       }
 
       return null
@@ -309,7 +314,7 @@ class TemplateInstance {
     }
 
     try {
-      const items = this.evaluateItems(list.items)
+      const items = evaluateTemplateItems(list.items, this.instance.data, this.logTemplateError)
       if (!Array.isArray(items)) {
         logger.warn(`列表渲染 ${name} 的items不是数组`)
         return null
@@ -325,7 +330,7 @@ class TemplateInstance {
           context['key'] = item[list.keyField]
         }
 
-        return this.processTemplate(list.template, context)
+        return processRuntimeTemplate(list.template, context, this.instance.data, this.logTemplateError)
       })
     } catch (error) {
       logger.error(`渲染列表模板 ${name} 失败:`, error)
@@ -334,92 +339,10 @@ class TemplateInstance {
   }
 
   /**
-   * 处理模板
+   * 记录模板 helper 错误。
    */
-  private processTemplate(template: any, context?: Record<string, any>): any {
-    if (typeof template === 'string') {
-      // 简单的模板字符串处理
-      return this.interpolateTemplate(template, context)
-    }
-
-    if (typeof template === 'function') {
-      // 函数模板
-      return template(context)
-    }
-
-    // 直接返回
-    return template
-  }
-
-  /**
-   * 模板字符串插值
-   */
-  private interpolateTemplate(template: string, context?: Record<string, any>): string {
-    if (!context) return template
-
-    return template.replace(/\{\{([^}]+)\}\}/g, (match, expression) => {
-      try {
-        const value = this.evaluateExpression(expression.trim(), context)
-        return String(value)
-      } catch (error) {
-        logger.error(`模板插值失败: ${expression}`, error)
-        return match
-      }
-    })
-  }
-
-  /**
-   * 评估条件
-   */
-  private evaluateCondition(condition: string | (() => boolean)): boolean {
-    if (typeof condition === 'function') {
-      return condition()
-    }
-
-    if (typeof condition === 'string') {
-      return this.evaluateExpression(condition) as boolean
-    }
-
-    return Boolean(condition)
-  }
-
-  /**
-   * 评估items
-   */
-  private evaluateItems(items: string | (() => any[])): any[] {
-    if (typeof items === 'function') {
-      return items()
-    }
-
-    if (typeof items === 'string') {
-      return this.evaluateExpression(items) as any[]
-    }
-
-    return []
-  }
-
-  /**
-   * 评估表达式
-   */
-  private evaluateExpression(expression: string, context?: Record<string, any>): any {
-    try {
-      // 简单的表达式评估
-      // 在实际实现中，这里应该使用更安全的表达式解析器
-      const data = { ...this.instance.data, ...context }
-      
-      // 替换表达式中的变量
-      let code = expression
-      for (const [key, value] of Object.entries(data)) {
-        const regex = new RegExp(`\\b${key}\\b`, 'g')
-        code = code.replace(regex, JSON.stringify(value))
-      }
-
-      // 使用Function构造器评估表达式（注意：这在生产环境中需要更安全的实现）
-      return new Function(`return ${code}`)()
-    } catch (error) {
-      logger.error(`表达式评估失败: ${expression}`, error)
-      return null
-    }
+  private logTemplateError(message: string, error: unknown): void {
+    logger.error(message, error)
   }
 
   /**
