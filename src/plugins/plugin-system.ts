@@ -4,6 +4,15 @@
 
 import type { CompilerOptions, TransformContext } from '@/types/index.js'
 import { logger } from '@/utils/index.js'
+import {
+  collectCodeQualityIssues,
+  createCacheEntryHash,
+  createCompileMetricsSummary,
+  groupIssuesByType,
+  isCacheExpired,
+  registerPluginHooks,
+  unregisterPluginHooks
+} from './plugin-system-utils.js'
 
 /**
  * 插件接口
@@ -139,32 +148,14 @@ export class PluginManager {
    * 注册钩子
    */
   private registerHooks(plugin: Plugin): void {
-    const hookMethods = [
-      'beforeCompile',
-      'afterCompile',
-      'transformFile',
-      'onError'
-    ] as const
-
-    hookMethods.forEach(method => {
-      if (plugin[method]) {
-        if (!this.hooks.has(method)) {
-          this.hooks.set(method, [])
-        }
-        this.hooks.get(method)!.push(plugin[method]!.bind(plugin))
-      }
-    })
+    registerPluginHooks(this.hooks, plugin)
   }
 
   /**
    * 注销钩子
    */
   private unregisterHooks(plugin: Plugin): void {
-    this.hooks.forEach((hooks, hookName) => {
-      this.hooks.set(hookName, hooks.filter(hook => 
-        !hook.toString().includes(plugin.name)
-      ))
-    })
+    unregisterPluginHooks(this.hooks, plugin)
   }
 }
 
@@ -204,14 +195,7 @@ export class PerformancePlugin implements Plugin {
   getMetrics(): Record<string, any> {
     const compileTimes = this.metrics.get('compile-times') || []
     
-    return {
-      totalFiles: compileTimes.length,
-      averageTime: compileTimes.length > 0 
-        ? compileTimes.reduce((a, b) => a + b, 0) / compileTimes.length 
-        : 0,
-      maxTime: compileTimes.length > 0 ? Math.max(...compileTimes) : 0,
-      minTime: compileTimes.length > 0 ? Math.min(...compileTimes) : 0
-    }
+    return createCompileMetricsSummary(compileTimes)
   }
 
   cleanup(): void {
@@ -239,53 +223,14 @@ export class CodeQualityPlugin implements Plugin {
   }
 
   private checkCodeQuality(filePath: string, content: string): void {
-    // 检查文件大小
-    if (content.length > 10000) {
-      this.issues.push({
-        file: filePath,
-        type: 'warning',
-        message: '文件过大，建议拆分'
-      })
-    }
-
-    // 检查 TODO 注释
-    const todoMatches = content.match(/\/\/\s*TODO/gi)
-    if (todoMatches && todoMatches.length > 5) {
-      this.issues.push({
-        file: filePath,
-        type: 'info',
-        message: `发现 ${todoMatches.length} 个 TODO 注释`
-      })
-    }
-
-    // 检查 console.log
-    const consoleMatches = content.match(/console\.log/g)
-    if (consoleMatches && consoleMatches.length > 0) {
-      this.issues.push({
-        file: filePath,
-        type: 'warning',
-        message: `发现 ${consoleMatches.length} 个 console.log，建议移除`
-      })
-    }
-
-    // 检查长行
-    const lines = content.split('\n')
-    lines.forEach((line, index) => {
-      if (line.length > 120) {
-        this.issues.push({
-          file: filePath,
-          type: 'warning',
-          message: `第 ${index + 1} 行过长 (${line.length} 字符)`
-        })
-      }
-    })
+    this.issues.push(...collectCodeQualityIssues(filePath, content))
   }
 
   cleanup(): void {
     if (this.issues.length > 0) {
       logger.info(`代码质量检查完成，发现 ${this.issues.length} 个问题:`)
       
-      const grouped = this.groupIssuesByType()
+      const grouped = groupIssuesByType(this.issues)
       Object.entries(grouped).forEach(([type, issues]) => {
         logger.info(`${type}: ${issues.length} 个`)
         issues.slice(0, 5).forEach(issue => {
@@ -300,13 +245,6 @@ export class CodeQualityPlugin implements Plugin {
     this.issues = []
   }
 
-  private groupIssuesByType(): Record<string, typeof this.issues> {
-    return this.issues.reduce((groups, issue) => {
-      const group = groups[issue.type] ?? (groups[issue.type] = [])
-      group.push(issue)
-      return groups
-    }, {} as Record<string, typeof this.issues>)
-  }
 }
 
 /**
@@ -339,7 +277,7 @@ export class CachePlugin implements Plugin {
     if (!cached) return null
 
     // 检查是否过期
-    if (Date.now() - cached.timestamp > this.maxAge) {
+    if (isCacheExpired(cached.timestamp, this.maxAge)) {
       this.cache.delete(filePath)
       return null
     }
@@ -349,20 +287,10 @@ export class CachePlugin implements Plugin {
 
   private saveToCache(filePath: string, result: any): void {
     this.cache.set(filePath, {
-      hash: this.generateHash(JSON.stringify(result)),
+      hash: createCacheEntryHash(JSON.stringify(result)),
       result,
       timestamp: Date.now()
     })
-  }
-
-  private generateHash(content: string): string {
-    let hash = 0
-    for (let i = 0; i < content.length; i++) {
-      const char = content.charCodeAt(i)
-      hash = ((hash << 5) - hash) + char
-      hash = hash & hash
-    }
-    return Math.abs(hash).toString(36)
   }
 
   cleanup(): void {
