@@ -9,6 +9,7 @@ import { TemplateEngine } from './template'
 import { DependencyInjection } from './di'
 import { EventSystem } from './event'
 import { logger } from '../utils/logger'
+import { processComponentConfig } from './component-config-utils.js'
 
 /**
  * 组件配置
@@ -144,73 +145,7 @@ export class ComponentManager {
    * 处理配置
    */
   private processConfig(config: ComponentConfig): ComponentConfig {
-    let processedConfig = { ...config }
-
-    // 处理mixins
-    if (this.config.enableMixins && config.mixins) {
-      processedConfig = this.applyMixins(processedConfig, config.mixins)
-    }
-
-    // 处理继承
-    if (this.config.enableInheritance && config.extends) {
-      processedConfig = this.applyInheritance(processedConfig, config.extends)
-    }
-
-    return processedConfig
-  }
-
-  /**
-   * 应用mixins
-   */
-  private applyMixins(config: ComponentConfig, mixins: any[]): ComponentConfig {
-    let result = { ...config }
-
-    for (const mixin of mixins) {
-      result = this.mergeConfigs(result, mixin)
-    }
-
-    return result
-  }
-
-  /**
-   * 应用继承
-   */
-  private applyInheritance(config: ComponentConfig, parent: any): ComponentConfig {
-    return this.mergeConfigs(parent, config)
-  }
-
-  /**
-   * 合并配置
-   */
-  private mergeConfigs(base: ComponentConfig, override: ComponentConfig): ComponentConfig {
-    const result: ComponentConfig = { ...base }
-
-    // 合并对象类型的配置
-    const objectKeys = ['data', 'computed', 'watch', 'methods', 'lifecycle', 'providers', 'injectors', 'events', 'bindings', 'slots', 'conditionals', 'lists']
-
-    for (const key of objectKeys) {
-      if (override[key as keyof ComponentConfig]) {
-        result[key as keyof ComponentConfig] = {
-          ...base[key as keyof ComponentConfig],
-          ...override[key as keyof ComponentConfig]
-        }
-      }
-    }
-
-    // 合并数组类型的配置
-    if (override.mixins) {
-      result.mixins = [...(base.mixins || []), ...override.mixins]
-    }
-
-    // 直接覆盖的配置
-    if (override.extends) {
-      result.extends = override.extends
-    }
-    if (override.parent) {
-      result.parent = override.parent
-    }
-
-    return result
+    return processComponentConfig(config, this.config)
   }
 
   /**
