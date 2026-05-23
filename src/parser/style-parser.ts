@@ -5,8 +5,12 @@
 import * as sass from 'sass'
 import postcss from 'postcss'
 import autoprefixer from 'autoprefixer'
-import type { ParseResult } from '@/types/index.js'
 import { logger } from '@/utils/index.js'
+import {
+  createMiniprogramStylePlugin,
+  createStyleUnitPlugin,
+  createStyleVariablePlugin
+} from './style-parser-utils.js'
 
 /**
  * 样式解析结果
@@ -215,9 +219,9 @@ export class StyleParser {
     try {
       const plugins = [
         autoprefixer(),
-        this.createMiniprogramTransformer(),
-        this.createUnitTransformer(),
-        this.createVariableTransformer()
+        createMiniprogramStylePlugin(),
+        createStyleUnitPlugin(),
+        createStyleVariablePlugin()
       ]
 
       const result = await postcss(plugins).process(css, {
@@ -232,106 +236,6 @@ export class StyleParser {
     } catch (error) {
       logger.error(`PostCSS 处理失败: ${filename}`, error as Error)
       throw error
-    }
-  }
-
-  /**
-   * 创建小程序转换器
-   */
-  private createMiniprogramTransformer() {
-    return {
-      postcssPlugin: 'miniprogram-transformer',
-      Rule(rule: any) {
-        // 移除不支持的伪类
-        rule.selector = rule.selector
-          .replace(/:hover/g, '')
-          .replace(/:focus/g, '')
-          .replace(/:active/g, '')
-          .replace(/::before/g, '::before')
-          .replace(/::after/g, '::after')
-
-        // 处理深度选择器
-        rule.selector = rule.selector
-          .replace(/::v-deep\s+/g, ' ')
-          .replace(/:deep\(/g, ' ')
-          .replace(/\)/g, '')
-      },
-      Declaration(decl: any) {
-        // 移除不支持的属性
-        const unsupportedProps = [
-          'box-shadow',
-          'text-shadow',
-          'filter',
-          'backdrop-filter',
-          'clip-path'
-        ]
-
-        if (unsupportedProps.includes(decl.prop)) {
-          decl.remove()
-        }
-
-        // 处理 position: sticky
-        if (decl.prop === 'position' && decl.value === 'sticky') {
-          decl.value = 'relative'
-        }
-      }
-    }
-  }
-
-  /**
-   * 创建单位转换器
-   */
-  private createUnitTransformer() {
-    return {
-      postcssPlugin: 'unit-transformer',
-      Declaration(decl: any) {
-        // px 转 rpx (1px = 2rpx)
-        decl.value = decl.value.replace(/(\d+(?:\.\d+)?)px/g, (_: string, num: string) => {
-          const value = parseFloat(num)
-          return `${value * 2}rpx`
-        })
-
-        // vh/vw 转换 (假设设计稿为 375*667)
-        decl.value = decl.value.replace(/(\d+(?:\.\d+)?)vh/g, (_: string, num: string) => {
-          const value = parseFloat(num)
-          return `${(value * 667 / 100) * 2}rpx`
-        })
-
-        decl.value = decl.value.replace(/(\d+(?:\.\d+)?)vw/g, (_: string, num: string) => {
-          const value = parseFloat(num)
-          return `${(value * 375 / 100) * 2}rpx`
-        })
-      }
-    }
-  }
-
-  /**
-   * 创建 CSS 变量转换器
-   */
-  private createVariableTransformer() {
-    const variables = new Map<string, string>()
-
-    return {
-      postcssPlugin: 'variable-transformer',
-      Rule(rule: any) {
-        // 收集 CSS 变量
-        rule.walkDecls((decl: any) => {
-          if (decl.prop.startsWith('--')) {
-            variables.set(decl.prop, decl.value)
-            decl.remove()
-          }
-        })
-
-        // 替换 var() 函数
-        rule.walkDecls((decl: any) => {
-          decl.value = decl.value.replace(
-            /var\((--[^),]+)(?:,\s*([^)]+))?\)/g,
-            (match: string, varName: string, fallback: string) => {
-              return variables.get(varName) || fallback || match
-            }
-          )
-        })
-      }
     }
   }
 
