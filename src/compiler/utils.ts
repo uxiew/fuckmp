@@ -2,8 +2,16 @@
  * 编译器工具函数
  */
 
-import type { CompilerOptions, CompileResult } from '@/types/index.js'
-import { logger } from '@/utils/index.js'
+import type { CompileResult } from '@/types/index.js'
+import {
+  createCompileResult,
+  formatFileSize,
+  formatTime,
+  generateHash,
+  getRelativePath,
+  mergeCompileResults,
+  validateFilePath
+} from './compiler-utility-functions.js'
 
 /**
  * 编译统计工具
@@ -317,94 +325,48 @@ export class CompilerUtils {
    * 生成文件哈希
    */
   static generateHash(content: string): string {
-    let hash = 0
-    for (let i = 0; i < content.length; i++) {
-      const char = content.charCodeAt(i)
-      hash = ((hash << 5) - hash) + char
-      hash = hash & hash // 转换为 32 位整数
-    }
-    return Math.abs(hash).toString(36)
+    return generateHash(content)
   }
 
   /**
    * 格式化文件大小
    */
   static formatFileSize(bytes: number): string {
-    const units = ['B', 'KB', 'MB', 'GB']
-    let size = bytes
-    let unitIndex = 0
-
-    while (size >= 1024 && unitIndex < units.length - 1) {
-      size /= 1024
-      unitIndex++
-    }
-
-    return `${size.toFixed(1)} ${units[unitIndex]}`
+    return formatFileSize(bytes)
   }
 
   /**
    * 格式化时间
    */
   static formatTime(ms: number): string {
-    if (ms < 1000) {
-      return `${ms}ms`
-    } else if (ms < 60000) {
-      return `${(ms / 1000).toFixed(1)}s`
-    } else {
-      const minutes = Math.floor(ms / 60000)
-      const seconds = ((ms % 60000) / 1000).toFixed(1)
-      return `${minutes}m ${seconds}s`
-    }
+    return formatTime(ms)
   }
 
   /**
    * 验证文件路径
    */
   static validateFilePath(filePath: string): boolean {
-    // 检查文件路径是否合法
-    const invalidChars = /[<>:"|?*]/
-    return !invalidChars.test(filePath)
+    return validateFilePath(filePath)
   }
 
   /**
    * 获取相对路径
    */
   static getRelativePath(from: string, to: string): string {
-    const { relative } = require('path')
-    return relative(from, to).replace(/\\/g, '/')
+    return getRelativePath(from, to)
   }
 
   /**
    * 创建编译结果
    */
   static createCompileResult(): CompileResult {
-    return {
-      success: [],
-      errors: [],
-      stats: {
-        total: 0,
-        success: 0,
-        failed: 0,
-        duration: 0
-      }
-    }
+    return createCompileResult()
   }
 
   /**
    * 合并编译结果
    */
   static mergeCompileResults(results: CompileResult[]): CompileResult {
-    const merged = this.createCompileResult()
-
-    results.forEach(result => {
-      merged.success.push(...result.success)
-      merged.errors.push(...result.errors)
-      merged.stats.total += result.stats.total
-      merged.stats.success += result.stats.success
-      merged.stats.failed += result.stats.failed
-      merged.stats.duration += result.stats.duration
-    })
-
-    return merged
+    return mergeCompileResults(results)
   }
 }
