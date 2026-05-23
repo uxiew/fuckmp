@@ -9,14 +9,14 @@ import { logger } from '@/utils/index.js'
 import { EnhancedTemplateTransformer } from './enhanced-template-transformer.js'
 import {
   buildClassBindingExpression,
-  toKebabCase,
   transformBasicTemplateSyntax,
   transformTemplateTag,
-  transformVForDirective,
-  transformVModelDirective,
-  transformVOnDirective,
   validateWxmlTransformResult
 } from './template-string-utils.js'
+import {
+  createDefaultDirectiveTransformers,
+  transformVueComponentTagsInTemplate
+} from './template-transformer-utils.js'
 import { VueTemplateTransformer } from './vue-template-transformer.js'
 
 /**
@@ -42,52 +42,11 @@ export class TemplateTransformer {
   private useASTParser: boolean
 
   constructor(options?: { useEnhancedParser?: boolean; useASTParser?: boolean }) {
-    this.directiveTransformers = new Map()
+    this.directiveTransformers = createDefaultDirectiveTransformers()
     this.enhancedTransformer = new EnhancedTemplateTransformer()
     this.vueTransformer = new VueTemplateTransformer()
     this.useEnhancedParser = options?.useEnhancedParser ?? false
     this.useASTParser = options?.useASTParser ?? true // 默认使用 AST 解析器
-    this.initDirectiveTransformers()
-  }
-
-  /**
-   * 初始化指令转换器
-   */
-  private initDirectiveTransformers(): void {
-    // v-model 双向绑定
-    this.directiveTransformers.set('v-model', (_node: any, directive: any) => {
-      return transformVModelDirective(directive)
-    })
-
-    // v-for 列表渲染
-    this.directiveTransformers.set('v-for', (_node: any, directive: any) => {
-      return transformVForDirective(directive)
-    })
-
-    // v-if 条件渲染
-    this.directiveTransformers.set('v-if', (node: any, directive: any) => {
-      return { 'wx:if': `{{${directive.expression}}}` }
-    })
-
-    // v-else-if 条件渲染
-    this.directiveTransformers.set('v-else-if', (node: any, directive: any) => {
-      return { 'wx:elif': `{{${directive.expression}}}` }
-    })
-
-    // v-else 条件渲染
-    this.directiveTransformers.set('v-else', (node: any, directive: any) => {
-      return { 'wx:else': true }
-    })
-
-    // v-show 显示隐藏
-    this.directiveTransformers.set('v-show', (node: any, directive: any) => {
-      return { 'hidden': `{{!(${directive.expression})}}` }
-    })
-
-    // 事件处理
-    this.directiveTransformers.set('v-on', (_node: any, directive: any) => {
-      return transformVOnDirective(directive)
-    })
   }
 
   /**
@@ -354,43 +313,13 @@ export class TemplateTransformer {
     logger.debug(`开始字符串替换转换，原始模板长度: ${template.length}`)
 
     // 1. 处理 Vue 组件标签（转换为 kebab-case）
-    wxml = this.transformVueComponents(wxml, result, context)
+    wxml = transformVueComponentTagsInTemplate(wxml, result, context)
 
     logger.debug(`事件转换前: ${wxml.substring(0, 200)}...`)
     wxml = transformBasicTemplateSyntax(wxml)
     logger.debug(`事件转换后: ${wxml.substring(0, 200)}...`)
 
     logger.debug(`字符串替换转换完成，转换后模板长度: ${wxml.length}`)
-    return wxml
-  }
-
-  /**
-   * 转换 Vue 组件标签
-   */
-  private transformVueComponents(wxml: string, result: TemplateTransformResult, context: TransformContext): string {
-    // 查找所有的 Vue 组件标签（大写开头的标签）
-    const componentRegex = /<([A-Z][a-zA-Z0-9]*)((?:\s+[^>]*)?)(\/?)>/g
-    const closeTagRegex = /<\/([A-Z][a-zA-Z0-9]*)>/g
-
-    // 转换开始标签
-    wxml = wxml.replace(componentRegex, (match, tagName, attributes, selfClosing) => {
-      const kebabName = toKebabCase(tagName)
-
-      // 记录组件使用
-      result.components.add(tagName)
-      context.components.set(tagName, `@/components/${tagName}.vue`)
-
-      logger.debug(`转换 Vue 组件: ${tagName} -> ${kebabName}`)
-
-      return `<${kebabName}${attributes}${selfClosing}>`
-    })
-
-    // 转换结束标签
-    wxml = wxml.replace(closeTagRegex, (match, tagName) => {
-      const kebabName = toKebabCase(tagName)
-      return `</${kebabName}>`
-    })
-
     return wxml
   }
 
