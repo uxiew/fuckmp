@@ -2,18 +2,17 @@
  * Script 解析器
  */
 
-import { parseScript, traverseAST, isCallExpression, isIdentifier } from '@/utils/index.js'
+import { parseScript, traverseAST } from '@/utils/index.js'
 import { VUE3_MACROS } from '@/types/index.js'
 import type { File, ImportDeclaration, CallExpression, VariableDeclaration } from '@babel/types'
 import { logger } from '@/utils/index.js'
-import { extractArgumentValue } from './script-codegen-utils.js'
 import {
-  extractDefineModelInfo,
-  extractDefinePropsDestructureInfo,
-  extractUseTemplateRefInfo,
-  extractWithDefaultsInfo,
-  getArrayPatternFirstIdentifier
-} from './script-macro-utils.js'
+  createExportInfo,
+  createFunctionInfo,
+  createImportInfo,
+  createVariableInfoFromDeclarator,
+  createVueMacroCall
+} from './script-parser-utils.js'
 
 /**
  * Script 解析结果
@@ -148,66 +147,21 @@ export class ScriptParser {
    * 处理导入声明
    */
   private handleImportDeclaration(node: ImportDeclaration, result: ScriptParseResult): void {
-    const source = node.source.value
-    const isVue = source === 'vue'
-    const isComponent = source.endsWith('.vue')
-    const isStyle = source.endsWith('.scss') || source.endsWith('.sass') || source.endsWith('.css')
-
-    const importInfo: ImportInfo = {
-      source,
-      specifiers: [],
-      isVue,
-      isComponent,
-      isStyle
-    }
-
-    // 处理导入说明符
-    node.specifiers.forEach(spec => {
-      if (spec.type === 'ImportDefaultSpecifier') {
-        importInfo.specifiers.push({
-          type: 'default',
-          local: spec.local.name
-        })
-      } else if (spec.type === 'ImportSpecifier') {
-        importInfo.specifiers.push({
-          type: 'named',
-          imported: isIdentifier(spec.imported) ? spec.imported.name : spec.imported.value,
-          local: spec.local.name
-        })
-      } else if (spec.type === 'ImportNamespaceSpecifier') {
-        importInfo.specifiers.push({
-          type: 'namespace',
-          local: spec.local.name
-        })
-      }
-    })
-
-    result.imports.set(source, importInfo)
+    const importInfo = createImportInfo(node)
+    result.imports.set(importInfo.source, importInfo)
   }
 
   /**
    * 处理调用表达式
    */
   private handleCallExpression(node: CallExpression, result: ScriptParseResult): void {
-    if (!isIdentifier(node.callee)) return
+    const macroCall = createVueMacroCall(node, result.variables)
+    if (!macroCall) return
 
-    const calleeName = node.callee.name
-
-    // 检查是否为 Vue3 宏
-    if (Object.values(VUE3_MACROS).includes(calleeName as any)) {
-      const macroCall: MacroCall = {
-        name: calleeName,
-        arguments: node.arguments.map(arg => extractArgumentValue(arg, result.variables)),
-        location: node.loc ? `${node.loc.start.line}:${node.loc.start.column}` : 'unknown',
-        // 添加 TypeScript 泛型参数支持
-        typeParameters: (node as any).typeParameters
-      }
-
-      if (!result.macros.has(calleeName)) {
-        result.macros.set(calleeName, [])
-      }
-      result.macros.get(calleeName)!.push(macroCall)
+    if (!result.macros.has(macroCall.name)) {
+      result.macros.set(macroCall.name, [])
     }
+    result.macros.get(macroCall.name)!.push(macroCall)
   }
 
   /**
@@ -215,98 +169,9 @@ export class ScriptParser {
    */
   private handleVariableDeclaration(node: VariableDeclaration, result: ScriptParseResult): void {
     node.declarations.forEach(declarator => {
-      if (declarator.id.type === 'ObjectPattern' &&
-        declarator.init &&
-        isCallExpression(declarator.init) &&
-        isIdentifier(declarator.init.callee) &&
-        declarator.init.callee.name === 'defineProps') {
-        const variableInfo: VariableInfo = {
-          name: `__definePropsDestructure_${result.variables.size}`,
-          type: node.kind as 'const' | 'let' | 'var',
-          init: extractDefinePropsDestructureInfo(declarator.id, result),
-          isReactive: false,
-          macroType: 'definePropsDestructure'
-        }
-
+      const variableInfo = createVariableInfoFromDeclarator(declarator, node.kind as 'const' | 'let' | 'var', result)
+      if (variableInfo) {
         result.variables.set(variableInfo.name, variableInfo)
-      } else if (declarator.id.type === 'ArrayPattern' &&
-        declarator.init &&
-        isCallExpression(declarator.init) &&
-        isIdentifier(declarator.init.callee) &&
-        declarator.init.callee.name === 'defineModel') {
-        const modelVariableName = getArrayPatternFirstIdentifier(declarator.id)
-        if (!modelVariableName) {
-          return
-        }
-
-        const variableInfo: VariableInfo = {
-          name: modelVariableName,
-          type: node.kind as 'const' | 'let' | 'var',
-          init: extractDefineModelInfo(declarator.init, modelVariableName, result),
-          isReactive: false,
-          macroType: 'defineModel'
-        }
-
-        result.variables.set(variableInfo.name, variableInfo)
-      } else if (declarator.id.type === 'Identifier') {
-        const name = declarator.id.name
-        let isReactive = false
-        let macroType: string | undefined
-
-        // 检查是否为响应式变量或 <script setup> 编译宏变量
-        let initValue: any = undefined
-        if (declarator.init && isCallExpression(declarator.init) && isIdentifier(declarator.init.callee)) {
-          const calleeName = declarator.init.callee.name
-          if (['ref', 'reactive', 'computed'].includes(calleeName)) {
-            isReactive = true
-            macroType = calleeName
-            // 对于响应式变量，提取第一个参数作为初始值
-            if (declarator.init.arguments.length > 0) {
-              initValue = extractArgumentValue(declarator.init.arguments[0], result.variables)
-            }
-          } else if (calleeName === 'defineModel') {
-            macroType = calleeName
-            initValue = extractDefineModelInfo(declarator.init, name, result)
-          } else if (calleeName === 'defineProps') {
-            macroType = calleeName
-            initValue = { variable: name }
-          } else if (calleeName === 'defineEmits') {
-            macroType = calleeName
-            initValue = { variable: name }
-          } else if (calleeName === 'withDefaults') {
-            macroType = calleeName
-            initValue = extractWithDefaultsInfo(declarator.init, result)
-          } else if (calleeName === 'defineSlots') {
-            macroType = calleeName
-            initValue = { variable: name }
-          } else if (calleeName === 'useTemplateRef') {
-            macroType = calleeName
-            initValue = extractUseTemplateRefInfo(declarator.init, name, result)
-          } else if (calleeName === 'useId') {
-            macroType = calleeName
-            initValue = { variable: name }
-          } else if (calleeName === 'inject') {
-            macroType = calleeName
-            initValue = {
-              variable: name,
-              key: declarator.init.arguments[0] ? extractArgumentValue(declarator.init.arguments[0], result.variables) : ''
-            }
-          } else {
-            initValue = extractArgumentValue(declarator.init, result.variables)
-          }
-        } else if (declarator.init) {
-          initValue = extractArgumentValue(declarator.init, result.variables)
-        }
-
-        const variableInfo: VariableInfo = {
-          name,
-          type: node.kind as 'const' | 'let' | 'var',
-          init: initValue,
-          isReactive,
-          ...(macroType && { macroType })
-        }
-
-        result.variables.set(name, variableInfo)
       }
     })
   }
@@ -315,16 +180,8 @@ export class ScriptParser {
    * 处理函数声明
    */
   private handleFunctionDeclaration(node: any, result: ScriptParseResult): void {
-    if (node.id && isIdentifier(node.id)) {
-      const functionInfo: FunctionInfo = {
-        name: node.id.name,
-        params: node.params.map((param: any) =>
-          isIdentifier(param) ? param.name : 'unknown'
-        ),
-        isAsync: node.async || false,
-        isArrow: false
-      }
-
+    const functionInfo = createFunctionInfo(node)
+    if (functionInfo) {
       result.functions.set(functionInfo.name, functionInfo)
     }
   }
@@ -333,13 +190,7 @@ export class ScriptParser {
    * 处理导出声明
    */
   private handleExportDeclaration(node: any, result: ScriptParseResult, type: 'default' | 'named'): void {
-    const exportInfo: ExportInfo = {
-      type,
-      name: type === 'named' && node.declaration?.id?.name ? node.declaration.id.name : undefined,
-      value: node.declaration ? extractArgumentValue(node.declaration, result.variables) : undefined
-    }
-
-    result.exports.push(exportInfo)
+    result.exports.push(createExportInfo(node, result, type))
   }
 
   /**
