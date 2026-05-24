@@ -7,8 +7,11 @@ import { logger } from '../utils/logger'
 import {
   applyInjectedValueToInstance,
   createDIConfig,
+  createProviderChain,
+  findProviderInParentChain,
   getInjectionLogKey,
-  hasOwnProvider,
+  listDependentChildInstances,
+  resolveProviderValue,
   shouldUpdateReactiveProvider
 } from './di-utils.js'
 
@@ -140,15 +143,7 @@ export class DependencyInjection {
    * 获取提供者链
    */
   getProviderChain(instance: any): any[] {
-    const chain: any[] = []
-    let current = instance
-
-    while (current) {
-      chain.push(current)
-      current = this.providerHierarchy.get(current)
-    }
-
-    return chain
+    return createProviderChain(instance, current => this.providerHierarchy.get(current))
   }
 
   /**
@@ -296,32 +291,36 @@ class DIInstance {
    */
   inject<T>(key: InjectionKey<T>, defaultValue?: T): T | undefined {
     // 首先检查本实例的提供者
-    if (hasOwnProvider(this.providers, key)) {
-      const value = this.providers.get(key)
-
+    const ownProvider = resolveProviderValue<T>(this.providers, key)
+    if (ownProvider.found) {
       if (this.diConfig.debug) {
-        logger.debug(`从本实例注入: ${getInjectionLogKey(key)}`, value)
+        logger.debug(`从本实例注入: ${getInjectionLogKey(key)}`, ownProvider.value)
       }
 
-      return value
+      return ownProvider.value
     }
 
     // 然后检查父实例链
     const providerChain = this.di.getProviderChain(this.instance)
 
-    for (let i = 1; i < providerChain.length; i++) {
-      const parentInstance = providerChain[i]
-      const parentDI = this.di.getInstances().get(parentInstance)
+    const parentProvider = findProviderInParentChain<T>(
+      providerChain,
+      key,
+      (parentInstance, providerKey) => {
+        const parentDI = this.di.getInstances().get(parentInstance)
 
-      if (parentDI && hasOwnProvider(parentDI.providers, key)) {
-        const value = parentDI.providers.get(key)
-
-        if (this.diConfig.debug) {
-          logger.debug(`从父实例注入: ${getInjectionLogKey(key)}`, value)
-        }
-
-        return value
+        return parentDI
+          ? resolveProviderValue<T>(parentDI.providers, providerKey)
+          : { found: false, value: undefined }
       }
+    )
+
+    if (parentProvider) {
+      if (this.diConfig.debug) {
+        logger.debug(`从父实例注入: ${getInjectionLogKey(key)}`, parentProvider.value)
+      }
+
+      return parentProvider.value
     }
 
     // 最后检查全局提供者
@@ -342,12 +341,10 @@ class DIInstance {
    */
   private updateDependentInstances(key: InjectionKey, value: any): void {
     // 查找所有以当前实例为父的子实例
-    for (const [childInstance, parentInstance] of this.di.getProviderHierarchy()) {
-      if (parentInstance === this.instance) {
-        const childDI = this.di.getInstances().get(childInstance)
-        if (childDI) {
-          childDI.updateInjectedValue(key, value)
-        }
+    for (const childInstance of listDependentChildInstances(this.di.getProviderHierarchy(), this.instance)) {
+      const childDI = this.di.getInstances().get(childInstance)
+      if (childDI) {
+        childDI.updateInjectedValue(key, value)
       }
     }
   }

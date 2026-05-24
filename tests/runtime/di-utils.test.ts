@@ -3,8 +3,12 @@ import {
   applyInjectedValueToInstance,
   createDIConfig,
   createInjectedUpdate,
+  createProviderChain,
+  findProviderInParentChain,
   getInjectionLogKey,
   hasOwnProvider,
+  listDependentChildInstances,
+  resolveProviderValue,
   shouldUpdateReactiveProvider
 } from '@/runtime/core/di-utils.js'
 
@@ -28,6 +32,14 @@ describe('runtime DI utils', () => {
 
     expect(hasOwnProvider(providers, symbolKey)).toBe(true)
     expect(hasOwnProvider(providers, 'missing')).toBe(false)
+    expect(resolveProviderValue(providers, symbolKey)).toEqual({
+      found: true,
+      value: 'dark'
+    })
+    expect(resolveProviderValue(providers, 'missing')).toEqual({
+      found: false,
+      value: undefined
+    })
     expect(shouldUpdateReactiveProvider({ enableReactiveProviders: true })).toBe(true)
     expect(shouldUpdateReactiveProvider({ enableReactiveProviders: false })).toBe(false)
   })
@@ -56,5 +68,63 @@ describe('runtime DI utils', () => {
     applyInjectedValueToInstance(instance, 'locale', 'zh-CN')
 
     expect(instance.data).toEqual({ theme: 'dark', locale: 'zh-CN' })
+  })
+
+  it('按当前实例到根实例顺序构造 provider chain', () => {
+    const root = { name: 'root' }
+    const parent = { name: 'parent' }
+    const child = { name: 'child' }
+    const hierarchy = new Map<any, any>([
+      [child, parent],
+      [parent, root]
+    ])
+
+    expect(createProviderChain(child, instance => hierarchy.get(instance))).toEqual([
+      child,
+      parent,
+      root
+    ])
+  })
+
+  it('从父链查找 provider 时跳过当前实例并按父级优先', () => {
+    const root = { name: 'root' }
+    const parent = { name: 'parent' }
+    const child = { name: 'child' }
+    const providers = new Map<any, Map<any, any>>([
+      [child, new Map([['theme', 'child-theme']])],
+      [parent, new Map([['theme', 'parent-theme']])],
+      [root, new Map([['theme', 'root-theme']])]
+    ])
+
+    const match = findProviderInParentChain(
+      [child, parent, root],
+      'theme',
+      (instance, key) => {
+        const provider = providers.get(instance)
+        return {
+          found: Boolean(provider?.has(key)),
+          value: provider?.get(key)
+        }
+      }
+    )
+
+    expect(match).toEqual({
+      instance: parent,
+      value: 'parent-theme'
+    })
+  })
+
+  it('只列出直接依赖当前 provider 的子实例', () => {
+    const parent = { name: 'parent' }
+    const child = { name: 'child' }
+    const grandchild = { name: 'grandchild' }
+    const sibling = { name: 'sibling' }
+    const hierarchy = new Map<any, any>([
+      [child, parent],
+      [grandchild, child],
+      [sibling, { name: 'other-parent' }]
+    ])
+
+    expect(listDependentChildInstances(hierarchy, parent)).toEqual([child])
   })
 })
