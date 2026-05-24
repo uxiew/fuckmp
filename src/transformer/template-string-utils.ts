@@ -4,7 +4,22 @@
  * 这些函数只处理 WXML 字符串，不依赖 TemplateTransformer 实例状态。
  */
 import { logger } from '@/utils/index.js'
-import { VUE_DIRECTIVE_MAP } from '@/types/index.js'
+import {
+  buildDynamicClassExpression,
+  buildVModelInputHandlerName,
+  fixSelfClosingTags,
+  mapAstEventName,
+  mapAttributeEventName,
+  mapVOnEventName,
+  parseVForExpression,
+  transformBasicDirectives,
+  transformBasicTags,
+  transformTemplateTag,
+  transformVForDirectives,
+  transformVModelDirectives
+} from './template-string-basic-utils.js'
+
+export { fixSelfClosingTags, transformTemplateTag } from './template-string-basic-utils.js'
 
 /**
  * Template AST 指令转换所需的最小字段。
@@ -19,44 +34,15 @@ export interface TemplateDirectiveLike {
 }
 
 /**
- * 转换 Vue/HTML 标签名为微信小程序标签名。
- */
-export function transformTemplateTag(tag: string): string {
-  const tagMap: Record<string, string> = {
-    div: 'view',
-    span: 'text',
-    p: 'text',
-    img: 'image',
-    a: 'navigator',
-    ul: 'view',
-    li: 'view',
-    button: 'button',
-    input: 'input',
-    textarea: 'textarea',
-    select: 'picker',
-    option: 'picker-view-column'
-  }
-
-  return tagMap[tag] || tag
-}
-
-/**
  * 转换 AST `v-model` 指令为小程序属性与输入事件。
  */
 export function transformVModelDirective(directive: TemplateDirectiveLike): Record<string, any> {
   const expression = directive.expression || 'modelValue'
   const modifiers = directive.modifiers || []
 
-  let inputHandler = '_handleInput'
-  if (modifiers.includes('number')) {
-    inputHandler = '_handleNumberInput'
-  } else if (modifiers.includes('trim')) {
-    inputHandler = '_handleTrimInput'
-  }
-
   return {
     value: `{{${expression}}}`,
-    bindinput: `${inputHandler}_${expression.replace(/\./g, '_')}`
+    bindinput: buildVModelInputHandlerName(expression, modifiers)
   }
 }
 
@@ -69,14 +55,13 @@ export function transformVForDirective(directive: TemplateDirectiveLike): Record
     return {}
   }
 
-  const match = expression.match(/(\w+)(?:\s*,\s*(\w+))?\s+in\s+(.+)/)
-
-  if (match) {
-    const [, item, index, list] = match
+  const result = parseVForExpression(expression)
+  if (result) {
+    const { item, index, list } = result
     return {
       'wx:for': `{{${list}}}`,
       'wx:for-item': item,
-      'wx:for-index': index || 'index',
+      'wx:for-index': index,
       'wx:key': item
     }
   }
@@ -91,20 +76,7 @@ export function transformVOnDirective(directive: TemplateDirectiveLike): Record<
   const eventName = directive.arg
   const handler = directive.expression
   const modifiers = directive.modifiers || []
-
-  const eventMap: Record<string, string> = {
-    click: 'tap',
-    input: 'input',
-    change: 'change',
-    focus: 'focus',
-    blur: 'blur',
-    submit: 'submit',
-    touchstart: 'touchstart',
-    touchmove: 'touchmove',
-    touchend: 'touchend'
-  }
-
-  const mappedEvent = eventName ? eventMap[eventName] || eventName : ''
+  const mappedEvent = eventName ? mapAstEventName(eventName) : ''
   const bindType = modifiers.includes('capture') ? 'capture-bind:' : 'bind:'
 
   return {
@@ -210,14 +182,7 @@ export function transformDynamicClassBinding(wxml: string): string {
 export function transformVueEvents(wxml: string): string {
   // 处理 @event.modifier="handler" -> bind:event="handler" (忽略修饰符)
   wxml = wxml.replace(/@([a-zA-Z-]+)(?:\.[a-zA-Z]+)*="([^"]*)"/g, (match, event, handler) => {
-    // 事件名映射
-    const eventMap: Record<string, string> = {
-      click: 'tap',
-      'user-click': 'user-click', // 自定义事件保持原名
-      'send-message': 'send-message'
-    }
-
-    const mappedEvent = eventMap[event] || event
+    const mappedEvent = mapAttributeEventName(event)
     logger.debug(`转换事件绑定: ${match} -> bind:${mappedEvent}="${handler}"`)
 
     return `bind:${mappedEvent}="${handler}"`
@@ -225,11 +190,7 @@ export function transformVueEvents(wxml: string): string {
 
   // 处理 v-on:event.modifier="handler" -> bind:event="handler"
   wxml = wxml.replace(/v-on:([a-zA-Z-]+)(?:\.[a-zA-Z]+)*="([^"]*)"/g, (match, event, handler) => {
-    const eventMap: Record<string, string> = {
-      click: 'tap'
-    }
-
-    const mappedEvent = eventMap[event] || event
+    const mappedEvent = mapVOnEventName(event)
     logger.debug(`转换 v-on: ${match} -> bind:${mappedEvent}="${handler}"`)
 
     return `bind:${mappedEvent}="${handler}"`
@@ -253,75 +214,6 @@ export function transformBasicTemplateSyntax(template: string): string {
   wxml = fixSelfClosingTags(wxml)
   wxml = fixTripleBraces(wxml)
   wxml = cleanupWhitespace(wxml)
-
-  return wxml
-}
-
-/**
- * 转换基础 Vue 指令名称为小程序指令。
- */
-function transformBasicDirectives(wxml: string): string {
-  Object.entries(VUE_DIRECTIVE_MAP).forEach(([vueDirective, wxDirective]) => {
-    const regex = new RegExp(`\\s${vueDirective}=`, 'g')
-    wxml = wxml.replace(regex, ` ${wxDirective}=`)
-  })
-
-  return wxml
-}
-
-/**
- * 转换基础 Vue/HTML 标签为小程序标签。
- */
-function transformBasicTags(wxml: string): string {
-  const tagReplacements = [
-    ['<div', '<view'],
-    ['</div>', '</view>'],
-    ['<span', '<text'],
-    ['</span>', '</text>'],
-    ['<img', '<image'],
-    ['<p', '<text'],
-    ['</p>', '</text>']
-  ]
-
-  tagReplacements.forEach(([from, to]) => {
-    wxml = wxml.replace(new RegExp(from as string, 'g'), to as string)
-  })
-
-  return wxml
-}
-
-/**
- * 转换 v-model 字符串指令。
- */
-function transformVModelDirectives(wxml: string): string {
-  return wxml.replace(/v-model="([^"]+)"/g, (_match, expression) => {
-    return `value="{{${expression}}}" bindinput="_handleInput_${expression.replace(/\./g, '_')}"`
-  })
-}
-
-/**
- * 转换 v-for 字符串指令。
- */
-function transformVForDirectives(wxml: string): string {
-  return wxml.replace(/v-for="(\w+)(?:\s*,\s*(\w+))?\s+in\s+([^"]+)"/g, (_match, item, index, list) => {
-    return `wx:for="{{${list}}}" wx:for-item="${item}" wx:for-index="${index || 'index'}" wx:key="${item}"`
-  })
-}
-
-/**
- * 修复自闭合标签语法。
- */
-export function fixSelfClosingTags(wxml: string): string {
-  // 修复错误的自闭合标签语法，如 <image src="..." / attr> -> <image src="..." attr />
-  wxml = wxml.replace(/(<[^>]+)\s\/\s([^>]*>)/g, '$1 $2')
-
-  // 确保自闭合标签正确闭合
-  const selfClosingTags = ['image', 'input', 'icon', 'progress', 'slider', 'switch']
-  selfClosingTags.forEach(tag => {
-    // 修复未正确闭合的自闭合标签
-    const regex = new RegExp(`<${tag}([^>]*[^/])>`, 'g')
-    wxml = wxml.replace(regex, `<${tag}$1 />`)
-  })
 
   return wxml
 }
@@ -360,31 +252,4 @@ export function buildClassBindingExpression(staticClass: string, dynamicClass: s
   }
 
   return staticClass ? `'${staticClass}'` : ''
-}
-
-/**
- * 根据 Vue `:class` 内容生成 WXML 表达式片段。
- */
-function buildDynamicClassExpression(dynamicClass: string): string {
-  // 处理对象语法：{ online: isOnline, active: isActive }
-  if (dynamicClass.trim().startsWith('{') && dynamicClass.trim().endsWith('}')) {
-    const objectContent = dynamicClass.trim().slice(1, -1)
-    const classConditions = objectContent.split(',').map((condition: string) => {
-      const [className, expression] = condition.split(':').map((s: string) => s.trim())
-      const cleanClassName = (className || '').replace(/['"]/g, '')
-      const cleanExpression = (expression || '').trim()
-      return `${cleanExpression} ? '${cleanClassName}' : ''`
-    }).filter((condition: string) => !condition.includes("'' ? '' : ''"))
-
-    if (classConditions.length === 1) {
-      return classConditions[0] || ''
-    }
-    if (classConditions.length > 1) {
-      return `(${classConditions.join(' + " " + ')})`
-    }
-    return ''
-  }
-
-  // 处理数组语法或简单表达式
-  return dynamicClass
 }
