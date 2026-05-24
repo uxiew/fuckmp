@@ -4,16 +4,7 @@
  */
 
 import { logger } from '../utils/logger'
-import {
-  applyInjectedValueToInstance,
-  createDIConfig,
-  createProviderChain,
-  findProviderInParentChain,
-  getInjectionLogKey,
-  listDependentChildInstances,
-  resolveProviderValue,
-  shouldUpdateReactiveProvider
-} from './di-utils.js'
+import * as diUtils from './di-utils.js'
 
 /**
  * 注入键类型
@@ -58,7 +49,7 @@ export class DependencyInjection {
   private initialized = false
 
   constructor(config: DIConfig = {}) {
-    this.config = createDIConfig(config)
+    this.config = diUtils.createDIConfig(config)
   }
 
   /**
@@ -104,7 +95,7 @@ export class DependencyInjection {
     this.globalProviders.set(key, value)
 
     if (this.config.debug) {
-      logger.debug(`全局提供: ${getInjectionLogKey(key)}`, value)
+      logger.debug(`全局提供: ${diUtils.getInjectionLogKey(key)}`, value)
     }
   }
 
@@ -122,7 +113,7 @@ export class DependencyInjection {
       return defaultValue
     }
 
-    logger.warn(`全局注入失败，未找到提供者: ${getInjectionLogKey(key)}`)
+    logger.warn(`全局注入失败，未找到提供者: ${diUtils.getInjectionLogKey(key)}`)
     return undefined
   }
 
@@ -143,7 +134,7 @@ export class DependencyInjection {
    * 获取提供者链
    */
   getProviderChain(instance: any): any[] {
-    return createProviderChain(instance, current => this.providerHierarchy.get(current))
+    return diUtils.createProviderChain(instance, current => this.providerHierarchy.get(current))
   }
 
   /**
@@ -226,19 +217,18 @@ class DIInstance {
   private setupProviders(): void {
     if (!this.config.providers) return
 
-    for (const provider of Object.values(this.config.providers)) {
-      const providerDef = provider as ProviderDef
+    for (const providerDef of diUtils.listProviderDefinitions(this.config.providers)) {
       this.providers.set(providerDef.key, providerDef.value)
 
       if (this.diConfig.debug) {
-        logger.debug(`设置提供者: ${getInjectionLogKey(providerDef.key)}`, providerDef.value)
+        logger.debug(`设置提供者: ${diUtils.getInjectionLogKey(providerDef.key)}`, providerDef.value)
       }
     }
 
     // 添加provide方法到实例
-    this.instance._provide = (key: InjectionKey, value: any) => {
+    diUtils.installInstanceProvideMethod(this.instance, (key: InjectionKey, value: any) => {
       this.provide(key, value)
-    }
+    })
   }
 
   /**
@@ -247,8 +237,7 @@ class DIInstance {
   private setupInjectors(): void {
     if (!this.config.injectors) return
 
-    for (const [name, injector] of Object.entries(this.config.injectors)) {
-      const injectorDef = injector as InjectorDef
+    for (const [name, injectorDef] of diUtils.listInjectorEntries(this.config.injectors)) {
       this.injectors.set(name, injectorDef)
 
       // 立即注入值
@@ -258,16 +247,16 @@ class DIInstance {
         this.injectedValues.set(name, value)
 
         // 设置到实例数据中
-        applyInjectedValueToInstance(this.instance, name, value)
+        diUtils.applyInjectedValueToInstance(this.instance, name, value)
       } else if (injectorDef.required) {
-        logger.error(`必需的注入值未找到: ${getInjectionLogKey(injectorDef.key)}`)
+        logger.error(`必需的注入值未找到: ${diUtils.getInjectionLogKey(injectorDef.key)}`)
       }
     }
 
     // 添加inject方法到实例
-    this.instance._inject = (key: InjectionKey, defaultValue?: any) => {
+    diUtils.installInstanceInjectMethod(this.instance, (key: InjectionKey, defaultValue?: any) => {
       return this.inject(key, defaultValue)
-    }
+    })
   }
 
   /**
@@ -277,11 +266,11 @@ class DIInstance {
     this.providers.set(key, value)
 
     if (this.diConfig.debug) {
-      logger.debug(`实例提供: ${getInjectionLogKey(key)}`, value)
+      logger.debug(`实例提供: ${diUtils.getInjectionLogKey(key)}`, value)
     }
 
     // 如果启用了响应式提供者，更新所有依赖的子实例
-    if (shouldUpdateReactiveProvider(this.diConfig)) {
+    if (diUtils.shouldUpdateReactiveProvider(this.diConfig)) {
       this.updateDependentInstances(key, value)
     }
   }
@@ -291,10 +280,10 @@ class DIInstance {
    */
   inject<T>(key: InjectionKey<T>, defaultValue?: T): T | undefined {
     // 首先检查本实例的提供者
-    const ownProvider = resolveProviderValue<T>(this.providers, key)
+    const ownProvider = diUtils.resolveProviderValue<T>(this.providers, key)
     if (ownProvider.found) {
       if (this.diConfig.debug) {
-        logger.debug(`从本实例注入: ${getInjectionLogKey(key)}`, ownProvider.value)
+        logger.debug(`从本实例注入: ${diUtils.getInjectionLogKey(key)}`, ownProvider.value)
       }
 
       return ownProvider.value
@@ -303,21 +292,21 @@ class DIInstance {
     // 然后检查父实例链
     const providerChain = this.di.getProviderChain(this.instance)
 
-    const parentProvider = findProviderInParentChain<T>(
+    const parentProvider = diUtils.findProviderInParentChain<T>(
       providerChain,
       key,
       (parentInstance, providerKey) => {
         const parentDI = this.di.getInstances().get(parentInstance)
 
         return parentDI
-          ? resolveProviderValue<T>(parentDI.providers, providerKey)
+          ? diUtils.resolveProviderValue<T>(parentDI.providers, providerKey)
           : { found: false, value: undefined }
       }
     )
 
     if (parentProvider) {
       if (this.diConfig.debug) {
-        logger.debug(`从父实例注入: ${getInjectionLogKey(key)}`, parentProvider.value)
+        logger.debug(`从父实例注入: ${diUtils.getInjectionLogKey(key)}`, parentProvider.value)
       }
 
       return parentProvider.value
@@ -330,7 +319,7 @@ class DIInstance {
     }
 
     if (this.diConfig.debug) {
-      logger.debug(`注入失败，使用默认值: ${getInjectionLogKey(key)}`, defaultValue)
+      logger.debug(`注入失败，使用默认值: ${diUtils.getInjectionLogKey(key)}`, defaultValue)
     }
 
     return defaultValue
@@ -341,7 +330,7 @@ class DIInstance {
    */
   private updateDependentInstances(key: InjectionKey, value: any): void {
     // 查找所有以当前实例为父的子实例
-    for (const childInstance of listDependentChildInstances(this.di.getProviderHierarchy(), this.instance)) {
+    for (const childInstance of diUtils.listDependentChildInstances(this.di.getProviderHierarchy(), this.instance)) {
       const childDI = this.di.getInstances().get(childInstance)
       if (childDI) {
         childDI.updateInjectedValue(key, value)
@@ -354,15 +343,13 @@ class DIInstance {
    */
   private updateInjectedValue(key: InjectionKey, value: any): void {
     // 查找使用此key的注入者
-    for (const [name, injector] of this.injectors) {
-      if (injector.key === key) {
-        this.injectedValues.set(name, value)
+    for (const [name] of diUtils.listInjectorEntriesByKey(this.injectors, key)) {
+      this.injectedValues.set(name, value)
 
-        applyInjectedValueToInstance(this.instance, name, value)
+      diUtils.applyInjectedValueToInstance(this.instance, name, value)
 
-        if (this.diConfig.debug) {
-          logger.debug(`更新注入值: ${name}`, value)
-        }
+      if (this.diConfig.debug) {
+        logger.debug(`更新注入值: ${name}`, value)
       }
     }
   }

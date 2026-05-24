@@ -2,7 +2,7 @@
  * 依赖注入系统纯函数工具。
  */
 
-import type { DIConfig, InjectionKey } from './di.js'
+import type { DIConfig, InjectionKey, InjectorDef, ProviderDef } from './di.js'
 
 export interface ProviderResolveResult<T = any> {
   found: boolean
@@ -13,6 +13,8 @@ export interface ProviderChainMatch<T = any> {
   instance: any
   value: T | undefined
 }
+
+export type InjectorEntry = [string, InjectorDef]
 
 /** 合并依赖注入配置默认值。 */
 export function createDIConfig(config: DIConfig = {}): Required<DIConfig> {
@@ -55,6 +57,36 @@ export function resolveProviderValue<T>(
 /** 判断是否需要响应式更新依赖子实例。 */
 export function shouldUpdateReactiveProvider(config: DIConfig): boolean {
   return Boolean(config.enableReactiveProviders)
+}
+
+/** 按旧 Object.values 顺序列出 provider 定义。 */
+export function listProviderDefinitions(
+  providers?: Record<string, ProviderDef>
+): ProviderDef[] {
+  return Object.values(providers ?? {})
+}
+
+/** 按旧 Object.entries 顺序列出 injector 定义。 */
+export function listInjectorEntries(
+  injectors?: Record<string, InjectorDef>
+): InjectorEntry[] {
+  return Object.entries(injectors ?? {})
+}
+
+/** 挂载实例 provide 方法。 */
+export function installInstanceProvideMethod(
+  instance: any,
+  provide: (key: InjectionKey, value: any) => void
+): void {
+  instance._provide = provide
+}
+
+/** 挂载实例 inject 方法。 */
+export function installInstanceInjectMethod(
+  instance: any,
+  inject: (key: InjectionKey, defaultValue?: any) => any
+): void {
+  instance._inject = inject
 }
 
 /** 构造 setData 更新对象。 */
@@ -125,4 +157,20 @@ export function listDependentChildInstances(
   }
 
   return childInstances
+}
+
+/** 按 key 过滤 injector entries，保留 Map 插入顺序。 */
+export function listInjectorEntriesByKey(
+  injectors: Map<string, InjectorDef>,
+  key: InjectionKey
+): InjectorEntry[] {
+  const entries: InjectorEntry[] = []
+
+  for (const [name, injector] of injectors) {
+    if (injector.key === key) {
+      entries.push([name, injector])
+    }
+  }
+
+  return entries
 }

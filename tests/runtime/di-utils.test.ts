@@ -7,7 +7,12 @@ import {
   findProviderInParentChain,
   getInjectionLogKey,
   hasOwnProvider,
+  installInstanceInjectMethod,
+  installInstanceProvideMethod,
+  listInjectorEntries,
+  listInjectorEntriesByKey,
   listDependentChildInstances,
+  listProviderDefinitions,
   resolveProviderValue,
   shouldUpdateReactiveProvider
 } from '@/runtime/core/di-utils.js'
@@ -126,5 +131,57 @@ describe('runtime DI utils', () => {
     ])
 
     expect(listDependentChildInstances(hierarchy, parent)).toEqual([child])
+  })
+
+  it('按旧 Object 枚举顺序列出 provider 和 injector 配置', () => {
+    const themeProvider = { key: 'theme', value: 'dark' }
+    const localeProvider = { key: 'locale', value: 'zh-CN' }
+    const themeInjector = { key: 'theme', defaultValue: 'light' }
+    const localeInjector = { key: 'locale', required: true }
+
+    expect(listProviderDefinitions({
+      theme: themeProvider,
+      locale: localeProvider
+    })).toEqual([themeProvider, localeProvider])
+    expect(listProviderDefinitions()).toEqual([])
+
+    expect(listInjectorEntries({
+      theme: themeInjector,
+      locale: localeInjector
+    })).toEqual([
+      ['theme', themeInjector],
+      ['locale', localeInjector]
+    ])
+    expect(listInjectorEntries()).toEqual([])
+  })
+
+  it('挂载实例 provide/inject 方法并保持调用透传', () => {
+    const instance: any = {}
+    const provide = vi.fn()
+    const inject = vi.fn(() => 'dark')
+
+    installInstanceProvideMethod(instance, provide)
+    installInstanceInjectMethod(instance, inject)
+
+    instance._provide('theme', 'dark')
+    expect(provide).toHaveBeenCalledWith('theme', 'dark')
+    expect(instance._inject('theme', 'light')).toBe('dark')
+    expect(inject).toHaveBeenCalledWith('theme', 'light')
+  })
+
+  it('按 key 过滤 injector entries 并保留 Map 插入顺序', () => {
+    const theme = { key: 'theme' }
+    const themeAlias = { key: 'theme', defaultValue: 'light' }
+    const locale = { key: 'locale' }
+    const injectors = new Map<any, any>([
+      ['theme', theme],
+      ['locale', locale],
+      ['themeAlias', themeAlias]
+    ])
+
+    expect(listInjectorEntriesByKey(injectors, 'theme')).toEqual([
+      ['theme', theme],
+      ['themeAlias', themeAlias]
+    ])
   })
 })
