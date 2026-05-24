@@ -4,6 +4,13 @@
  */
 
 import { logger } from '../utils/logger'
+import {
+  applyInjectedValueToInstance,
+  createDIConfig,
+  getInjectionLogKey,
+  hasOwnProvider,
+  shouldUpdateReactiveProvider
+} from './di-utils.js'
 
 /**
  * 注入键类型
@@ -48,12 +55,7 @@ export class DependencyInjection {
   private initialized = false
 
   constructor(config: DIConfig = {}) {
-    this.config = {
-      debug: false,
-      enableGlobalProviders: true,
-      enableReactiveProviders: true,
-      ...config
-    }
+    this.config = createDIConfig(config)
   }
 
   /**
@@ -99,7 +101,7 @@ export class DependencyInjection {
     this.globalProviders.set(key, value)
 
     if (this.config.debug) {
-      logger.debug(`全局提供: ${String(key)}`, value)
+      logger.debug(`全局提供: ${getInjectionLogKey(key)}`, value)
     }
   }
 
@@ -117,7 +119,7 @@ export class DependencyInjection {
       return defaultValue
     }
 
-    logger.warn(`全局注入失败，未找到提供者: ${String(key)}`)
+    logger.warn(`全局注入失败，未找到提供者: ${getInjectionLogKey(key)}`)
     return undefined
   }
 
@@ -234,7 +236,7 @@ class DIInstance {
       this.providers.set(providerDef.key, providerDef.value)
 
       if (this.diConfig.debug) {
-        logger.debug(`设置提供者: ${String(providerDef.key)}`, providerDef.value)
+        logger.debug(`设置提供者: ${getInjectionLogKey(providerDef.key)}`, providerDef.value)
       }
     }
 
@@ -261,14 +263,9 @@ class DIInstance {
         this.injectedValues.set(name, value)
 
         // 设置到实例数据中
-        if (this.instance.setData) {
-          this.instance.setData({ [name]: value })
-        } else {
-          this.instance.data = this.instance.data || {}
-          this.instance.data[name] = value
-        }
+        applyInjectedValueToInstance(this.instance, name, value)
       } else if (injectorDef.required) {
-        logger.error(`必需的注入值未找到: ${String(injectorDef.key)}`)
+        logger.error(`必需的注入值未找到: ${getInjectionLogKey(injectorDef.key)}`)
       }
     }
 
@@ -285,11 +282,11 @@ class DIInstance {
     this.providers.set(key, value)
 
     if (this.diConfig.debug) {
-      logger.debug(`实例提供: ${String(key)}`, value)
+      logger.debug(`实例提供: ${getInjectionLogKey(key)}`, value)
     }
 
     // 如果启用了响应式提供者，更新所有依赖的子实例
-    if (this.diConfig.enableReactiveProviders) {
+    if (shouldUpdateReactiveProvider(this.diConfig)) {
       this.updateDependentInstances(key, value)
     }
   }
@@ -299,11 +296,11 @@ class DIInstance {
    */
   inject<T>(key: InjectionKey<T>, defaultValue?: T): T | undefined {
     // 首先检查本实例的提供者
-    if (this.providers.has(key)) {
+    if (hasOwnProvider(this.providers, key)) {
       const value = this.providers.get(key)
 
       if (this.diConfig.debug) {
-        logger.debug(`从本实例注入: ${String(key)}`, value)
+        logger.debug(`从本实例注入: ${getInjectionLogKey(key)}`, value)
       }
 
       return value
@@ -316,11 +313,11 @@ class DIInstance {
       const parentInstance = providerChain[i]
       const parentDI = this.di.getInstances().get(parentInstance)
 
-      if (parentDI && parentDI.providers.has(key)) {
+      if (parentDI && hasOwnProvider(parentDI.providers, key)) {
         const value = parentDI.providers.get(key)
 
         if (this.diConfig.debug) {
-          logger.debug(`从父实例注入: ${String(key)}`, value)
+          logger.debug(`从父实例注入: ${getInjectionLogKey(key)}`, value)
         }
 
         return value
@@ -334,7 +331,7 @@ class DIInstance {
     }
 
     if (this.diConfig.debug) {
-      logger.debug(`注入失败，使用默认值: ${String(key)}`, defaultValue)
+      logger.debug(`注入失败，使用默认值: ${getInjectionLogKey(key)}`, defaultValue)
     }
 
     return defaultValue
@@ -364,13 +361,7 @@ class DIInstance {
       if (injector.key === key) {
         this.injectedValues.set(name, value)
 
-        // 更新实例数据
-        if (this.instance.setData) {
-          this.instance.setData({ [name]: value })
-        } else {
-          this.instance.data = this.instance.data || {}
-          this.instance.data[name] = value
-        }
+        applyInjectedValueToInstance(this.instance, name, value)
 
         if (this.diConfig.debug) {
           logger.debug(`更新注入值: ${name}`, value)
