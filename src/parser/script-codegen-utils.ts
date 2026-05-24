@@ -4,7 +4,25 @@
  * 这些函数只依赖 AST 节点和可选变量上下文，不持有 ScriptParser 实例状态。
  */
 
-export type ScriptCodegenVariables = Map<string, { isReactive: boolean }>
+import {
+  extractObjectExpressionValue,
+  generateArrayExpressionCode,
+  generateAssignmentExpressionCode as generateNodeAssignmentExpressionCode,
+  generateFunctionParamsCode,
+  generateInfixExpressionCode,
+  generateMemberExpressionCode as generateNodeMemberExpressionCode,
+  generateNewExpressionCode as generateNodeNewExpressionCode,
+  generateObjectExpressionCode,
+  generateTemplateLiteralCode,
+  generateTernaryExpressionCode,
+  generateUnaryExpressionCode as generateNodeUnaryExpressionCode,
+  generateUpdateExpressionCode as generateNodeUpdateExpressionCode,
+  quoteStringLiteral,
+  transformVueIdentifier
+} from './script-codegen-node-utils.js'
+import type { ScriptCodegenVariables } from './script-codegen-node-utils.js'
+
+export type { ScriptCodegenVariables } from './script-codegen-node-utils.js'
 
 /**
  * 生成代码字符串（用于函数体等）。
@@ -21,26 +39,10 @@ export function generateCodeString(node: any, variables?: ScriptCodegenVariables
       return 'null'
     case 'Identifier':
       return node.name
-    case 'ArrayExpression': {
-      const elements = node.elements
-        .map((el: any) => el ? generateCodeString(el, variables) : 'null')
-        .join(', ')
-      return `[${elements}]`
-    }
-    case 'ObjectExpression': {
-      const properties = node.properties
-        .map((prop: any) => {
-          if (prop.type === 'ObjectProperty') {
-            const key = prop.key.type === 'Identifier' ? prop.key.name : generateCodeString(prop.key, variables)
-            const value = generateCodeString(prop.value, variables)
-            return `${key}: ${value}`
-          }
-          return ''
-        })
-        .filter(Boolean)
-        .join(', ')
-      return `{ ${properties} }`
-    }
+    case 'ArrayExpression':
+      return generateArrayExpressionCode(node, generateCodeString, variables)
+    case 'ObjectExpression':
+      return generateObjectExpressionCode(node, generateCodeString, variables)
     case 'ArrowFunctionExpression':
     case 'FunctionExpression':
       return generateFunctionCode(node, variables)
@@ -86,16 +88,8 @@ export function extractArgumentValue(node: any, variables?: ScriptCodegenVariabl
       return transformVueIdentifier(node.name)
     case 'ArrayExpression':
       return node.elements.map((el: any) => el ? extractArgumentValue(el, variables) : null)
-    case 'ObjectExpression': {
-      const obj: Record<string, any> = {}
-      node.properties.forEach((prop: any) => {
-        if (prop.type === 'ObjectProperty') {
-          const key = prop.key.type === 'Identifier' ? prop.key.name : prop.key.value
-          obj[key] = extractArgumentValue(prop.value, variables)
-        }
-      })
-      return obj
-    }
+    case 'ObjectExpression':
+      return extractObjectExpressionValue(node, extractArgumentValue, variables)
     case 'ArrowFunctionExpression':
     case 'FunctionExpression':
       return generateFunctionCode(node, variables)
@@ -129,12 +123,7 @@ export function extractArgumentValue(node: any, variables?: ScriptCodegenVariabl
 }
 
 function generateFunctionCode(node: any, variables?: ScriptCodegenVariables): string {
-  const params = node.params.map((param: any) => {
-    if (param.type === 'Identifier') {
-      return param.name
-    }
-    return 'param'
-  }).join(', ')
+  const params = generateFunctionParamsCode(node)
 
   if (node.type === 'ArrowFunctionExpression') {
     if (node.body.type === 'BlockStatement') {
@@ -228,50 +217,23 @@ function generateCallExpressionCode(node: any, variables?: ScriptCodegenVariable
 }
 
 function generateNewExpressionCode(node: any, variables?: ScriptCodegenVariables): string {
-  const callee = extractArgumentValue(node.callee, variables)
-  const args = node.arguments
-    .map((arg: any) => extractArgumentValue(arg, variables))
-    .join(', ')
-  return `new ${callee}(${args})`
+  return generateNodeNewExpressionCode(node, extractArgumentValue, variables)
 }
 
 function generateMemberExpressionCode(node: any, variables?: ScriptCodegenVariables): string {
-  const object = extractArgumentValue(node.object, variables)
-  const property = node.computed
-    ? `[${extractArgumentValue(node.property, variables)}]`
-    : `.${node.property.name}`
-
-  // 检查是否为响应式变量访问（如 visitCount.value）
-  if (node.object.type === 'Identifier' &&
-    node.property.name === 'value' &&
-    variables?.has(node.object.name) &&
-    variables.get(node.object.name)?.isReactive) {
-    // 转换为 this.variableName.value
-    return `this.${node.object.name}${property}`
-  }
-
-  // 移除特殊处理逻辑，保持原始的 Vue 代码
-  // 响应式变量访问现在由运行时代理系统自动处理
-  return `${object}${property}`
+  return generateNodeMemberExpressionCode(node, extractArgumentValue, variables)
 }
 
 function generateConditionalExpressionCode(node: any, variables?: ScriptCodegenVariables): string {
-  const test = extractArgumentValue(node.test, variables)
-  const consequent = extractArgumentValue(node.consequent, variables)
-  const alternate = extractArgumentValue(node.alternate, variables)
-  return `${test} ? ${consequent} : ${alternate}`
+  return generateTernaryExpressionCode(node, extractArgumentValue, variables)
 }
 
 function generateBinaryExpressionCode(node: any, variables?: ScriptCodegenVariables): string {
-  const left = generateCodeString(node.left, variables)
-  const right = generateCodeString(node.right, variables)
-  return `${left} ${node.operator} ${right}`
+  return generateInfixExpressionCode(node, generateCodeString, variables)
 }
 
 function generateLogicalExpressionCode(node: any, variables?: ScriptCodegenVariables): string {
-  const left = generateCodeString(node.left, variables)
-  const right = generateCodeString(node.right, variables)
-  return `${left} ${node.operator} ${right}`
+  return generateInfixExpressionCode(node, generateCodeString, variables)
 }
 
 function generateSwitchStatement(node: any, variables?: ScriptCodegenVariables): string {
@@ -319,79 +281,25 @@ function generateWhileStatement(node: any, variables?: ScriptCodegenVariables): 
 }
 
 function generateTemplateLiteral(node: any, variables?: ScriptCodegenVariables): string {
-  let result = '`'
-
-  for (let i = 0; i < node.quasis.length; i++) {
-    result += node.quasis[i].value.raw
-
-    if (i < node.expressions.length) {
-      result += '${' + extractArgumentValue(node.expressions[i], variables) + '}'
-    }
-  }
-
-  result += '`'
-  return result
-}
-
-function quoteStringLiteral(value: string): string {
-  return `'${value
-    .replace(/\\/g, '\\\\')
-    .replace(/'/g, "\\'")
-    .replace(/\r/g, '\\r')
-    .replace(/\n/g, '\\n')
-    .replace(/\u2028/g, '\\u2028')
-    .replace(/\u2029/g, '\\u2029')}'`
+  return generateTemplateLiteralCode(node, extractArgumentValue, variables)
 }
 
 function generateUpdateExpression(node: any, variables?: ScriptCodegenVariables): string {
-  // 移除字符串替换逻辑，保持原始的 Vue 代码
-  // 响应式更新现在由运行时代理系统自动处理
-  const argument = generateCodeString(node.argument, variables)
-  if (node.prefix) {
-    return `${node.operator}${argument}`
-  }
-  return `${argument}${node.operator}`
+  return generateNodeUpdateExpressionCode(node, generateCodeString, variables)
 }
 
 function generateAssignmentExpression(node: any, variables?: ScriptCodegenVariables): string {
-  const left = generateCodeString(node.left, variables)
-  const right = generateCodeString(node.right, variables)
-
-  // 移除特殊处理逻辑，保持原始的 Vue 代码
-  // 响应式变量赋值现在由运行时代理系统自动处理
-  return `${left} ${node.operator} ${right}`
+  return generateNodeAssignmentExpressionCode(node, generateCodeString, variables)
 }
 
 function generateUnaryExpression(node: any, variables?: ScriptCodegenVariables): string {
-  const argument = generateCodeString(node.argument, variables)
-  if (node.prefix) {
-    return `${node.operator}${argument}`
-  }
-  return `${argument}${node.operator}`
+  return generateNodeUnaryExpressionCode(node, generateCodeString, variables)
 }
 
 function generateNewExpression(node: any, variables?: ScriptCodegenVariables): string {
-  const callee = generateCodeString(node.callee, variables)
-  const args = node.arguments
-    .map((arg: any) => generateCodeString(arg, variables))
-    .join(', ')
-  return `new ${callee}(${args})`
+  return generateNodeNewExpressionCode(node, generateCodeString, variables)
 }
 
 function generateConditionalExpression(node: any, variables?: ScriptCodegenVariables): string {
-  const test = generateCodeString(node.test, variables)
-  const consequent = generateCodeString(node.consequent, variables)
-  const alternate = generateCodeString(node.alternate, variables)
-  return `${test} ? ${consequent} : ${alternate}`
-}
-
-function transformVueIdentifier(name: string): string {
-  switch (name) {
-    case 'props':
-      return 'this.properties'
-    case 'emit':
-      return 'this.triggerEvent'
-    default:
-      return name
-  }
+  return generateTernaryExpressionCode(node, generateCodeString, variables)
 }
