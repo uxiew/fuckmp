@@ -11,6 +11,13 @@ import {
   type RuntimeComputed,
   type RuntimeRef
 } from './reactivity-proxy-helpers'
+import {
+  applyReactiveDataToInstance,
+  areReactiveValuesEqual,
+  cloneReactiveValue,
+  createReactivityConfig,
+  getReactiveInstanceValue
+} from './reactivity-utils.js'
 
 /**
  * 响应式数据类型
@@ -56,12 +63,7 @@ export class Reactivity {
   private initialized = false
 
   constructor(config: ReactivityConfig = {}) {
-    this.config = {
-      debug: false,
-      enableComputed: true,
-      enableWatch: true,
-      ...config
-    }
+    this.config = createReactivityConfig(config)
   }
 
   /**
@@ -184,15 +186,11 @@ class ReactiveInstance {
 
     // 保存旧值用于监听
     for (const key in data) {
-      this.oldValues.set(key, this.deepClone(data[key]))
+      this.oldValues.set(key, cloneReactiveValue(data[key]))
     }
 
     // 设置到实例
-    if (this.instance.setData) {
-      this.instance.setData(data)
-    } else {
-      Object.assign(this.instance.data || {}, data)
-    }
+    applyReactiveDataToInstance(this.instance, data)
   }
 
   /**
@@ -230,7 +228,7 @@ class ReactiveInstance {
       // 如果设置了 immediate，立即执行一次
       if ((watcherDef as WatcherDef).immediate) {
         try {
-          (watcherDef as WatcherDef).callback(this.getValue(key), undefined)
+          (watcherDef as WatcherDef).callback(getReactiveInstanceValue(this.instance, key), undefined)
         } catch (error) {
           logger.error(`监听器 ${key} 立即执行失败:`, error)
         }
@@ -252,7 +250,7 @@ class ReactiveInstance {
         const newValue = (computedDef as ComputedDef).getter()
         const oldValue = this.computedCache.get(key)
 
-        if (!this.isEqual(newValue, oldValue)) {
+        if (!areReactiveValuesEqual(newValue, oldValue)) {
           computedData[key] = newValue
           this.computedCache.set(key, newValue)
           hasChanges = true
@@ -279,7 +277,7 @@ class ReactiveInstance {
         try {
           const oldValue = this.oldValues.get(key)
           watcher.callback(newValue, oldValue)
-          this.oldValues.set(key, this.deepClone(newValue))
+          this.oldValues.set(key, cloneReactiveValue(newValue))
         } catch (error) {
           logger.error(`监听器 ${key} 执行失败:`, error)
         }
@@ -291,70 +289,10 @@ class ReactiveInstance {
    * 更新数据
    */
   private updateData(data: Record<string, any>): void {
-    if (Object.keys(data).length === 0) return
-
-    if (this.instance.setData) {
-      this.instance.setData(data)
-    } else {
-      Object.assign(this.instance.data || {}, data)
-    }
+    applyReactiveDataToInstance(this.instance, data)
 
     // 触发监听器
     this.triggerWatchers(data)
-  }
-
-  /**
-   * 获取值
-   */
-  private getValue(key: string): any {
-    if (this.instance.data && key in this.instance.data) {
-      return this.instance.data[key]
-    }
-    return undefined
-  }
-
-  /**
-   * 深度克隆
-   */
-  private deepClone(obj: any): any {
-    if (obj === null || typeof obj !== 'object') {
-      return obj
-    }
-
-    if (obj instanceof Date) {
-      return new Date(obj.getTime())
-    }
-
-    if (obj instanceof Array) {
-      return obj.map(item => this.deepClone(item))
-    }
-
-    if (typeof obj === 'object') {
-      const cloned: any = {}
-      for (const key in obj) {
-        if (obj.hasOwnProperty(key)) {
-          cloned[key] = this.deepClone(obj[key])
-        }
-      }
-      return cloned
-    }
-
-    return obj
-  }
-
-  /**
-   * 比较两个值是否相等
-   */
-  private isEqual(a: any, b: any): boolean {
-    if (a === b) return true
-    if (a == null || b == null) return a === b
-    if (typeof a !== typeof b) return false
-
-    if (typeof a === 'object') {
-      return JSON.stringify(a) === JSON.stringify(b)
-    }
-
-    return false
   }
 
   /**
