@@ -12,6 +12,17 @@ import {
   mergeCompileResults,
   validateFilePath
 } from './compiler-utility-functions.js'
+import {
+  createCompileStatsReport,
+  generateCompileErrorReport,
+  generatePerformanceMeasureReport,
+  getAverageCompileFileSize,
+  getCompileCacheMissReason,
+  getSlowestCompileFile,
+  type CompileCacheEntry,
+  type CompileErrorEntry,
+  type CompileFileStat
+} from './compiler-state-utils.js'
 
 /**
  * 编译统计工具
@@ -19,7 +30,7 @@ import {
 export class CompileStats {
   private startTime: number = 0
   private endTime: number = 0
-  private fileStats: Map<string, { size: number; time: number }> = new Map()
+  private fileStats: Map<string, CompileFileStat> = new Map()
 
   /**
    * 开始计时
@@ -53,48 +64,21 @@ export class CompileStats {
    * 获取平均文件大小
    */
   getAverageFileSize(): number {
-    if (this.fileStats.size === 0) return 0
-    
-    const totalSize = Array.from(this.fileStats.values())
-      .reduce((sum, stat) => sum + stat.size, 0)
-    
-    return Math.round(totalSize / this.fileStats.size)
+    return getAverageCompileFileSize(this.fileStats)
   }
 
   /**
    * 获取最慢的文件
    */
   getSlowestFile(): { file: string; time: number } | null {
-    if (this.fileStats.size === 0) return null
-    
-    let slowestFile = ''
-    let slowestTime = 0
-    
-    this.fileStats.forEach((stat, file) => {
-      if (stat.time > slowestTime) {
-        slowestTime = stat.time
-        slowestFile = file
-      }
-    })
-    
-    return { file: slowestFile, time: slowestTime }
+    return getSlowestCompileFile(this.fileStats)
   }
 
   /**
    * 生成统计报告
    */
   generateReport(): string {
-    const totalTime = this.getTotalTime()
-    const fileCount = this.fileStats.size
-    const averageSize = this.getAverageFileSize()
-    const slowestFile = this.getSlowestFile()
-    
-    return `编译统计报告:
-- 总耗时: ${totalTime}ms
-- 文件数量: ${fileCount}
-- 平均文件大小: ${averageSize} bytes
-- 最慢文件: ${slowestFile?.file || 'N/A'} (${slowestFile?.time || 0}ms)
-- 平均编译速度: ${fileCount > 0 ? Math.round(totalTime / fileCount) : 0}ms/file`
+    return createCompileStatsReport(this.getTotalTime(), this.fileStats)
   }
 }
 
@@ -102,7 +86,7 @@ export class CompileStats {
  * 编译缓存管理器
  */
 export class CompileCache {
-  private cache: Map<string, { hash: string; result: any; timestamp: number }> = new Map()
+  private cache: Map<string, CompileCacheEntry> = new Map()
   private maxAge: number = 24 * 60 * 60 * 1000 // 24小时
 
   constructor(maxAge?: number) {
@@ -116,22 +100,16 @@ export class CompileCache {
    */
   get(filePath: string, contentHash: string): any | null {
     const cached = this.cache.get(filePath)
-    
-    if (!cached) return null
-    
-    // 检查哈希是否匹配
-    if (cached.hash !== contentHash) {
+
+    const missReason = getCompileCacheMissReason(cached, contentHash, Date.now(), this.maxAge)
+    if (missReason === 'missing') return null
+
+    if (missReason) {
       this.cache.delete(filePath)
       return null
     }
-    
-    // 检查是否过期
-    if (Date.now() - cached.timestamp > this.maxAge) {
-      this.cache.delete(filePath)
-      return null
-    }
-    
-    return cached.result
+
+    return cached!.result
   }
 
   /**
@@ -177,7 +155,7 @@ export class CompileCache {
  * 错误收集器
  */
 export class ErrorCollector {
-  private errors: Array<{ file: string; error: Error; timestamp: number }> = []
+  private errors: CompileErrorEntry[] = []
 
   /**
    * 添加错误
@@ -193,7 +171,7 @@ export class ErrorCollector {
   /**
    * 获取所有错误
    */
-  getErrors(): Array<{ file: string; error: Error; timestamp: number }> {
+  getErrors(): CompileErrorEntry[] {
     return [...this.errors]
   }
 
@@ -217,29 +195,7 @@ export class ErrorCollector {
    * 生成错误报告
    */
   generateReport(): string {
-    if (this.errors.length === 0) {
-      return '没有编译错误'
-    }
-
-    const errorsByFile = new Map<string, Error[]>()
-    
-    this.errors.forEach(({ file, error }) => {
-      if (!errorsByFile.has(file)) {
-        errorsByFile.set(file, [])
-      }
-      errorsByFile.get(file)!.push(error)
-    })
-
-    const reports: string[] = []
-    
-    errorsByFile.forEach((errors, file) => {
-      reports.push(`文件: ${file}`)
-      errors.forEach((error, index) => {
-        reports.push(`  ${index + 1}. ${error.message}`)
-      })
-    })
-
-    return `编译错误报告 (${this.errors.length} 个错误):\n${reports.join('\n')}`
+    return generateCompileErrorReport(this.errors)
   }
 }
 
@@ -303,17 +259,7 @@ export class PerformanceMonitor {
    * 生成性能报告
    */
   generateReport(): string {
-    if (this.measures.size === 0) {
-      return '没有性能数据'
-    }
-
-    const reports: string[] = ['性能监控报告:']
-    
-    this.measures.forEach((duration, name) => {
-      reports.push(`- ${name}: ${duration}ms`)
-    })
-
-    return reports.join('\n')
+    return generatePerformanceMeasureReport(this.measures)
   }
 }
 
