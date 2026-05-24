@@ -20,6 +20,7 @@ import {
 } from './compiler-result-utils.js'
 import { parseAndTransformSfcSections } from './compiler-transform-pipeline.js'
 import { refreshProjectOutputFiles } from './compiler-project-output-utils.js'
+import { generateTargetCode } from './compiler-generate-utils.js'
 import { PluginManager, createDefaultPluginManager } from '@/plugins/index.js'
 import { UserConfigManager } from '@/config/user-config.js'
 import { RuntimeInjector } from './runtime-injector'
@@ -261,21 +262,10 @@ export class Vue3MiniprogramCompiler {
    * 生成代码
    */
   private async generateCode(results: any, context: TransformContext) {
-    if (context.isPage) {
-      return await this.pageGenerator.generatePage(
-        results.script,
-        results.template,
-        results.styles || [],
-        context
-      )
-    } else {
-      return await this.componentGenerator.generateComponent(
-        results.script,
-        results.template,
-        results.styles || [],
-        context
-      )
-    }
+    return await generateTargetCode(results, context, {
+      pageGenerator: this.pageGenerator,
+      componentGenerator: this.componentGenerator
+    })
   }
 
   /**
