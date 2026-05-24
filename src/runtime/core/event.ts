@@ -4,6 +4,14 @@
  */
 
 import { logger } from '../utils/logger'
+import {
+  applyEventModifiers,
+  applyTwoWayBindingValueToInstance,
+  createEventConfig,
+  extractTwoWayBindingValue,
+  getBindingHandlerName,
+  shouldSetupTwoWayBindings
+} from './event-utils.js'
 
 /**
  * 事件处理器定义
@@ -45,12 +53,7 @@ export class EventSystem {
   private initialized = false
 
   constructor(config: EventConfig = {}) {
-    this.config = {
-      debug: false,
-      enableTwoWayBinding: true,
-      enableEventModifiers: true,
-      ...config
-    }
+    this.config = createEventConfig(config)
   }
 
   /**
@@ -198,7 +201,7 @@ class EventInstance {
    * 设置双向绑定
    */
   private setupTwoWayBindings(): void {
-    if (!this.config.bindings || !this.eventConfig.enableTwoWayBinding) return
+    if (!shouldSetupTwoWayBindings(this.config.bindings, this.eventConfig)) return
 
     for (const [name, binding] of Object.entries(this.config.bindings)) {
       const bindingDef = binding as TwoWayBinding
@@ -206,7 +209,7 @@ class EventInstance {
 
       // 创建绑定处理器
       const bindingHandler = this.createBindingHandler(bindingDef)
-      const handlerName = `_handle_${name}_binding`
+      const handlerName = getBindingHandlerName(name)
       
       this.boundMethods.set(handlerName, bindingHandler)
       this.instance[handlerName] = bindingHandler
@@ -225,7 +228,7 @@ class EventInstance {
 
         // 应用事件修饰符
         if (this.eventConfig.enableEventModifiers && eventHandler.modifiers) {
-          event = this.applyEventModifiers(event, eventHandler.modifiers)
+          event = applyEventModifiers(event, eventHandler.modifiers)
           if (event === null) {
             return undefined
           }
@@ -253,7 +256,7 @@ class EventInstance {
   private createBindingHandler(binding: TwoWayBinding): Function {
     return (event: any) => {
       try {
-        let value = event.detail?.value ?? event.detail
+        let value = extractTwoWayBindingValue(event)
 
         // 应用转换器
         if (binding.transformer) {
@@ -267,14 +270,7 @@ class EventInstance {
         }
 
         // 更新数据
-        const updateData = { [binding.property]: value }
-        
-        if (this.instance.setData) {
-          this.instance.setData(updateData)
-        } else {
-          this.instance.data = this.instance.data || {}
-          this.instance.data[binding.property] = value
-        }
+        applyTwoWayBindingValueToInstance(this.instance, binding.property, value)
 
         // 触发计算属性更新
         if (this.instance._updateComputed) {
@@ -288,82 +284,6 @@ class EventInstance {
         logger.error(`双向绑定处理失败: ${binding.property}`, error)
       }
     }
-  }
-
-  /**
-   * 应用事件修饰符
-   */
-  private applyEventModifiers(event: any, modifiers: string[]): any {
-    let modifiedEvent = { ...event }
-
-    for (const modifier of modifiers) {
-      switch (modifier) {
-        case 'stop':
-          if (modifiedEvent.stopPropagation) {
-            modifiedEvent.stopPropagation()
-          }
-          break
-        case 'prevent':
-          if (modifiedEvent.preventDefault) {
-            modifiedEvent.preventDefault()
-          }
-          break
-        case 'self':
-          if (modifiedEvent.target !== modifiedEvent.currentTarget) {
-            return null // 阻止事件处理
-          }
-          break
-        case 'capture':
-          // 在小程序中，capture需要在模板中设置
-          break
-        case 'once':
-          // once修饰符在createWrappedHandler中处理
-          break
-        case 'passive':
-          // passive修饰符在小程序中需要特殊处理
-          break
-        default:
-          // 键盘事件修饰符等
-          if (this.isKeyModifier(modifier, modifiedEvent)) {
-            return null // 阻止事件处理
-          }
-      }
-    }
-
-    return modifiedEvent
-  }
-
-  /**
-   * 检查键盘修饰符
-   */
-  private isKeyModifier(modifier: string, event: any): boolean {
-    if (!event.key && !event.keyCode) {
-      return false
-    }
-
-    const keyMap: Record<string, string | number> = {
-      enter: 'Enter',
-      tab: 'Tab',
-      delete: 'Delete',
-      esc: 'Escape',
-      space: ' ',
-      up: 'ArrowUp',
-      down: 'ArrowDown',
-      left: 'ArrowLeft',
-      right: 'ArrowRight'
-    }
-
-    const expectedKey = keyMap[modifier]
-    if (expectedKey) {
-      return event.key !== expectedKey && event.keyCode !== expectedKey
-    }
-
-    // 检查单个字符
-    if (modifier.length === 1) {
-      return event.key !== modifier
-    }
-
-    return false
   }
 
   /**
