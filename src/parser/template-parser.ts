@@ -4,6 +4,18 @@
 
 import { compileTemplate } from '@vue/compiler-sfc'
 import { logger } from '@/utils/index.js'
+import {
+  createTemplateDirectiveInfo,
+  createTemplateEventInfo,
+  createTemplateModelInfo,
+  getTemplateComplexityScore,
+  getTemplateNodeLocation,
+  getTemplateSlotName,
+  getTemplateSlotProps,
+  getUniqueTemplateDirectiveNames,
+  getUniqueTemplateEventNames,
+  isTemplateComponentTag
+} from './template-parser-utils.js'
 
 /**
  * 模板解析结果
@@ -158,7 +170,7 @@ export class TemplateParser {
     const tag = node.tag
 
     // 检查是否为组件
-    if (this.isComponent(tag)) {
+    if (isTemplateComponentTag(tag)) {
       result.components.add(tag)
     }
 
@@ -179,7 +191,7 @@ export class TemplateParser {
    * 处理属性
    */
   private handleProp(prop: any, result: TemplateParseResult): void {
-    const location = this.getLocation(prop)
+    const location = getTemplateNodeLocation(prop)
 
     if (prop.type === 6) { // ATTRIBUTE
       // 普通属性
@@ -187,35 +199,17 @@ export class TemplateParser {
     }
 
     if (prop.type === 7) { // DIRECTIVE
-      const directive: DirectiveInfo = {
-        name: prop.name,
-        arg: prop.arg?.content,
-        modifiers: prop.modifiers || [],
-        expression: prop.exp?.content,
-        location
-      }
+      const directive = createTemplateDirectiveInfo(prop, location)
 
       result.directives.push(directive)
 
       // 特殊处理
       if (prop.name === 'on') {
         // 事件监听器
-        const event: EventInfo = {
-          name: prop.arg?.content || 'unknown',
-          handler: prop.exp?.content || '',
-          modifiers: prop.modifiers || [],
-          location
-        }
-        result.events.push(event)
+        result.events.push(createTemplateEventInfo(prop, location))
       } else if (prop.name === 'model') {
         // v-model
-        const model: ModelInfo = {
-          property: prop.exp?.content || 'modelValue',
-          event: prop.arg?.content || 'update:modelValue',
-          modifiers: prop.modifiers || [],
-          location
-        }
-        result.models.push(model)
+        result.models.push(createTemplateModelInfo(prop, location))
       }
     }
   }
@@ -225,67 +219,19 @@ export class TemplateParser {
    */
   private handleSlot(node: any, result: TemplateParseResult): void {
     const slot: SlotInfo = {
-      name: this.getSlotName(node),
-      props: this.getSlotProps(node),
-      location: this.getLocation(node)
+      name: getTemplateSlotName(node),
+      props: getTemplateSlotProps(node),
+      location: getTemplateNodeLocation(node)
     }
 
     result.slots.push(slot)
   }
 
   /**
-   * 获取插槽名称
-   */
-  private getSlotName(node: any): string {
-    const nameProp = node.props?.find((prop: any) =>
-      prop.type === 6 && prop.name === 'name'
-    )
-    return nameProp?.value?.content || 'default'
-  }
-
-  /**
-   * 获取插槽属性
-   */
-  private getSlotProps(node: any): Record<string, any> {
-    const props: Record<string, any> = {}
-
-    if (node.props) {
-      node.props.forEach((prop: any) => {
-        if (prop.type === 6 && prop.name !== 'name') {
-          props[prop.name] = prop.value?.content
-        } else if (prop.type === 7) {
-          props[prop.name] = prop.exp?.content
-        }
-      })
-    }
-
-    return props
-  }
-
-  /**
-   * 检查是否为组件
-   */
-  private isComponent(tag: string): boolean {
-    // 自定义组件通常以大写字母开头或包含连字符
-    return /^[A-Z]/.test(tag) || tag.includes('-')
-  }
-
-  /**
-   * 获取节点位置信息
-   */
-  private getLocation(node: any): string {
-    if (node.loc) {
-      const { start, end } = node.loc
-      return `${start.line}:${start.column}-${end.line}:${end.column}`
-    }
-    return 'unknown'
-  }
-
-  /**
    * 获取模板中使用的所有指令
    */
   getDirectives(result: TemplateParseResult): string[] {
-    return Array.from(new Set(result.directives.map(d => d.name)))
+    return getUniqueTemplateDirectiveNames(result.directives)
   }
 
   /**
@@ -299,7 +245,7 @@ export class TemplateParser {
    * 获取模板中的所有事件
    */
   getEvents(result: TemplateParseResult): string[] {
-    return Array.from(new Set(result.events.map(e => e.name)))
+    return getUniqueTemplateEventNames(result.events)
   }
 
   /**
@@ -327,23 +273,6 @@ export class TemplateParser {
    * 获取模板复杂度评分
    */
   getComplexityScore(result: TemplateParseResult): number {
-    let score = 0
-
-    // 指令复杂度
-    score += result.directives.length * 2
-
-    // 组件复杂度
-    score += result.components.size * 3
-
-    // 事件复杂度
-    score += result.events.length * 1
-
-    // v-model 复杂度
-    score += result.models.length * 2
-
-    // 插槽复杂度
-    score += result.slots.length * 2
-
-    return score
+    return getTemplateComplexityScore(result)
   }
 }
