@@ -14,7 +14,14 @@ import {
   validateWxmlTransformResult
 } from './template-string-utils.js'
 import {
+  collectTemplateComponents,
   createDefaultDirectiveTransformers,
+  createTemplateTransformResult,
+  renderTemplateElement,
+  renderTemplateForBlock,
+  renderTemplateIfBranches,
+  transformTemplateInterpolationNode,
+  transformTemplateTextNode,
   transformVueComponentTagsInTemplate
 } from './template-transformer-utils.js'
 import { VueTemplateTransformer } from './vue-template-transformer.js'
@@ -79,11 +86,7 @@ export class TemplateTransformer {
         }
       }
 
-      const result: TemplateTransformResult = {
-        wxml: '',
-        components: new Set(),
-        eventHandlers: new Map()
-      }
+      const result = createTemplateTransformResult()
 
       // 如果有 AST，转换 AST
       if (parseResult.ast) {
@@ -109,10 +112,7 @@ export class TemplateTransformer {
       }
 
       // 收集组件信息
-      parseResult.components.forEach(component => {
-        result.components.add(component)
-        context.components.set(component, `./${component}`)
-      })
+      collectTemplateComponents(parseResult.components, result, context)
 
       logger.debug(`模板转换完成: ${context.filename}`)
       return result
@@ -160,15 +160,7 @@ export class TemplateTransformer {
     const attrs = this.transformAttributes(node.props || [], result, context)
     const children = this.transformChildren(node.children || [], result, context)
 
-    // 检查是否为自闭合标签
-    const selfClosingTags = ['input', 'image', 'icon', 'progress', 'slider', 'switch', 'audio', 'video', 'camera', 'live-player', 'live-pusher', 'map', 'canvas', 'open-data', 'web-view']
-    const isSelfClosing = selfClosingTags.includes(tag)
-
-    if (isSelfClosing) {
-      return `<${tag}${attrs} />`
-    } else {
-      return `<${tag}${attrs}>${children}</${tag}>`
-    }
+    return renderTemplateElement(tag, attrs, children)
   }
 
   /**
@@ -241,14 +233,14 @@ export class TemplateTransformer {
    * 转换文本节点
    */
   private transformText(node: any): string {
-    return node.content || ''
+    return transformTemplateTextNode(node)
   }
 
   /**
    * 转换插值表达式
    */
   private transformInterpolation(node: any): string {
-    return `{{${node.content?.content || ''}}}`
+    return transformTemplateInterpolationNode(node)
   }
 
   /**
@@ -256,28 +248,10 @@ export class TemplateTransformer {
    */
   private transformIf(node: any, result: TemplateTransformResult, context: TransformContext): string {
     const branches = node.branches || []
-    let output = ''
-
-    branches.forEach((branch: any, index: number) => {
-      if (index === 0) {
-        // v-if
-        output += `<block wx:if="{{${branch.condition?.content}}}">
-          ${this.transformChildren(branch.children, result, context)}
-        </block>`
-      } else if (branch.condition) {
-        // v-else-if
-        output += `<block wx:elif="{{${branch.condition.content}}}">
-          ${this.transformChildren(branch.children, result, context)}
-        </block>`
-      } else {
-        // v-else
-        output += `<block wx:else>
-          ${this.transformChildren(branch.children, result, context)}
-        </block>`
-      }
-    })
-
-    return output
+    return renderTemplateIfBranches(
+      branches,
+      children => this.transformChildren(children, result, context)
+    )
   }
 
   /**
@@ -288,9 +262,12 @@ export class TemplateTransformer {
     const valueAlias = node.valueAlias?.content || 'item'
     const keyAlias = node.keyAlias?.content || 'index'
 
-    return `<block wx:for="{{${source}}}" wx:for-item="${valueAlias}" wx:for-index="${keyAlias}" wx:key="${keyAlias}">
-      ${this.transformChildren(node.children, result, context)}
-    </block>`
+    return renderTemplateForBlock(
+      source,
+      valueAlias,
+      keyAlias,
+      this.transformChildren(node.children, result, context)
+    )
   }
 
   /**

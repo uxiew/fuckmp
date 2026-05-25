@@ -12,6 +12,24 @@ import {
   transformVOnDirective
 } from './template-string-utils.js'
 
+const SELF_CLOSING_TEMPLATE_TAGS = [
+  'input',
+  'image',
+  'icon',
+  'progress',
+  'slider',
+  'switch',
+  'audio',
+  'video',
+  'camera',
+  'live-player',
+  'live-pusher',
+  'map',
+  'canvas',
+  'open-data',
+  'web-view'
+] as const
+
 /**
  * 创建标准 AST 指令转换器集合。
  */
@@ -47,6 +65,98 @@ export function createDefaultDirectiveTransformers(): Map<string, DirectiveTrans
   })
 
   return directiveTransformers
+}
+
+/**
+ * 创建标准模板转换结果对象。
+ */
+export function createTemplateTransformResult(): TemplateTransformResult {
+  return {
+    wxml: '',
+    components: new Set(),
+    eventHandlers: new Map()
+  }
+}
+
+/**
+ * 按旧规则收集模板解析阶段识别出的组件依赖。
+ */
+export function collectTemplateComponents(
+  components: Iterable<string>,
+  result: TemplateTransformResult,
+  context: TransformContext
+): void {
+  for (const component of components) {
+    result.components.add(component)
+    context.components.set(component, `./${component}`)
+  }
+}
+
+/**
+ * 渲染元素节点，保留旧自闭合标签列表与输出格式。
+ */
+export function renderTemplateElement(tag: string, attrs: string, children: string): string {
+  if ((SELF_CLOSING_TEMPLATE_TAGS as readonly string[]).includes(tag)) {
+    return `<${tag}${attrs} />`
+  }
+
+  return `<${tag}${attrs}>${children}</${tag}>`
+}
+
+/**
+ * 转换文本节点。
+ */
+export function transformTemplateTextNode(node: any): string {
+  return node.content || ''
+}
+
+/**
+ * 转换插值节点。
+ */
+export function transformTemplateInterpolationNode(node: any): string {
+  return `{{${node.content?.content || ''}}}`
+}
+
+/**
+ * 渲染 v-for block，保留旧换行和缩进格式。
+ */
+export function renderTemplateForBlock(
+  source: string,
+  valueAlias: string,
+  keyAlias: string,
+  children: string
+): string {
+  return `<block wx:for="{{${source}}}" wx:for-item="${valueAlias}" wx:for-index="${keyAlias}" wx:key="${keyAlias}">
+      ${children}
+    </block>`
+}
+
+/**
+ * 渲染 v-if / v-else-if / v-else 分支，保留旧换行和缩进格式。
+ */
+export function renderTemplateIfBranches(
+  branches: any[],
+  renderChildren: (children: any[]) => string
+): string {
+  let output = ''
+
+  branches.forEach((branch: any, index: number) => {
+    if (index === 0) {
+      output += `<block wx:if="{{${branch.condition?.content}}}">
+          ${renderChildren(branch.children)}
+        </block>`
+    } else if (branch.condition) {
+      output += `<block wx:elif="{{${branch.condition.content}}}">
+          ${renderChildren(branch.children)}
+        </block>`
+    } else {
+      output += `<block wx:else>
+          ${renderChildren(branch.children)}
+        </block>`
+    }
+  })
+
+  return output
 }
 
 /**
