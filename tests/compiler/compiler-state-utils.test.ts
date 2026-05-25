@@ -6,7 +6,9 @@ import {
   generatePerformanceMeasureReport,
   getAverageCompileFileSize,
   getCompileCacheMissReason,
-  getSlowestCompileFile
+  getSlowestCompileFile,
+  removeFileFromCompilationState,
+  resetCompilationState
 } from '@/compiler/compiler-state-utils.js'
 
 describe('compiler state utils', () => {
@@ -72,5 +74,80 @@ describe('compiler state utils', () => {
     ]))).toBe(`性能监控报告:
 - parse: 12ms
 - emit: 8ms`)
+  })
+
+  it('重置编译项目状态并替换 appConfig 对象', () => {
+    const state = {
+      sourceFiles: new Map([['app.vue', '<template />']]),
+      compiledPages: new Map([['pages/index.vue', {}]]),
+      compiledComponents: new Map([['components/card.vue', {}]]),
+      appConfig: { config: { pages: ['pages/index'] } }
+    }
+
+    const nextAppConfig = resetCompilationState(
+      state.sourceFiles,
+      state.compiledPages,
+      state.compiledComponents
+    )
+
+    expect(state.sourceFiles.size).toBe(0)
+    expect(state.compiledPages.size).toBe(0)
+    expect(state.compiledComponents.size).toBe(0)
+    expect(nextAppConfig).toEqual({})
+    expect(nextAppConfig).not.toBe(state.appConfig)
+  })
+
+  it('移除非 app 源文件时清理三类状态并要求删除输出文件', () => {
+    const state = {
+      sourceFiles: new Map([
+        ['pages/index.vue', '<template />'],
+        ['components/card.vue', '<template />']
+      ]),
+      compiledPages: new Map([['pages/index.vue', { page: true }]]),
+      compiledComponents: new Map([['components/card.vue', { component: true }]]),
+      appConfig: { config: { pages: ['pages/index'] } }
+    }
+
+    const result = removeFileFromCompilationState(
+      state.sourceFiles,
+      state.compiledPages,
+      state.compiledComponents,
+      state.appConfig,
+      'pages/index.vue',
+      false
+    )
+
+    expect(state.sourceFiles.has('pages/index.vue')).toBe(false)
+    expect(state.compiledPages.has('pages/index.vue')).toBe(false)
+    expect(state.compiledComponents.has('pages/index.vue')).toBe(false)
+    expect(result).toEqual({
+      appConfig: state.appConfig,
+      shouldRemoveGeneratedOutputs: true
+    })
+  })
+
+  it('移除 app 源文件时重置 appConfig 且不删除普通输出文件', () => {
+    const state = {
+      sourceFiles: new Map([['app.vue', '<template />']]),
+      compiledPages: new Map(),
+      compiledComponents: new Map(),
+      appConfig: { config: { pages: ['pages/index'] } }
+    }
+
+    const result = removeFileFromCompilationState(
+      state.sourceFiles,
+      state.compiledPages,
+      state.compiledComponents,
+      state.appConfig,
+      'app.vue',
+      true
+    )
+
+    expect(state.sourceFiles.size).toBe(0)
+    expect(result).toEqual({
+      appConfig: {},
+      shouldRemoveGeneratedOutputs: false
+    })
+    expect(result.appConfig).not.toBe(state.appConfig)
   })
 })

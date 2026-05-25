@@ -20,6 +20,7 @@ import {
 } from './compiler-result-utils.js'
 import { parseAndTransformSfcSections } from './compiler-transform-pipeline.js'
 import { refreshProjectOutputFiles } from './compiler-project-output-utils.js'
+import { removeFileFromCompilationState, resetCompilationState } from './compiler-state-utils.js'
 import { generateTargetCode } from './compiler-generate-utils.js'
 import {
   createCompilerWatchHandlers,
@@ -223,18 +224,16 @@ export class Vue3MiniprogramCompiler {
   /** 从增量编译状态中移除源文件并清理对应输出。 */
   async removeSourceFile(filePath: string): Promise<string[]> {
     const options = this.configManager.getOptions()
+    const appFile = isAppComponent(filePath)
 
-    this.sourceFiles.delete(filePath)
-    this.compiledPages.delete(filePath)
-    this.compiledComponents.delete(filePath)
+    const removal = removeFileFromCompilationState(
+      this.sourceFiles, this.compiledPages, this.compiledComponents, this.appConfig, filePath, appFile
+    )
+    this.appConfig = removal.appConfig
 
-    if (isAppComponent(filePath)) {
-      this.appConfig = {}
-    }
-
-    const removedFiles = isAppComponent(filePath)
-      ? []
-      : await removeGeneratedOutputFiles(filePath, options.input, options.output)
+    const removedFiles = removal.shouldRemoveGeneratedOutputs
+      ? await removeGeneratedOutputFiles(filePath, options.input, options.output)
+      : []
 
     await this.refreshProjectOutputs()
 
@@ -330,9 +329,6 @@ export class Vue3MiniprogramCompiler {
 
   /** 重置当前编译器持有的项目级状态。 */
   private resetCompilationState(): void {
-    this.sourceFiles.clear()
-    this.compiledPages.clear()
-    this.compiledComponents.clear()
-    this.appConfig = {}
+    this.appConfig = resetCompilationState(this.sourceFiles, this.compiledPages, this.compiledComponents)
   }
 }

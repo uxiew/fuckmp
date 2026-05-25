@@ -21,6 +21,11 @@ export interface CompileErrorEntry {
   timestamp: number
 }
 
+export interface RemovedCompilationState {
+  appConfig: any
+  shouldRemoveGeneratedOutputs: boolean
+}
+
 /**
  * 获取平均文件大小。
  */
@@ -31,6 +36,41 @@ export function getAverageCompileFileSize(fileStats: Map<string, CompileFileStat
     .reduce((sum, stat) => sum + stat.size, 0)
 
   return Math.round(totalSize / fileStats.size)
+}
+
+/**
+ * 重置编译器持有的项目级状态，并返回新的 appConfig。
+ */
+export function resetCompilationState(
+  sourceFiles: Map<string, string>,
+  compiledPages: Map<string, any>,
+  compiledComponents: Map<string, any>
+): any {
+  sourceFiles.clear()
+  compiledPages.clear()
+  compiledComponents.clear()
+  return {}
+}
+
+/**
+ * 从编译器项目级状态中移除源文件，并返回后续输出清理决策。
+ */
+export function removeFileFromCompilationState(
+  sourceFiles: Map<string, string>,
+  compiledPages: Map<string, any>,
+  compiledComponents: Map<string, any>,
+  appConfig: any,
+  filePath: string,
+  isAppFile: boolean
+): RemovedCompilationState {
+  sourceFiles.delete(filePath)
+  compiledPages.delete(filePath)
+  compiledComponents.delete(filePath)
+
+  return {
+    appConfig: isAppFile ? {} : appConfig,
+    shouldRemoveGeneratedOutputs: !isAppFile
+  }
 }
 
 /**
