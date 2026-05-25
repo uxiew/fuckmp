@@ -2,17 +2,19 @@
  * Template 转换器
  */
 
-import { VUE_DIRECTIVE_MAP } from '@/types/index.js'
 import type { TemplateParseResult } from '@/parser/index.js'
 import type { TransformContext, DirectiveTransformer } from '@/types/index.js'
 import { logger } from '@/utils/index.js'
 import { EnhancedTemplateTransformer } from './enhanced-template-transformer.js'
 import {
-  buildClassBindingExpression,
   transformBasicTemplateSyntax,
   transformTemplateTag,
   validateWxmlTransformResult
 } from './template-string-utils.js'
+import {
+  transformTemplateAttributes,
+  transformTemplateDirective
+} from './template-transformer-attribute-utils.js'
 import {
   collectTemplateComponents,
   createDefaultDirectiveTransformers,
@@ -167,66 +169,14 @@ export class TemplateTransformer {
    * 转换属性
    */
   private transformAttributes(props: any[], result: TemplateTransformResult, context: TransformContext): string {
-    const attrs: string[] = []
-    let staticClass = ''
-    let dynamicClass = ''
-
-    // 第一遍：收集静态和动态类
-    props.forEach(prop => {
-      if (prop.type === 6) { // ATTRIBUTE
-        if (prop.name === 'class') {
-          staticClass = prop.value?.content || ''
-        } else {
-          attrs.push(`${prop.name}="${prop.value?.content || ''}"`)
-        }
-      } else if (prop.type === 7) { // DIRECTIVE
-        if (prop.name === 'bind' && prop.arg?.content === 'class') {
-          dynamicClass = prop.exp?.content || ''
-        } else {
-          const transformed = this.transformDirective(prop, result, context)
-          Object.entries(transformed).forEach(([key, value]) => {
-            if (typeof value === 'boolean') {
-              if (value) attrs.push(key)
-            } else {
-              attrs.push(`${key}="${value}"`)
-            }
-          })
-        }
-      }
-    })
-
-    // 处理类绑定
-    if (staticClass || dynamicClass) {
-      const classExpression = buildClassBindingExpression(staticClass, dynamicClass)
-      attrs.push(`class="{{${classExpression}}}"`)
-    }
-
-    return attrs.length > 0 ? ' ' + attrs.join(' ') : ''
+    return transformTemplateAttributes(props, this.directiveTransformers, result, context)
   }
 
   /**
    * 转换指令
    */
   private transformDirective(directive: any, result: TemplateTransformResult, context: TransformContext): Record<string, any> {
-    const directiveName = directive.name === 'on' ? 'v-on' : `v-${directive.name}`
-    const transformer = this.directiveTransformers.get(directiveName)
-
-    if (transformer) {
-      return transformer({}, {
-        name: directiveName,
-        arg: directive.arg?.content,
-        modifiers: directive.modifiers || [],
-        expression: directive.exp?.content
-      })
-    }
-
-    // 默认处理
-    const mappedName = VUE_DIRECTIVE_MAP[directiveName as keyof typeof VUE_DIRECTIVE_MAP]
-    if (mappedName) {
-      return { [mappedName]: `{{${directive.exp?.content || ''}}}` }
-    }
-
-    return {}
+    return transformTemplateDirective(directive, this.directiveTransformers, result, context)
   }
 
   /**
