@@ -2,7 +2,38 @@
  * Style parser PostCSS plugin helpers.
  */
 
-import type { Declaration, Plugin, Rule } from 'postcss'
+import postcss, { type Declaration, type Plugin, type Rule } from 'postcss'
+
+/**
+ * CSS feature metadata collected from style analysis.
+ */
+export interface StyleFeatureInfo {
+  name: string
+  type: 'property' | 'value' | 'selector' | 'at-rule'
+  supported: boolean
+  fallback?: string
+}
+
+/**
+ * CSS analysis result used by style parsing.
+ */
+export interface StyleAnalysisResult {
+  features: StyleFeatureInfo[]
+  variables: Map<string, string>
+  selectors: string[]
+  mediaQueries: string[]
+  keyframes: string[]
+}
+
+/**
+ * Parsed style result shape returned by the parser.
+ */
+export interface ParsedStyleResult extends StyleAnalysisResult {
+  css: string
+  map?: string
+  errors: string[]
+  warnings: string[]
+}
 
 const UNSUPPORTED_MINIPROGRAM_STYLE_PROPS = [
   'box-shadow',
@@ -103,4 +134,90 @@ export function createStyleVariablePlugin(): Plugin {
       })
     }
   }
+}
+
+/**
+ * 判断样式语言是否需要走 Sass 预处理编译。
+ */
+export function shouldCompileStylePreprocessor(lang: string): boolean {
+  return lang === 'scss' || lang === 'sass'
+}
+
+/**
+ * 分析 CSS，提取选择器、变量、媒体查询与 keyframes。
+ */
+export function analyzeStyleCss(css: string): StyleAnalysisResult {
+  const features: StyleFeatureInfo[] = []
+  const variables = new Map<string, string>()
+  const selectors: string[] = []
+  const mediaQueries: string[] = []
+  const keyframes: string[] = []
+
+  const root = postcss.parse(css)
+
+  root.walkRules(rule => {
+    selectors.push(rule.selector)
+  })
+
+  root.walkAtRules(atRule => {
+    if (atRule.name === 'media') {
+      mediaQueries.push(atRule.params)
+    } else if (atRule.name === 'keyframes') {
+      keyframes.push(atRule.params)
+    }
+  })
+
+  root.walkDecls(decl => {
+    if (decl.prop.startsWith('--')) {
+      variables.set(decl.prop, decl.value)
+    }
+  })
+
+  return {
+    features,
+    variables,
+    selectors,
+    mediaQueries,
+    keyframes
+  }
+}
+
+/**
+ * 构造样式解析结果，保持旧 map 写入规则。
+ */
+export function createStyleParseResult(
+  css: string,
+  map: string | undefined,
+  analysisResult: StyleAnalysisResult
+): ParsedStyleResult {
+  return {
+    css,
+    ...(map && { map }),
+    features: analysisResult.features,
+    variables: analysisResult.variables,
+    selectors: analysisResult.selectors,
+    mediaQueries: analysisResult.mediaQueries,
+    keyframes: analysisResult.keyframes,
+    errors: [],
+    warnings: []
+  }
+}
+
+/**
+ * 按旧权重计算样式复杂度评分。
+ */
+export function getStyleComplexityScore(result: {
+  selectors: { length: number }
+  mediaQueries: { length: number }
+  keyframes: { length: number }
+  variables: { size: number }
+}): number {
+  let score = 0
+
+  score += result.selectors.length
+  score += result.mediaQueries.length * 2
+  score += result.keyframes.length * 3
+  score += result.variables.size
+
+  return score
 }

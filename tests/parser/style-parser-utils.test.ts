@@ -1,9 +1,13 @@
 import postcss from 'postcss'
 import { describe, expect, it } from 'vitest'
 import {
+  analyzeStyleCss,
   createMiniprogramStylePlugin,
+  createStyleParseResult,
   createStyleUnitPlugin,
-  createStyleVariablePlugin
+  createStyleVariablePlugin,
+  getStyleComplexityScore,
+  shouldCompileStylePreprocessor
 } from '@/parser/style-parser-utils.js'
 
 describe('style-parser utils', () => {
@@ -40,5 +44,53 @@ describe('style-parser utils', () => {
     expect(result.css).not.toContain('var(')
     expect(result.css).toContain('color:#333')
     expect(result.css).toContain('border-color:#eee')
+  })
+
+  it('仅对 scss/sass 启用预处理编译', () => {
+    expect(shouldCompileStylePreprocessor('scss')).toBe(true)
+    expect(shouldCompileStylePreprocessor('sass')).toBe(true)
+    expect(shouldCompileStylePreprocessor('css')).toBe(false)
+    expect(shouldCompileStylePreprocessor('less')).toBe(false)
+  })
+
+  it('分析 CSS selectors、变量、媒体查询与 keyframes', () => {
+    const analysis = analyzeStyleCss(`
+      :root { --main: #333; }
+      .card, .panel { color: var(--main); }
+      @media (min-width: 750px) { .card { display: flex; } }
+      @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+    `)
+
+    expect(analysis.features).toEqual([])
+    expect([...analysis.variables.entries()]).toEqual([['--main', '#333']])
+    expect(analysis.selectors).toEqual([':root', '.card, .panel', '.card', 'from', 'to'])
+    expect(analysis.mediaQueries).toEqual(['(min-width: 750px)'])
+    expect(analysis.keyframes).toEqual(['fade'])
+  })
+
+  it('构造解析结果并按旧权重计算复杂度', () => {
+    const analysis = {
+      features: [],
+      variables: new Map([['--main', '#333']]),
+      selectors: ['.a', '.b'],
+      mediaQueries: ['screen'],
+      keyframes: ['fade']
+    }
+
+    expect(createStyleParseResult('.a{}', undefined, analysis)).toEqual({
+      css: '.a{}',
+      features: [],
+      variables: analysis.variables,
+      selectors: ['.a', '.b'],
+      mediaQueries: ['screen'],
+      keyframes: ['fade'],
+      errors: [],
+      warnings: []
+    })
+    expect(createStyleParseResult('.a{}', 'source-map', analysis)).toMatchObject({
+      css: '.a{}',
+      map: 'source-map'
+    })
+    expect(getStyleComplexityScore(createStyleParseResult('.a{}', undefined, analysis))).toBe(8)
   })
 })
