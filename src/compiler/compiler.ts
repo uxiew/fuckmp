@@ -21,6 +21,11 @@ import {
 import { parseAndTransformSfcSections } from './compiler-transform-pipeline.js'
 import { refreshProjectOutputFiles } from './compiler-project-output-utils.js'
 import { generateTargetCode } from './compiler-generate-utils.js'
+import {
+  createCompilerWatchHandlers,
+  createVueFileWatchOptions,
+  createVueFileWatchPattern
+} from './compiler-watch-utils.js'
 import { PluginManager, createDefaultPluginManager } from '@/plugins/index.js'
 import { UserConfigManager } from '@/config/user-config.js'
 import { RuntimeInjector } from './runtime-injector'
@@ -277,42 +282,15 @@ export class Vue3MiniprogramCompiler {
     logger.info('启动监听模式')
 
     const chokidar = await import('chokidar')
-    const watcher = chokidar.watch(`${options.input}/**/*.vue`, {
-      ignored: /node_modules/,
-      persistent: true
-    })
+    const watcher = chokidar.watch(
+      createVueFileWatchPattern(options.input),
+      createVueFileWatchOptions()
+    )
+    const handlers = createCompilerWatchHandlers(this)
 
-    watcher.on('change', async (filePath) => {
-      logger.info(`文件变更: ${filePath}`)
-      try {
-        await this.compileFile(filePath)
-        await this.refreshProjectOutputs()
-        logger.success(`文件重新编译完成: ${filePath}`)
-      } catch (error) {
-        logger.error(`文件重新编译失败: ${filePath}`, error as Error)
-      }
-    })
-
-    watcher.on('add', async (filePath) => {
-      logger.info(`新增文件: ${filePath}`)
-      try {
-        await this.compileFile(filePath)
-        await this.refreshProjectOutputs()
-        logger.success(`新文件编译完成: ${filePath}`)
-      } catch (error) {
-        logger.error(`新文件编译失败: ${filePath}`, error as Error)
-      }
-    })
-
-    watcher.on('unlink', async (filePath) => {
-      logger.info(`删除文件: ${filePath}`)
-      try {
-        const removedFiles = await this.removeSourceFile(filePath)
-        logger.success(`已清理输出产物: ${removedFiles.length} 个`)
-      } catch (error) {
-        logger.error(`清理输出产物失败: ${filePath}`, error as Error)
-      }
-    })
+    watcher.on('change', handlers.change)
+    watcher.on('add', handlers.add)
+    watcher.on('unlink', handlers.unlink)
 
     logger.info('监听模式已启动，等待文件变更...')
   }
