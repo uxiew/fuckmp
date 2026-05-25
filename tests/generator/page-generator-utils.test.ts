@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import {
+  addPageHeader,
+  generatePageEventHandlers,
   generatePageComputedMethods,
   generatePageComputedUpdate,
   generatePageLifecycleCode,
   generatePageMethodsCode,
+  getPagePath,
+  getPageTitle,
   generatePageReactivitySetup,
   generatePageTemplateEventHandlers,
-  generatePageWXSS
+  generatePageWXSS,
+  hasPageLoadingState,
+  hasPageRefreshHandler
 } from '@/generator/page-generator-utils.js'
 
 describe('page generator utils', () => {
@@ -112,5 +118,69 @@ ${emptySetupLine}
       loading: false,
       hasMore: true
     })`)
+  })
+
+  it('推断页面标题、路径与状态判断并保持旧语义', () => {
+    expect(getPageTitle('src/pages/index.vue')).toBe('Index')
+    expect(getPageTitle('src/pages/user-profile.vue')).toBe('User-profile')
+    expect(getPageTitle('')).toBe('Page')
+    expect(getPagePath('src/pages/index.vue')).toBe('pages/index')
+
+    expect(hasPageRefreshHandler({
+      lifecycle: { onPullDownRefresh: 'this.refreshData()' },
+      methods: {}
+    } as any)).toBe(true)
+    expect(hasPageRefreshHandler({
+      lifecycle: {},
+      methods: { refreshData: 'return Promise.resolve()' }
+    } as any)).toBe(true)
+    expect(hasPageRefreshHandler({ lifecycle: {}, methods: {} } as any)).toBe(false)
+    expect(hasPageLoadingState({ data: { loading: false } } as any)).toBe(true)
+    expect(hasPageLoadingState({ data: {} } as any)).toBe(false)
+  })
+
+  it('生成页面内置事件处理器并保持旧输出片段', () => {
+    const handlers = generatePageEventHandlers({
+      data: { count: 0, 'user.name': '' },
+      lifecycle: {},
+      methods: {}
+    } as any)
+
+    expect(handlers).toContain(`  handleTap(event) {
+    const { dataset } = event.currentTarget
+    const { action, data } = dataset`)
+    expect(handlers).toContain(`  _handleInput_count(event) {
+    const value = event.detail.value
+    this.setData({
+      count: value
+    })
+    this._updateComputed()
+  }`)
+    expect(handlers).toContain('  _handleInput_user_name(event) {')
+    expect(handlers).toContain('  onReachBottom() {')
+    expect(handlers).toContain('  loadMoreData() {')
+    expect(handlers).not.toContain('  onPullDownRefresh() {')
+  })
+
+  it('有刷新入口时生成下拉刷新处理器', () => {
+    const handlers = generatePageEventHandlers({
+      data: {},
+      lifecycle: { onPullDownRefresh: 'this.refreshData()' },
+      methods: {}
+    } as any)
+
+    expect(handlers).toContain('  onPullDownRefresh() {')
+    expect(handlers).toContain('      wx.stopPullDownRefresh()')
+    expect(handlers).toContain('  refreshData() {')
+  })
+
+  it('追加页面文件头并保留源文件与页面类型信息', () => {
+    const code = addPageHeader('Page({})', 'src/pages/index.vue')
+
+    expect(code).toContain('// 由 Vue3 微信小程序编译器自动生成')
+    expect(code).toContain('// 源文件: src/pages/index.vue')
+    expect(code).toContain('// 页面类型: Page')
+    expect(code).toContain('// 生成时间: ')
+    expect(code.endsWith('\n\nPage({})')).toBe(true)
   })
 })

@@ -6,13 +6,19 @@ import type { TransformContext, GenerateResult, CompilerOptions } from '@/types/
 import type { ScriptTransformResult, TemplateTransformResult, StyleTransformResult } from '@/transformer/index.js'
 import { generateDefineExposeDegradeComment, generateDefineOptionsDegradeComment, generateDefineSlotsDegradeComment, generateProvideInjectDegradeComment, generateUseIdNativeComment, generateUseTemplateRefDegradeComment, generateUnsupportedTemplateDegradeComment, generateWatcherDegradeComment, logger } from '@/utils/index.js'
 import {
+  addPageHeader,
+  generatePageEventHandlers,
   generatePageComputedMethods,
   generatePageComputedUpdate,
   generatePageLifecycleCode,
   generatePageMethodsCode,
+  getPagePath,
+  getPageTitle,
   generatePageReactivitySetup,
   generatePageTemplateEventHandlers,
-  generatePageWXSS
+  generatePageWXSS,
+  hasPageLoadingState,
+  hasPageRefreshHandler
 } from './page-generator-utils.js'
 import { addScopeAttributes, generateScopeId, generateUsingComponents, removeCtxPrefixes } from './shared-generator-utils.js'
 
@@ -104,7 +110,7 @@ ${computedMethods}`)
 
     // 事件处理器（仅在配置启用时生成）
     if (!this.options.pureMode && this.options.page.eventHandlers) {
-      const eventHandlers = this.generateEventHandlers(context)
+      const eventHandlers = generatePageEventHandlers(context)
       if (eventHandlers) {
         parts.push(`  // 事件处理器
 ${eventHandlers}`)
@@ -133,8 +139,8 @@ ${generatePageComputedUpdate(computed)}
       parts.push(`  // 页面分享
   onShareAppMessage() {
     return {
-      title: '${this.getPageTitle(context)}',
-      path: '${this.getPagePath(context)}'
+      title: '${getPageTitle(context.filename)}',
+      path: '${getPagePath(context.filename)}'
     }
   }`)
     }
@@ -144,7 +150,7 @@ ${generatePageComputedUpdate(computed)}
       parts.push(`  // 页面分享到朋友圈
   onShareTimeline() {
     return {
-      title: '${this.getPageTitle(context)}'
+      title: '${getPageTitle(context.filename)}'
     }
   }`)
     }
@@ -154,7 +160,7 @@ ${generatePageComputedUpdate(computed)}
 ${parts.join(',\n\n')}
 })`
 
-    return this.addHeader(pageCode, context)
+    return addPageHeader(pageCode, context.filename)
   }
 
   /**
@@ -170,13 +176,13 @@ ${parts.join(',\n\n')}
         debugLabel: '页面组件引用',
         errorLabel: '处理页面组件路径失败'
       }),
-      navigationBarTitleText: this.getPageTitle(context),
-      enablePullDownRefresh: this.hasRefreshHandler(context),
+      navigationBarTitleText: getPageTitle(context.filename),
+      enablePullDownRefresh: hasPageRefreshHandler(context),
       onReachBottomDistance: 50
     }
 
     // 如果有下拉刷新，添加相关配置
-    if (this.hasRefreshHandler(context)) {
+    if (hasPageRefreshHandler(context)) {
       config.backgroundTextStyle = 'dark'
       config.backgroundColor = '#ffffff'
     }
@@ -201,7 +207,7 @@ ${parts.join(',\n\n')}
     }
 
     // 添加加载状态（仅在配置启用且用户定义了loading状态时）
-    if (!this.options.pureMode && this.options.page.loadingState && this.hasLoadingState(context)) {
+    if (!this.options.pureMode && this.options.page.loadingState && hasPageLoadingState(context)) {
       wxml = `<view wx:if="{{loading}}" class="loading-container">
   <view class="loading-spinner"></view>
   <text class="loading-text">加载中...</text>
@@ -227,118 +233,5 @@ ${parts.join(',\n\n')}
     return generatePageWXSS(styleResults, {
       includeBaseStyles: !this.options.pureMode && this.options.page.baseStyles
     })
-  }
-
-
-  /**
-   * 生成事件处理器
-   */
-  private generateEventHandlers(context: TransformContext): string {
-    const handlers: string[] = []
-
-    // 通用事件处理器
-    handlers.push(`  // 通用点击事件处理
-  handleTap(event) {
-    const { dataset } = event.currentTarget
-    const { action, data } = dataset
-    
-    if (action && this[action]) {
-      this[action](data)
-    }
-  }`)
-
-    // 输入处理器
-    Object.keys(context.data).forEach(key => {
-      handlers.push(`  _handleInput_${key.replace(/\./g, '_')}(event) {
-    const value = event.detail.value
-    this.setData({
-      ${key}: value
-    })
-    this._updateComputed()
-  }`)
-    })
-
-    // 下拉刷新处理器
-    if (this.hasRefreshHandler(context)) {
-      handlers.push(`  onPullDownRefresh() {
-    // 下拉刷新逻辑
-    this.refreshData().then(() => {
-      wx.stopPullDownRefresh()
-    })
-  }`)
-
-      handlers.push(`  refreshData() {
-    return new Promise((resolve) => {
-      // 刷新数据的具体实现
-      setTimeout(resolve, 1000)
-    })
-  }`)
-    }
-
-    // 上拉加载更多处理器
-    handlers.push(`  onReachBottom() {
-    // 上拉加载更多逻辑
-    if (this.data.hasMore && !this.data.loading) {
-      this.loadMoreData()
-    }
-  }`)
-
-    handlers.push(`  loadMoreData() {
-    this.setData({ loading: true })
-    
-    // 加载更多数据的具体实现
-    setTimeout(() => {
-      this.setData({ 
-        loading: false,
-        hasMore: false // 根据实际情况设置
-      })
-    }, 1000)
-  }`)
-
-    return handlers.join(',\n\n')
-  }
-
-
-
-  /**
-   * 获取页面标题
-   */
-  private getPageTitle(context: TransformContext): string {
-    // 从文件名推断页面标题
-    const filename = context.filename.split('/').pop()?.replace(/\.vue$/, '') || 'Page'
-    return filename.charAt(0).toUpperCase() + filename.slice(1)
-  }
-
-  /**
-   * 获取页面路径
-   */
-  private getPagePath(context: TransformContext): string {
-    return context.filename.replace(/\.vue$/, '').replace(/^src\//, '')
-  }
-
-  /**
-   * 检查是否有刷新处理器
-   */
-  private hasRefreshHandler(context: TransformContext): boolean {
-    return 'onPullDownRefresh' in context.lifecycle || 'refreshData' in context.methods
-  }
-
-  /**
-   * 检查是否有加载状态
-   */
-  private hasLoadingState(context: TransformContext): boolean {
-    return 'loading' in context.data
-  }
-
-  /**
-   * 添加文件头部注释
-   */
-  private addHeader(code: string, context: TransformContext): string {
-    return `// 由 Vue3 微信小程序编译器自动生成
-// 源文件: ${context.filename}
-// 页面类型: Page
-// 生成时间: ${new Date().toISOString()}
-
-${code}`
   }
 }

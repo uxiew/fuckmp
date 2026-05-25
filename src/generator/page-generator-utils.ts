@@ -1,6 +1,7 @@
 /**
  * 页面生成器轻量样式工具。
  */
+import type { TransformContext } from '@/types/index.js'
 import type { StyleTransformResult } from '@/transformer/index.js'
 
 /**
@@ -203,6 +204,115 @@ export function generatePageComputedUpdate(computed: Record<string, any>): strin
   return `    this.setData({
 ${updates.join(',\n')}
     })`
+}
+
+/**
+ * 生成页面内置事件处理器。
+ */
+export function generatePageEventHandlers(
+  context: Pick<TransformContext, 'data' | 'lifecycle' | 'methods'>
+): string {
+  const handlers: string[] = []
+
+  handlers.push(`  // 通用点击事件处理
+  handleTap(event) {
+    const { dataset } = event.currentTarget
+    const { action, data } = dataset
+
+    if (action && this[action]) {
+      this[action](data)
+    }
+  }`)
+
+  Object.keys(context.data).forEach(key => {
+    handlers.push(`  _handleInput_${key.replace(/\./g, '_')}(event) {
+    const value = event.detail.value
+    this.setData({
+      ${key}: value
+    })
+    this._updateComputed()
+  }`)
+  })
+
+  if (hasPageRefreshHandler(context)) {
+    handlers.push(`  onPullDownRefresh() {
+    // 下拉刷新逻辑
+    this.refreshData().then(() => {
+      wx.stopPullDownRefresh()
+    })
+  }`)
+
+    handlers.push(`  refreshData() {
+    return new Promise((resolve) => {
+      // 刷新数据的具体实现
+      setTimeout(resolve, 1000)
+    })
+  }`)
+  }
+
+  handlers.push(`  onReachBottom() {
+    // 上拉加载更多逻辑
+    if (this.data.hasMore && !this.data.loading) {
+      this.loadMoreData()
+    }
+  }`)
+
+  handlers.push(`  loadMoreData() {
+    this.setData({ loading: true })
+
+    // 加载更多数据的具体实现
+    setTimeout(() => {
+      this.setData({
+        loading: false,
+        hasMore: false // 根据实际情况设置
+      })
+    }, 1000)
+  }`)
+
+  return handlers.join(',\n\n')
+}
+
+/**
+ * 从页面源文件路径推断页面标题。
+ */
+export function getPageTitle(filename: string): string {
+  const pageName = filename.split('/').pop()?.replace(/\.vue$/, '') || 'Page'
+  return pageName.charAt(0).toUpperCase() + pageName.slice(1)
+}
+
+/**
+ * 从页面源文件路径推断小程序页面路径。
+ */
+export function getPagePath(filename: string): string {
+  return filename.replace(/\.vue$/, '').replace(/^src\//, '')
+}
+
+/**
+ * 判断页面是否需要下拉刷新配置和内置刷新处理器。
+ */
+export function hasPageRefreshHandler(
+  context: Pick<TransformContext, 'lifecycle' | 'methods'>
+): boolean {
+  return 'onPullDownRefresh' in context.lifecycle || 'refreshData' in context.methods
+}
+
+/**
+ * 判断页面数据中是否存在内置 loading 状态。
+ */
+export function hasPageLoadingState(context: Pick<TransformContext, 'data'>): boolean {
+  return 'loading' in context.data
+}
+
+/**
+ * 为页面 JS 追加稳定文件头。
+ */
+export function addPageHeader(code: string, filename: string): string {
+  return `// 由 Vue3 微信小程序编译器自动生成
+// 源文件: ${filename}
+// 页面类型: Page
+// 生成时间: ${new Date().toISOString()}
+
+${code}`
 }
 
 function joinStyles(baseStyles: string, styles: string): string {
