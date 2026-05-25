@@ -9,6 +9,9 @@ import {
   mergeSlotRenderProps,
   processRuntimeTemplate,
   registerTemplateDefinitions,
+  renderRegisteredConditionalTemplate,
+  renderRegisteredListTemplate,
+  renderRegisteredSlotTemplate,
   resolveSlotRenderTemplate
 } from '@/runtime/core/template-utils.js'
 
@@ -92,5 +95,77 @@ describe('template runtime utils', () => {
       user: { id: 'u1' },
       index: 0
     })
+  })
+
+  it('渲染已注册 slot 并保持缺失和异常 fallback 语义', () => {
+    const warnings: string[] = []
+    const errors: string[] = []
+    const logger = {
+      warn: (message: string) => warnings.push(message),
+      error: (message: string) => errors.push(message)
+    }
+    const slots = new Map([
+      ['default', { props: { prefix: 'Hello' }, content: '{{ prefix }} {{ name }}' }],
+      ['fallback', { fallback: 'Fallback {{ name }}', content: () => { throw new Error('boom') } }]
+    ])
+
+    expect(renderRegisteredSlotTemplate(slots, 'default', { name: 'Ada' }, { name: 'Grace' }, logger)).toBe('Hello Ada')
+    expect(renderRegisteredSlotTemplate(slots, 'missing', {}, {}, logger)).toBeNull()
+    expect(renderRegisteredSlotTemplate(slots, 'fallback', { name: 'Ada' }, {}, logger)).toBe('Fallback {{ name }}')
+    expect(warnings).toEqual(['插槽 missing 不存在'])
+    expect(errors).toEqual(['渲染插槽 fallback 失败:'])
+  })
+
+  it('渲染已注册 conditional 并保持 else 和异常语义', () => {
+    const warnings: string[] = []
+    const errors: string[] = []
+    const logger = {
+      warn: (message: string) => warnings.push(message),
+      error: (message: string) => errors.push(message)
+    }
+    const conditionals = new Map([
+      ['visible', { condition: 'count > 1', template: 'Count {{ count }}', elseTemplate: 'Empty' }],
+      ['hidden', { condition: 'count > 1', template: 'Count {{ count }}', elseTemplate: 'Empty' }],
+      ['throws', { condition: () => { throw new Error('boom') }, template: 'Never' }]
+    ])
+
+    expect(renderRegisteredConditionalTemplate(conditionals, 'visible', { count: 2 }, logger)).toBe('Count {{ count }}')
+    expect(renderRegisteredConditionalTemplate(conditionals, 'hidden', { count: 0 }, logger)).toBe('Empty')
+    expect(renderRegisteredConditionalTemplate(conditionals, 'missing', {}, logger)).toBeNull()
+    expect(renderRegisteredConditionalTemplate(conditionals, 'throws', {}, logger)).toBeNull()
+    expect(warnings).toEqual(['条件渲染 missing 不存在'])
+    expect(errors).toEqual(['渲染条件模板 throws 失败:'])
+  })
+
+  it('渲染已注册 list 并保持非数组和异常语义', () => {
+    const warnings: string[] = []
+    const errors: string[] = []
+    const logger = {
+      warn: (message: string) => warnings.push(message),
+      error: (message: string) => errors.push(message)
+    }
+    const lists = new Map([
+      ['users', {
+        items: 'users',
+        itemName: 'user',
+        indexName: 'idx',
+        keyField: 'id',
+        template: '{{ idx }}:{{ user.name }}:{{ key }}'
+      }],
+      ['invalid', { items: 'name', itemName: 'item', template: '{{ item }}' }],
+      ['throws', { items: () => { throw new Error('boom') }, itemName: 'item', template: '{{ item }}' }]
+    ])
+
+    expect(renderRegisteredListTemplate(lists, 'users', {
+      users: [{ id: 'u1', name: 'Ada' }]
+    }, logger)).toEqual(['0:Ada:u1'])
+    expect(renderRegisteredListTemplate(lists, 'missing', {}, logger)).toBeNull()
+    expect(renderRegisteredListTemplate(lists, 'invalid', { name: 'Ada' }, logger)).toBeNull()
+    expect(renderRegisteredListTemplate(lists, 'throws', {}, logger)).toEqual([])
+    expect(warnings).toEqual([
+      '列表渲染 missing 不存在',
+      '列表渲染 invalid 的items不是数组'
+    ])
+    expect(errors).toEqual(['渲染列表模板 throws 失败:'])
   })
 })

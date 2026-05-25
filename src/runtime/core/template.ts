@@ -5,14 +5,11 @@
 
 import { logger } from '../utils/logger'
 import {
-  createListItemRenderContext,
   createTemplateConfig,
-  evaluateTemplateCondition,
-  evaluateTemplateItems,
-  mergeSlotRenderProps,
-  processRuntimeTemplate,
+  renderRegisteredConditionalTemplate,
+  renderRegisteredListTemplate,
+  renderRegisteredSlotTemplate,
   registerTemplateDefinitions,
-  resolveSlotRenderTemplate
 } from './template-utils'
 
 /**
@@ -243,93 +240,37 @@ class TemplateInstance {
    * 渲染插槽
    */
   renderSlot(name: string, props?: Record<string, any>): any {
-    const slot = this.slots.get(name)
-    if (!slot) {
-      logger.warn(`插槽 ${name} 不存在`)
-      return null
-    }
-
-    try {
-      // 合并props
-      const slotProps = mergeSlotRenderProps(slot.props, props)
-      const template = resolveSlotRenderTemplate(slot)
-
-      if (template) {
-        return processRuntimeTemplate(template, slotProps, this.instance.data, this.logTemplateError)
-      }
-
-      return null
-    } catch (error) {
-      logger.error(`渲染插槽 ${name} 失败:`, error)
-      return slot.fallback || null
-    }
+    return renderRegisteredSlotTemplate(
+      this.slots,
+      name,
+      props,
+      this.instance.data,
+      logger
+    )
   }
 
   /**
    * 渲染条件模板
    */
   renderConditional(name: string): any {
-    const conditional = this.conditionals.get(name)
-    if (!conditional) {
-      logger.warn(`条件渲染 ${name} 不存在`)
-      return null
-    }
-
-    try {
-      const condition = evaluateTemplateCondition(conditional.condition, this.instance.data, this.logTemplateError)
-      
-      if (condition) {
-        return processRuntimeTemplate(conditional.template, undefined, this.instance.data, this.logTemplateError)
-      } else if (conditional.elseTemplate) {
-        return processRuntimeTemplate(conditional.elseTemplate, undefined, this.instance.data, this.logTemplateError)
-      }
-
-      return null
-    } catch (error) {
-      logger.error(`渲染条件模板 ${name} 失败:`, error)
-      return null
-    }
+    return renderRegisteredConditionalTemplate(
+      this.conditionals,
+      name,
+      this.instance.data,
+      logger
+    )
   }
 
   /**
    * 渲染列表模板
    */
   renderList(name: string): any {
-    const list = this.lists.get(name)
-    if (!list) {
-      logger.warn(`列表渲染 ${name} 不存在`)
-      return null
-    }
-
-    try {
-      const items = evaluateTemplateItems(list.items, this.instance.data, this.logTemplateError)
-      if (!Array.isArray(items)) {
-        logger.warn(`列表渲染 ${name} 的items不是数组`)
-        return null
-      }
-
-      return items.map((item, index) => {
-        const context = createListItemRenderContext(
-          list.itemName,
-          list.indexName,
-          list.keyField,
-          item,
-          index
-        )
-
-        return processRuntimeTemplate(list.template, context, this.instance.data, this.logTemplateError)
-      })
-    } catch (error) {
-      logger.error(`渲染列表模板 ${name} 失败:`, error)
-      return []
-    }
-  }
-
-  /**
-   * 记录模板 helper 错误。
-   */
-  private logTemplateError(message: string, error: unknown): void {
-    logger.error(message, error)
+    return renderRegisteredListTemplate(
+      this.lists,
+      name,
+      this.instance.data,
+      logger
+    )
   }
 
   /**
