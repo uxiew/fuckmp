@@ -10,6 +10,7 @@ import { DependencyInjection } from './di'
 import { EventSystem } from './event'
 import { logger } from '../utils/logger'
 import { processComponentConfig } from './component-config-utils.js'
+import { createMiniProgramComponentConfig } from './component-mini-program-config-utils.js'
 
 /**
  * 组件配置
@@ -191,71 +192,23 @@ export class ComponentManager {
     const config = instance.getConfig()
     const rawInstance = instance.getRawInstance()
 
-    const miniProgramConfig: any = {
-      data: config.data || {},
-
-      // 添加运行时方法
-      _updateComputed: () => {
+    return createMiniProgramComponentConfig(config, rawInstance, isPage, {
+      updateComputed: (rawInstance: any) => {
         const reactivityInstance = this.reactivity.getInstance(rawInstance)
         if (reactivityInstance) {
           reactivityInstance.updateComputed()
         }
       },
-
-      _triggerWatchers: (changedData: Record<string, any>) => {
+      triggerWatchers: (rawInstance: any, changedData: Record<string, any>) => {
         const reactivityInstance = this.reactivity.getInstance(rawInstance)
         if (reactivityInstance) {
           reactivityInstance.triggerWatchers(changedData)
         }
       },
-
-      // 添加响应式 API
-      ref: <T>(value: T) => this.reactivity.ref(value, rawInstance),
-      reactive: <T extends object>(target: T) => this.reactivity.reactive(target, rawInstance),
-      computed: <T>(getter: () => T) => this.reactivity.computed(getter, rawInstance)
-    }
-
-    // 添加方法
-    if (config.methods) {
-      Object.assign(miniProgramConfig, config.methods)
-    }
-
-    // 添加生命周期方法
-    if (isPage) {
-      // 页面生命周期
-      if (rawInstance.onLoad) miniProgramConfig.onLoad = rawInstance.onLoad
-      if (rawInstance.onShow) miniProgramConfig.onShow = rawInstance.onShow
-      if (rawInstance.onReady) miniProgramConfig.onReady = rawInstance.onReady
-      if (rawInstance.onHide) miniProgramConfig.onHide = rawInstance.onHide
-      if (rawInstance.onUnload) miniProgramConfig.onUnload = rawInstance.onUnload
-    } else {
-      // 组件生命周期
-      if (rawInstance.lifetimes) {
-        miniProgramConfig.lifetimes = rawInstance.lifetimes
-      }
-    }
-
-    // 如果是组件，添加组件特有配置
-    if (!isPage) {
-      miniProgramConfig.options = {
-        multipleSlots: true,
-        addGlobalClass: true
-      }
-
-      miniProgramConfig.properties = config.props || {}
-      miniProgramConfig.observers = {}
-
-      // 添加数据观察器
-      if (config.watch) {
-        for (const key of Object.keys(config.watch)) {
-          miniProgramConfig.observers[key] = function (newVal: any) {
-            this._triggerWatchers({ [key]: newVal })
-          }
-        }
-      }
-    }
-
-    return miniProgramConfig
+      ref: <T>(value: T, rawInstance: any) => this.reactivity.ref(value, rawInstance),
+      reactive: <T extends object>(target: T, rawInstance: any) => this.reactivity.reactive(target, rawInstance),
+      computed: <T>(getter: () => T, rawInstance: any) => this.reactivity.computed(getter, rawInstance)
+    })
   }
 
   /**
