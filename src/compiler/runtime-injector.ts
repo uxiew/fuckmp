@@ -6,6 +6,10 @@
 import type { CompilerOptions } from '../types/compiler'
 import { logger } from '@/utils/logger'
 import { RuntimeIntegration } from './runtime-integration'
+import {
+  buildRuntimeInjectionReportLines,
+  getUsedRuntimeFeatureNames
+} from './runtime-injector-report-utils.js'
 import type { RuntimeIntegrationConfig } from './runtime-integration'
 import {
   analyzeFeatureUsageFromContent,
@@ -156,15 +160,7 @@ export class RuntimeInjector {
    * 记录特性使用情况
    */
   private logFeatureUsage(usage: Vue3FeatureUsage): void {
-    const usedFeatures: string[] = []
-
-    Object.entries(usage).forEach(([category, features]) => {
-      Object.entries(features).forEach(([feature, used]) => {
-        if (used) {
-          usedFeatures.push(`${category}.${feature}`)
-        }
-      })
-    })
+    const usedFeatures = getUsedRuntimeFeatureNames(usage)
 
     logger.info(`检测到使用的Vue3特性: ${usedFeatures.join(', ')}`)
     logger.info(`特性使用统计: ${usedFeatures.length} 个特性被使用`)
@@ -266,21 +262,12 @@ export class RuntimeInjector {
     bundleResult: any,
     generatedFiles: any[]
   ): void {
-    const usedFeatures = this.countUsedFeatures(featureUsage)
-    const totalSize = generatedFiles.reduce((sum, file) => sum + file.content.length, 0)
-    const runtimeFiles = generatedFiles.filter(file => file.isRuntime)
-
-    logger.info('=== 运行时注入报告 ===')
-    logger.info(`使用的Vue3特性: ${usedFeatures} 个`)
-    logger.info(`包含的运行时模块: ${bundleResult.modules.join(', ')}`)
-    logger.info(`运行时库大小: ${bundleResult.totalSize} 字节`)
-    if (this.config.minify) {
-      logger.info(`压缩后大小: ${bundleResult.minifiedSize} 字节`)
-    }
-    logger.info(`生成的文件: ${generatedFiles.length} 个`)
-    logger.info(`运行时文件: ${runtimeFiles.length} 个`)
-    logger.info(`总代码大小: ${totalSize} 字节`)
-    logger.info('========================')
+    buildRuntimeInjectionReportLines(
+      this.config,
+      featureUsage,
+      bundleResult,
+      generatedFiles
+    ).forEach(line => logger.info(line))
   }
 
   /**
