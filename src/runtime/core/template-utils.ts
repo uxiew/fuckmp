@@ -5,6 +5,87 @@
 export type TemplateErrorHandler = (message: string, error: unknown) => void
 
 /**
+ * Runtime template engine configuration.
+ */
+export interface RuntimeTemplateConfig {
+  debug: boolean
+  enableSlots: boolean
+  enableConditional: boolean
+  enableList: boolean
+}
+
+/**
+ * 构造模板引擎配置，保留运行时旧默认值。
+ */
+export function createTemplateConfig(config: Partial<RuntimeTemplateConfig> = {}): RuntimeTemplateConfig {
+  return {
+    debug: false,
+    enableSlots: true,
+    enableConditional: true,
+    enableList: true,
+    ...config
+  }
+}
+
+/**
+ * 将配置对象中的模板定义注册到目标 Map。
+ */
+export function registerTemplateDefinitions<T>(
+  target: Map<string, T>,
+  definitions?: Record<string, T>
+): void {
+  if (!definitions) return
+
+  for (const [name, definition] of Object.entries(definitions)) {
+    target.set(name, definition)
+  }
+}
+
+/**
+ * 合并插槽默认 props 与调用方 props。
+ */
+export function mergeSlotRenderProps(
+  slotProps?: Record<string, any>,
+  renderProps?: Record<string, any>
+): Record<string, any> {
+  return { ...slotProps, ...renderProps }
+}
+
+/**
+ * 按旧 truthy 规则选择 slot content/fallback 模板。
+ */
+export function resolveSlotRenderTemplate(slot: {
+  content?: any
+  fallback?: any
+}): any {
+  if (slot.content) return slot.content
+  if (slot.fallback) return slot.fallback
+  return null
+}
+
+/**
+ * 构造列表项模板渲染上下文。
+ */
+export function createListItemRenderContext(
+  itemName: string,
+  indexName: string | undefined,
+  keyField: string | undefined,
+  item: any,
+  index: number
+): Record<string, any> {
+  const context: Record<string, any> = {
+    [itemName]: item,
+    [indexName || 'index']: index
+  }
+
+  if (keyField && item[keyField] !== undefined) {
+    context.key = item[keyField]
+  }
+
+  return context
+}
+
+/**
  * 处理运行时模板值。
  */
 export function processRuntimeTemplate(

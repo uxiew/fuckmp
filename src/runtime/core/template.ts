@@ -5,9 +5,14 @@
 
 import { logger } from '../utils/logger'
 import {
+  createListItemRenderContext,
+  createTemplateConfig,
   evaluateTemplateCondition,
   evaluateTemplateItems,
-  processRuntimeTemplate
+  mergeSlotRenderProps,
+  processRuntimeTemplate,
+  registerTemplateDefinitions,
+  resolveSlotRenderTemplate
 } from './template-utils'
 
 /**
@@ -60,13 +65,7 @@ export class TemplateEngine {
   private initialized = false
 
   constructor(config: TemplateConfig = {}) {
-    this.config = {
-      debug: false,
-      enableSlots: true,
-      enableConditional: true,
-      enableList: true,
-      ...config
-    }
+    this.config = createTemplateConfig(config)
   }
 
   /**
@@ -204,9 +203,7 @@ class TemplateInstance {
   private setupSlots(): void {
     if (!this.config.slots || !this.templateConfig.enableSlots) return
 
-    for (const [name, slot] of Object.entries(this.config.slots)) {
-      this.slots.set(name, slot as SlotDef)
-    }
+    registerTemplateDefinitions(this.slots, this.config.slots)
 
     // 添加插槽渲染方法到实例
     this.instance._renderSlot = (name: string, props?: Record<string, any>) => {
@@ -220,9 +217,7 @@ class TemplateInstance {
   private setupConditionals(): void {
     if (!this.config.conditionals || !this.templateConfig.enableConditional) return
 
-    for (const [name, conditional] of Object.entries(this.config.conditionals)) {
-      this.conditionals.set(name, conditional as ConditionalConfig)
-    }
+    registerTemplateDefinitions(this.conditionals, this.config.conditionals)
 
     // 添加条件渲染方法到实例
     this.instance._renderConditional = (name: string) => {
@@ -236,9 +231,7 @@ class TemplateInstance {
   private setupLists(): void {
     if (!this.config.lists || !this.templateConfig.enableList) return
 
-    for (const [name, list] of Object.entries(this.config.lists)) {
-      this.lists.set(name, list as ListConfig)
-    }
+    registerTemplateDefinitions(this.lists, this.config.lists)
 
     // 添加列表渲染方法到实例
     this.instance._renderList = (name: string) => {
@@ -258,16 +251,11 @@ class TemplateInstance {
 
     try {
       // 合并props
-      const slotProps = { ...slot.props, ...props }
+      const slotProps = mergeSlotRenderProps(slot.props, props)
+      const template = resolveSlotRenderTemplate(slot)
 
-      // 如果有内容，返回内容
-      if (slot.content) {
-        return processRuntimeTemplate(slot.content, slotProps, this.instance.data, this.logTemplateError)
-      }
-
-      // 否则返回fallback
-      if (slot.fallback) {
-        return processRuntimeTemplate(slot.fallback, slotProps, this.instance.data, this.logTemplateError)
+      if (template) {
+        return processRuntimeTemplate(template, slotProps, this.instance.data, this.logTemplateError)
       }
 
       return null
@@ -321,14 +309,13 @@ class TemplateInstance {
       }
 
       return items.map((item, index) => {
-        const context = {
-          [list.itemName]: item,
-          [list.indexName || 'index']: index
-        }
-
-        if (list.keyField && item[list.keyField] !== undefined) {
-          context['key'] = item[list.keyField]
-        }
+        const context = createListItemRenderContext(
+          list.itemName,
+          list.indexName,
+          list.keyField,
+          item,
+          index
+        )
 
         return processRuntimeTemplate(list.template, context, this.instance.data, this.logTemplateError)
       })
