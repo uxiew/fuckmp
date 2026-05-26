@@ -68,54 +68,6 @@ async function main(): Promise<void> {
 }
 
 /**
- * 显示帮助信息
- */
-function showHelp(): void {
-  console.log(`
-FuckMP - 强大的 Vue3 微信小程序编译器
-
-特性:
-  ✅ 完整的 Vue3 语法支持 (Composition API, script setup)
-  ✅ TypeScript 支持
-  ✅ SCSS/Sass 支持和导入功能
-  ✅ 智能路径解析和组件引用
-  ✅ 作用域样式 (scoped)
-
-用法:
-  fuckmp <command> [options]
-
-命令:
-  create <name>     创建新项目
-  build             构建项目
-  dev               开发模式 (监听文件变化)
-  analyze           分析项目结构
-  clean             清理输出目录
-  config            管理配置
-
-选项:
-  -h, --help        显示帮助信息
-  -V, --version     显示版本号
-  --no-color        禁用颜色输出
-  --silent          静默模式
-
-示例:
-  fuckmp create my-app
-  fuckmp build --input src --output dist
-  fuckmp dev --watch
-  fuckmp analyze --output-format json
-
-SCSS 导入示例:
-  // JavaScript 中导入样式
-  import './assets/css/global.scss'
-
-  // Style 标签中导入样式
-  <style lang="scss">
-    @import './assets/css/mixins.scss';
-  </style>
-`)
-}
-
-/**
  * 处理未捕获的异常
  */
 process.on('uncaughtException', (error) => {

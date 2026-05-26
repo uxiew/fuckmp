@@ -102,6 +102,7 @@
 - [x] config CLI 可测试化：`config --init/--show/--validate` 已从 CLI 入口抽出为独立 `createConfigCommand()`，覆盖默认配置写入、缺失配置 fallback 展示和验证失败诊断退出，降低 `vue3mp.config.js` 使用链路回归风险；覆盖 `tests/cli/config-command.test.ts`。
 - [x] clean CLI 可测试化：`clean --output` 已从 CLI 入口抽出为独立 `createCleanCommand()`，用 mock 覆盖输出目录存在时删除、不存在时跳过以及删除失败诊断退出，降低删除类命令回归风险；覆盖 `tests/cli/clean-command.test.ts`。
 - [x] analyze CLI 可测试化：`analyze --input --output-format` 已从 CLI 入口抽出为独立 `createAnalyzeCommand()`，覆盖文本统计输出、JSON 输出和扫描失败诊断退出，降低项目结构分析命令回归风险；覆盖 `tests/cli/analyze-command.test.ts`。
+- [x] CLI 入口死代码清理：`src/cli/index.ts` 不再保留未接入 Commander 的旧 `showHelp()` helper，并用质量测试约束子命令继续通过独立 `create*Command()` 模块注册，避免 CLI 入口回退到内联实现；覆盖 `tests/quality/cli-entry-cleanup.test.ts`。
 - [x] 默认测试输出：Browserslist 过期提示已在 Vitest 环境中静默；真机测试默认跳过，需 `FUCKMP_REAL_DEVICE_TESTS=1` 显式启用。
 
 ## 后续约束 / 可选验收
