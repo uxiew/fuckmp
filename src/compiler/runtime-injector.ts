@@ -16,6 +16,10 @@ import {
   countUsedRuntimeFeatures,
   createEmptyFeatureUsage
 } from './runtime-injector-usage-utils.js'
+import {
+  createRuntimeInjectionConfig,
+  writeRuntimeGeneratedFiles
+} from './runtime-injector-utils.js'
 
 /**
  * Vue3特性使用情况分析
@@ -105,15 +109,7 @@ export class RuntimeInjector {
    */
   private createDefaultConfig(): RuntimeInjectionConfig {
     const baseConfig = this.runtimeIntegration.getRuntimeConfig()
-    return {
-      ...baseConfig,
-      treeshaking: true,
-      minify: this.compilerOptions.mode === 'production',
-      codeSplitting: true,
-      chunkStrategy: 'feature',
-      runtimeVersion: '1.0.0',
-      customModules: []
-    }
+    return createRuntimeInjectionConfig(baseConfig, this.compilerOptions)
   }
 
   /**
@@ -221,7 +217,11 @@ export class RuntimeInjector {
       )
 
       // 6. 写入文件
-      await this.writeGeneratedFiles(outputDir, generatedFiles)
+      await writeRuntimeGeneratedFiles(
+        outputDir,
+        generatedFiles,
+        message => logger.debug(message)
+      )
 
       // 7. 生成统计报告
       this.generateInjectionReport(featureUsage, bundleResult, generatedFiles)
@@ -230,27 +230,6 @@ export class RuntimeInjector {
     } catch (error) {
       logger.error('运行时注入失败:', error instanceof Error ? error : new Error(String(error)))
       throw error
-    }
-  }
-
-  /**
-   * 写入生成的文件
-   */
-  private async writeGeneratedFiles(outputDir: string, files: any[]): Promise<void> {
-    const fs = await import('fs/promises')
-    const path = await import('path')
-
-    for (const file of files) {
-      const filePath = path.join(outputDir, file.path)
-      const fileDir = path.dirname(filePath)
-
-      // 确保目录存在
-      await fs.mkdir(fileDir, { recursive: true })
-
-      // 写入文件
-      await fs.writeFile(filePath, file.content, 'utf-8')
-
-      logger.debug(`生成文件: ${file.path} (${file.content.length} 字节)`)
     }
   }
 

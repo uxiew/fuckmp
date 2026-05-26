@@ -16,7 +16,7 @@
 - [x] 监听模式输出清理：删除 `.vue` 源文件时清理对应 `.js/.json/.wxml/.wxss/.js.map` 编译产物，并限定删除范围在输出目录内。
 - [x] 监听模式项目级刷新：新增、变更或删除 `.vue` 源文件后同步刷新 `app.json`、runtime injection 和项目配置，避免页面列表与运行时特性分析残留旧状态。
 - [x] 类型检查基线：`pnpm type-check` 当前通过，范围限定为源码 `src/**/*`。
-- [x] 测试基线：`pnpm test:run` 当前通过 112 个测试文件、跳过 1 个显式 opt-in 真机测试文件；502 个测试通过、5 个真机测试跳过。
+- [x] 测试基线：`pnpm test:run` 当前通过 113 个测试文件、跳过 1 个显式 opt-in 真机测试文件；504 个测试通过、5 个真机测试跳过。
 - [x] 构建基线：`pnpm build` 当前通过，DTS 生成通过。
 - [x] Sass 弃用告警：运行时代码使用 Dart Sass namespace import，测试 SCSS 使用 `sass:color` 模块函数。
 - [x] 旧运行时兼容层：删除无引用旧文件和 `setupRuntime/cleanupRuntime` 兼容导出，当前保留 `src/runtime/core/*`。
@@ -80,7 +80,7 @@
 - [x] `PluginSystem` builtins helper 拆分：内置 `PerformancePlugin`、`CodeQualityPlugin`、`CachePlugin` 与默认内置插件列表已抽离到 `src/plugins/plugin-system-builtins.ts`；`src/plugins/plugin-system.ts` 当前为 186 行，并保持旧入口 re-export，新增定向单测覆盖。
 - [x] `TemplateTransformer` attribute helper 拆分：AST 静态属性、静态/动态 class 合并、指令 transformer 调用与 `VUE_DIRECTIVE_MAP` fallback 已抽离到 `src/transformer/template-transformer-attribute-utils.ts`；`src/transformer/template-transformer.ts` 当前为 274 行，新增定向单测覆盖。
 - [x] `CompilerUtils` performance monitor helper 拆分：编译器侧 `PerformanceMonitor` mark/measure/report 逻辑已抽离到 `src/compiler/compiler-performance-monitor.ts`；`src/compiler/utils.ts` 当前为 254 行，并保持旧入口 re-export，新增定向单测覆盖。
-- [x] `RuntimeInjector` report helper 拆分：Vue3 特性日志名称收集、生成文件大小/运行时文件计数和注入报告行构造已抽离到 `src/compiler/runtime-injector-report-utils.ts`；`src/compiler/runtime-injector.ts` 当前为 312 行，新增定向单测覆盖。
+- [x] `RuntimeInjector` report/config/file helper 拆分：Vue3 特性日志名称收集、生成文件大小/运行时文件计数、注入报告行构造、默认注入配置和生成文件写入 helper 已抽离到 `src/compiler/runtime-injector-report-utils.ts` 与 `src/compiler/runtime-injector-utils.ts`；`src/compiler/runtime-injector.ts` 当前为 291 行，新增定向单测覆盖。
 - [x] `TemplateEngine` expression helper 拆分：运行时模板表达式评估、字符串插值、条件评估、列表数据评估和模板值处理已抽离到 `src/runtime/core/template-expression-utils.ts`；`src/runtime/core/template-utils.ts` 当前为 241 行，并保持旧入口 re-export，新增定向单测覆盖。
 - [x] `ScriptTransformer` macro processing helper 拆分：特殊宏分派、普通宏 CallExpression 节点构造、defineProps/defineEmits 泛型解析和普通 handler 错误吞吐已抽离到 `src/transformer/script-macro-processing-utils.ts`；`src/transformer/script-transformer.ts` 当前为 283 行，新增定向单测覆盖。
 - [x] `Reactivity` proxy internals helper 拆分：computed dirty/circular protection 与 reactive proxy setData 路径同步已抽离到 `src/runtime/core/reactivity-proxy-internals.ts`；`src/runtime/core/reactivity-proxy-helpers.ts` 当前为 256 行，新增定向单测覆盖。
@@ -99,6 +99,6 @@
 ## 后续优先任务
 
 1. 需要更深入真实小程序端验收时，使用合法微信小程序 AppID / 登录态运行 opt-in 真机测试，并可按 `examples/real-miniprogram/README.md` 接入 `wechat-devtools-mcp`。
-2. 如需继续做维护性瘦身，当前已无 600 行以上源码文件；后续重点关注 `src/runtime/core/di.ts` 365 行、`src/compiler/compiler.ts` 334 行、`src/runtime/core/lifecycle.ts` 317 行、`src/compiler/runtime-injector.ts` 312 行、`src/runtime/core/reactivity.ts` 306 行、`src/parser/script-codegen-utils.ts` 305 行、`src/runtime/core/event.ts` 301 行、`src/generator/page-generator-utils.ts` 298 行等接近门禁模块；其中 DI 继续改动前需先找到明确可测边界。
+2. 如需继续做维护性瘦身，当前已无 600 行以上源码文件；后续重点关注 `src/runtime/core/di.ts` 365 行、`src/compiler/compiler.ts` 334 行、`src/runtime/core/lifecycle.ts` 317 行、`src/runtime/core/reactivity.ts` 306 行、`src/parser/script-codegen-utils.ts` 305 行、`src/runtime/core/event.ts` 301 行、`src/generator/page-generator-utils.ts` 298 行、`src/runtime/index.ts` 297 行等接近门禁模块；其中 DI 继续改动前需先找到明确可测边界。
 3. `watch/watchEffect/onWatcherCleanup` 已明确降级；只有真实实现 Vue watcher 调度与 cleanup 语义后，才允许进入 runtime 白名单。
 4. 继续补齐最新 Vue 3.5 能力矩阵时，基础 slots 已原生映射；scoped/dynamic slots 与 `Transition` / `KeepAlive` 已明确降级；更复杂 DI 语义仍需真实方案或继续明确降级。
