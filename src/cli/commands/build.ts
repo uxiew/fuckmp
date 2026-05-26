@@ -41,8 +41,8 @@ export function createBuildCommand(): Command {
     .option('--clean', '构建前清理输出目录')
     .option('-w, --watch', '监听模式')
     .option('-v, --verbose', '详细输出')
-    .action(async (options: BuildOptions) => {
-      await handleBuildCommand(options)
+    .action(async (options: BuildOptions, command: Command) => {
+      await handleBuildCommand(options, command)
     })
 
   return command
@@ -51,7 +51,7 @@ export function createBuildCommand(): Command {
 /**
  * 处理构建命令
  */
-async function handleBuildCommand(options: BuildOptions): Promise<void> {
+async function handleBuildCommand(options: BuildOptions, command: Command): Promise<void> {
   try {
     // 设置日志级别
     if (options.verbose) {
@@ -68,7 +68,13 @@ async function handleBuildCommand(options: BuildOptions): Promise<void> {
     logger.info('开始构建项目...')
 
     // 构建编译器选项
-    const compilerOptions = await buildCompilerOptions(options)
+    const compilerOptions = await buildCompilerOptions(options, command)
+    const mergedValidation = validateBuildOptions(compilerOptions)
+    if (!mergedValidation.valid) {
+      logger.error('构建参数无效')
+      mergedValidation.errors.forEach(error => logger.error(error))
+      process.exit(1)
+    }
 
     // 创建编译器实例
     const compiler = new Vue3MiniprogramCompiler(compilerOptions)
@@ -102,8 +108,9 @@ async function handleBuildCommand(options: BuildOptions): Promise<void> {
 /**
  * 构建编译器选项
  */
-async function buildCompilerOptions(options: BuildOptions): Promise<Partial<CompilerOptions>> {
+async function buildCompilerOptions(options: BuildOptions, command: Command): Promise<Partial<CompilerOptions>> {
   let compilerOptions: Partial<CompilerOptions> = {}
+  const hasConfig = Boolean(options.config)
 
   // 从配置文件加载选项
   if (options.config) {
@@ -119,28 +126,42 @@ async function buildCompilerOptions(options: BuildOptions): Promise<Partial<Comp
   }
 
   // 命令行选项覆盖配置文件
-  if (options.input) {
+  if (options.input && shouldApplyBuildOptionOverride(command, 'input', hasConfig)) {
     compilerOptions.input = options.input
   }
 
-  if (options.output) {
+  if (options.output && shouldApplyBuildOptionOverride(command, 'output', hasConfig)) {
     compilerOptions.output = options.output
   }
 
-  if (options.appId) {
+  if (options.appId && shouldApplyBuildOptionOverride(command, 'appId', hasConfig)) {
     compilerOptions.appId = options.appId
   }
 
   // 优化选项 - build 模式默认启用压缩并禁用 sourcemap
   const currentOptimization = compilerOptions.optimization
+  const shouldOverrideMinify = shouldApplyBuildOptionOverride(command, 'minify', hasConfig)
+  const shouldOverrideSourcemap = shouldApplyBuildOptionOverride(command, 'sourcemap', hasConfig)
   compilerOptions.optimization = {
-    minify: options.minify !== false,  // 默认启用压缩，除非明确设置 --no-minify
+    minify: shouldOverrideMinify ? options.minify !== false : currentOptimization?.minify ?? true,
     treeshaking: currentOptimization?.treeshaking ?? true,
-    sourcemap: options.sourcemap === true,  // 默认禁用 sourcemap，除非明确设置 --sourcemap
+    sourcemap: shouldOverrideSourcemap ? options.sourcemap === true : currentOptimization?.sourcemap ?? false,
     incremental: currentOptimization?.incremental ?? true
   }
 
   return compilerOptions
+}
+
+/**
+ * 判断 build CLI 选项是否应覆盖配置文件。
+ */
+function shouldApplyBuildOptionOverride(command: Command, optionName: string, hasConfig: boolean): boolean {
+  if (!hasConfig) {
+    return true
+  }
+
+  const source = command.getOptionValueSource(optionName)
+  return source !== undefined && source !== 'default'
 }
 
 /**

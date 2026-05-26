@@ -30,6 +30,81 @@ describe('build command', () => {
     vi.clearAllMocks()
   })
 
+  it('未显式传 input/output 时保留配置文件中的路径和优化项', async () => {
+    configManagerFromFile.mockResolvedValueOnce({
+      getOptions: () => ({
+        input: 'configured-src',
+        output: 'configured-dist',
+        optimization: {
+          minify: false,
+          sourcemap: true,
+          treeshaking: false,
+          incremental: false
+        }
+      })
+    })
+    compilerConstructor.mockImplementationOnce(() => ({
+      compile: vi.fn(async () => ({
+        errors: [],
+        success: [],
+        stats: {
+          success: 0,
+          failed: 0,
+          duration: 0
+        }
+      }))
+    }))
+    const { createBuildCommand } = await import('@/cli/commands/build.js')
+    const command = createBuildCommand()
+
+    await command.parseAsync([
+      'node',
+      'fuckmp',
+      'build',
+      '--config',
+      'vue3mp.config.js'
+    ])
+
+    expect(configManagerFromFile).toHaveBeenCalledWith('vue3mp.config.js')
+    expect(compilerConstructor).toHaveBeenCalledWith(expect.objectContaining({
+      input: 'configured-src',
+      output: 'configured-dist',
+      optimization: {
+        minify: false,
+        sourcemap: true,
+        treeshaking: false,
+        incremental: false
+      }
+    }))
+  })
+
+  it('配置文件中的 input/output 路径等价时合并后提前诊断', async () => {
+    configManagerFromFile.mockResolvedValueOnce({
+      getOptions: () => ({
+        input: 'configured-src',
+        output: './configured-src'
+      })
+    })
+    const exit = vi.spyOn(process, 'exit').mockImplementation((code?: string | number | null | undefined) => {
+      throw new Error(`process.exit(${code})`)
+    })
+    const { createBuildCommand } = await import('@/cli/commands/build.js')
+    const command = createBuildCommand()
+
+    await expect(command.parseAsync([
+      'node',
+      'fuckmp',
+      'build',
+      '--config',
+      'vue3mp.config.js'
+    ])).rejects.toThrow('process.exit(1)')
+
+    expect(loggerMock.error).toHaveBeenCalledWith('构建参数无效')
+    expect(loggerMock.error).toHaveBeenCalledWith('输入目录和输出目录不能相同')
+    expect(compilerConstructor).not.toHaveBeenCalled()
+    expect(exit).toHaveBeenCalledWith(1)
+  })
+
   it('输入目录和输出目录相同时提前给出明确诊断且不启动编译器', async () => {
     await expectInvalidSamePathToExit(['--input', 'src', '--output', 'src'])
   })
