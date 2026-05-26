@@ -19,6 +19,19 @@
       </picker>
     </view>
 
+    <view class="slider-row">
+      <text class="preference-label">资料完整度</text>
+      <text class="completion-text">{{ completionText }}</text>
+      <slider
+        class="completion-slider"
+        min="0"
+        max="100"
+        step="10"
+        :value="completionLevel"
+        @change="handleCompletionChange"
+      />
+    </view>
+
     <textarea
       class="bio-input"
       :value="bioDraft"
@@ -53,6 +66,12 @@ interface MiniPickerChangeEvent {
   }
 }
 
+interface MiniSliderChangeEvent {
+  detail: {
+    value: number
+  }
+}
+
 const profileTitle = ref('资料页')
 const profileName = ref('示例用户')
 const profileRole = ref('真实验收')
@@ -62,8 +81,10 @@ const bioDraft = ref('使用 textarea 验收原生 input / focus / blur 事件')
 const emailOptIn = ref(true)
 const themeOptions = ref(['默认主题', '活力主题', '沉稳主题'])
 const themeIndex = ref(0)
+const completionLevel = ref(60)
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
+const completionText = computed(() => `${completionLevel.value}%`)
 
 const handleBioInput = (event: MiniTextareaInputEvent) => {
   bioDraft.value = event.detail.value
@@ -83,6 +104,10 @@ const handleEmailOptInChange = (event: MiniSwitchChangeEvent) => {
 
 const handleThemeChange = (event: MiniPickerChangeEvent) => {
   themeIndex.value = event.detail.value
+}
+
+const handleCompletionChange = (event: MiniSliderChangeEvent) => {
+  completionLevel.value = event.detail.value
 }
 </script>
 
@@ -150,5 +175,21 @@ const handleThemeChange = (event: MiniPickerChangeEvent) => {
   color: $primary-color;
   font-size: 26rpx;
   font-weight: 600;
+}
+
+.slider-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.completion-text {
+  color: $primary-color;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.completion-slider {
+  width: 100%;
 }
 </style>
