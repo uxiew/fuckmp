@@ -16,7 +16,7 @@
 - [x] 监听模式输出清理：删除 `.vue` 源文件时清理对应 `.js/.json/.wxml/.wxss/.js.map` 编译产物，并限定删除范围在输出目录内。
 - [x] 监听模式项目级刷新：新增、变更或删除 `.vue` 源文件后同步刷新 `app.json`、runtime injection 和项目配置，避免页面列表与运行时特性分析残留旧状态。
 - [x] 类型检查基线：`pnpm type-check` 当前通过，范围限定为源码 `src/**/*`。
-- [x] 测试基线：`pnpm test:run` 当前通过 111 个测试文件、跳过 1 个显式 opt-in 真机测试文件；497 个测试通过、5 个真机测试跳过。
+- [x] 测试基线：`pnpm test:run` 当前通过 112 个测试文件、跳过 1 个显式 opt-in 真机测试文件；502 个测试通过、5 个真机测试跳过。
 - [x] 构建基线：`pnpm build` 当前通过，DTS 生成通过。
 - [x] Sass 弃用告警：运行时代码使用 Dart Sass namespace import，测试 SCSS 使用 `sass:color` 模块函数。
 - [x] 旧运行时兼容层：删除无引用旧文件和 `setupRuntime/cleanupRuntime` 兼容导出，当前保留 `src/runtime/core/*`。
@@ -87,6 +87,7 @@
 - [x] `VueTemplateTransformer` AST rendering helper 拆分：Vue template AST 节点分派、if/for/element/props/directive 渲染已抽离到 `src/transformer/vue-template-transformer-utils.ts`；`src/transformer/vue-template-transformer.ts` 当前为 94 行，新增定向单测覆盖。
 - [x] `EnhancedTemplateTransformer` rendering helper 拆分：node-html-parser AST 节点分派、文本、元素、属性、class、事件和指令渲染已抽离到 `src/transformer/enhanced-template-transformer-utils.ts`；`src/transformer/enhanced-template-transformer.ts` 当前为 63 行，新增定向单测覆盖。
 - [x] `VForPlugin` helper 拆分：`v-for` 表达式解析、`wx:for` 属性生成、runtime config、列表表达式校验和过滤/排序表达式 helper 已抽离到 `src/plugins/directives/v-for-plugin-utils.ts`；`src/plugins/directives/v-for-plugin.ts` 当前为 62 行，新增定向单测覆盖。
+- [x] `VModelPlugin` helper 拆分：v-model 变量路径提取、input/textarea/picker/switch/slider 绑定代码、fallback 绑定和 generated method 上下文更新 helper 已抽离到 `src/plugins/directives/v-model-plugin-utils.ts`；`src/plugins/directives/v-model-plugin.ts` 当前为 197 行，新增定向单测覆盖。
 - [x] 默认测试输出：Browserslist 过期提示已在 Vitest 环境中静默；真机测试默认跳过，需 `FUCKMP_REAL_DEVICE_TESTS=1` 显式启用。
 
 ## 后续约束 / 可选验收
@@ -98,6 +99,6 @@
 ## 后续优先任务
 
 1. 需要更深入真实小程序端验收时，使用合法微信小程序 AppID / 登录态运行 opt-in 真机测试，并可按 `examples/real-miniprogram/README.md` 接入 `wechat-devtools-mcp`。
-2. 如需继续做维护性瘦身，当前已无 600 行以上源码文件；后续重点关注 `src/runtime/core/di.ts` 365 行、`src/compiler/compiler.ts` 334 行、`src/runtime/core/lifecycle.ts` 317 行、`src/compiler/runtime-injector.ts` 312 行、`src/runtime/core/reactivity.ts` 306 行、`src/parser/script-codegen-utils.ts` 305 行、`src/plugins/directives/v-model-plugin.ts` 302 行、`src/runtime/core/event.ts` 301 行等接近门禁模块；其中 DI 继续改动前需先找到明确可测边界。
+2. 如需继续做维护性瘦身，当前已无 600 行以上源码文件；后续重点关注 `src/runtime/core/di.ts` 365 行、`src/compiler/compiler.ts` 334 行、`src/runtime/core/lifecycle.ts` 317 行、`src/compiler/runtime-injector.ts` 312 行、`src/runtime/core/reactivity.ts` 306 行、`src/parser/script-codegen-utils.ts` 305 行、`src/runtime/core/event.ts` 301 行、`src/generator/page-generator-utils.ts` 298 行等接近门禁模块；其中 DI 继续改动前需先找到明确可测边界。
 3. `watch/watchEffect/onWatcherCleanup` 已明确降级；只有真实实现 Vue watcher 调度与 cleanup 语义后，才允许进入 runtime 白名单。
 4. 继续补齐最新 Vue 3.5 能力矩阵时，基础 slots 已原生映射；scoped/dynamic slots 与 `Transition` / `KeepAlive` 已明确降级；更复杂 DI 语义仍需真实方案或继续明确降级。
