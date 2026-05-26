@@ -117,9 +117,12 @@ describe('真实示例工程验收', () => {
     expect(indexJs).not.toContain('this.this.data')
 
     const userCardJs = await readOutputFile('components/UserCard.js')
+    const userCardWxml = await readOutputFile('components/UserCard.wxml')
     expect(userCardJs).toContain('user: {')
     expect(userCardJs).toContain('active: {')
     expect(userCardJs).toContain("this.triggerEvent('userClick',")
+    expect(userCardWxml).toContain('catch:tap="handleMessage"')
+    expect(userCardWxml).not.toContain('bind:tap="handleMessage"')
 
     const counterInputJs = await readOutputFile('components/CounterInput.js')
     const counterInputWxml = await readOutputFile('components/CounterInput.wxml')

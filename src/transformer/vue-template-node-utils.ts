@@ -161,20 +161,22 @@ export function mapVueTemplateEventName(eventName: string): string {
 export function transformVueTemplateEventHandler(
   eventName: string,
   expression: string,
-  result: TemplateTransformResult
+  result: TemplateTransformResult,
+  modifiers: string[] = []
 ): string | string[] {
+  const eventBindingPrefix = getVueTemplateEventBindingPrefix(modifiers)
   const functionCallMatch = expression.match(/^(\w+)\s*\(\s*(.+)\s*\)$/)
 
   if (!functionCallMatch) {
     result.eventHandlers.set(expression, expression)
-    return `bind:${eventName}="${expression}"`
+    return `${eventBindingPrefix}${eventName}="${expression}"`
   }
 
   const [, functionName, argsString] = functionCallMatch
 
   if (!functionName || !argsString) {
     result.eventHandlers.set(expression, expression)
-    return `bind:${eventName}="${expression}"`
+    return `${eventBindingPrefix}${eventName}="${expression}"`
   }
 
   const dataAttrs = parseVueTemplateEventArguments(argsString).map((arg, index) => {
@@ -184,8 +186,17 @@ export function transformVueTemplateEventHandler(
 
   result.eventHandlers.set(functionName, functionName)
 
-  const eventBinding = `bind:${eventName}="${functionName}"`
+  const eventBinding = `${eventBindingPrefix}${eventName}="${functionName}"`
   return dataAttrs.length > 0 ? [eventBinding, ...dataAttrs] : eventBinding
+}
+
+/**
+ * 根据 Vue 事件修饰符选择微信原生事件绑定前缀。
+ */
+function getVueTemplateEventBindingPrefix(modifiers: string[]): string {
+  if (modifiers.includes('stop')) return 'catch:'
+  if (modifiers.includes('capture')) return 'capture-bind:'
+  return 'bind:'
 }
 
 /**

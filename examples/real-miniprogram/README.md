@@ -4,7 +4,7 @@
 
 当前示例重点组件：
 
-- `components/UserCard.vue`：props、`withDefaults`、emits 与事件修饰符。
+- `components/UserCard.vue`：props、`withDefaults`、emits 与 `@tap.stop` 到微信原生 `catch` 绑定的事件修饰符映射。
 - `components/CounterInput.vue`：`defineModel`、组件 `v-model` 与输入修饰符。
 - `components/ActivityList.vue`：`v-if` / `v-for`、动态 class、微信原生 dataset 事件参数与列表项事件回传。
 - `components/SlotPanel.vue`：微信原生可等价的 default slot 与 named slot 内容投递；不覆盖 scoped slot props 或动态 slot 名。

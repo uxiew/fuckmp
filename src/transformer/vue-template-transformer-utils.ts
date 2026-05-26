@@ -230,7 +230,10 @@ export function transformVueTemplateDirective(
 
     case 'on': {
       const eventName = mapVueTemplateEventName(arg)
-      return transformVueTemplateEventHandler(eventName, exp, result)
+      const modifiers = (directive.modifiers || []).map((mod: any) =>
+        typeof mod === 'string' ? mod : mod.content || mod
+      )
+      return transformVueTemplateEventHandler(eventName, exp, result, modifiers)
     }
 
     case 'if':

@@ -76,6 +76,22 @@ describe('vue-template-transformer-utils', () => {
     expect([...result.eventHandlers.keys()]).toEqual(['submit'])
   })
 
+  it('转换 Vue AST 事件 stop 修饰符为微信原生 catch 绑定', () => {
+    const context = createScriptTransformContext('components/card.vue', false)
+    const result = createResult()
+
+    const output = transformVueTemplateElementNode({
+      tag: 'button',
+      props: [
+        { type: 7, name: 'on', arg: { content: 'tap' }, exp: { content: 'handleMessage' }, modifiers: ['stop'] }
+      ],
+      children: [{ content: 'Message' }]
+    }, result, context, child => child.content)
+
+    expect(output).toBe('<button catch:tap="handleMessage">Message</button>')
+    expect([...result.eventHandlers.keys()]).toEqual(['handleMessage'])
+  })
+
   it('转换普通指令并保留 v-model 修饰符旧语义', () => {
     const result = createResult()
     const context = createScriptTransformContext('components/form.vue', false)
