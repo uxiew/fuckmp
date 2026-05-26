@@ -18,6 +18,18 @@
       />
     </view>
 
+    <view
+      class="touch-card"
+      @touchstart="handleTouchStart"
+      @touchmove="handleTouchMove"
+      @touchend="handleTouchEnd"
+      @touchcancel="handleTouchCancel"
+      @longpress="handleLongPress"
+    >
+      <text class="preference-label">触摸验收</text>
+      <text class="touch-text">{{ touchPhase }}</text>
+    </view>
+
     <view class="preference-row">
       <text class="preference-label">接收验收提醒</text>
       <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
@@ -161,6 +173,7 @@ const completionLevel = ref(60)
 const contactMethod = ref('email')
 const selectedChannels = ref(['email'])
 const formSnapshot = ref({ bio: '' })
+const touchPhase = ref('idle')
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
@@ -180,6 +193,31 @@ const handleNameFocus = () => {
 /** 验收 input blur 事件会映射为微信原生 bind:blur。 */
 const handleNameBlur = () => {
   console.log('name blur')
+}
+
+/** 验收 touchstart 事件会映射为微信原生 bind:touchstart。 */
+const handleTouchStart = () => {
+  touchPhase.value = 'start'
+}
+
+/** 验收 touchmove 事件会映射为微信原生 bind:touchmove。 */
+const handleTouchMove = () => {
+  touchPhase.value = 'move'
+}
+
+/** 验收 touchend 事件会映射为微信原生 bind:touchend。 */
+const handleTouchEnd = () => {
+  touchPhase.value = 'end'
+}
+
+/** 验收 touchcancel 事件会映射为微信原生 bind:touchcancel。 */
+const handleTouchCancel = () => {
+  touchPhase.value = 'cancel'
+}
+
+/** 验收 longpress 事件会映射为微信原生 bind:longpress。 */
+const handleLongPress = () => {
+  touchPhase.value = 'longpress'
 }
 
 const handleBioInput = (event: MiniTextareaInputEvent) => {
@@ -272,6 +310,21 @@ const handleProfileReset = () => {
   border-radius: 12rpx;
   color: $text-color;
   padding: 18rpx 20rpx;
+}
+
+.touch-card {
+  background: rgba($primary-color, 0.06);
+  border-radius: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  padding: 20rpx;
+}
+
+.touch-text {
+  color: $primary-color;
+  font-size: 24rpx;
+  font-weight: 600;
 }
 
 .bio-input {
