@@ -16,7 +16,7 @@
 - [x] 监听模式输出清理：删除 `.vue` 源文件时清理对应 `.js/.json/.wxml/.wxss/.js.map` 编译产物，并限定删除范围在输出目录内。
 - [x] 监听模式项目级刷新：新增、变更或删除 `.vue` 源文件后同步刷新 `app.json`、runtime injection 和项目配置，避免页面列表与运行时特性分析残留旧状态。
 - [x] 类型检查基线：`pnpm type-check` 当前通过，范围限定为源码 `src/**/*`。
-- [x] 测试基线：`pnpm test:run` 当前通过 115 个测试文件、跳过 1 个显式 opt-in 真机测试文件；510 个测试通过、5 个真机测试跳过。
+- [x] 测试基线：`pnpm test:run` 当前通过 116 个测试文件、跳过 1 个显式 opt-in 真机测试文件；513 个测试通过、5 个真机测试跳过。
 - [x] 构建基线：`pnpm build` 当前通过，DTS 生成通过。
 - [x] Sass 弃用告警：运行时代码使用 Dart Sass namespace import，测试 SCSS 使用 `sass:color` 模块函数。
 - [x] 旧运行时兼容层：删除无引用旧文件和 `setupRuntime/cleanupRuntime` 兼容导出，当前保留 `src/runtime/core/*`。
@@ -91,17 +91,18 @@
 - [x] `VForPlugin` helper 拆分：`v-for` 表达式解析、`wx:for` 属性生成、runtime config、列表表达式校验和过滤/排序表达式 helper 已抽离到 `src/plugins/directives/v-for-plugin-utils.ts`；`src/plugins/directives/v-for-plugin.ts` 当前为 62 行，新增定向单测覆盖。
 - [x] `VModelPlugin` helper 拆分：v-model 变量路径提取、input/textarea/picker/switch/slider 绑定代码、fallback 绑定和 generated method 上下文更新 helper 已抽离到 `src/plugins/directives/v-model-plugin-utils.ts`；`src/plugins/directives/v-model-plugin.ts` 当前为 197 行，新增定向单测覆盖。
 - [x] 真实示例 `v-if` / `v-for` 原生映射覆盖：新增 `components/ActivityList.vue` 并接入 `examples/real-miniprogram` 首页，覆盖列表/条件渲染、动态 class、微信原生 dataset 事件参数和最终组件 JS 语法；同步修复事件 handler 原生 `event` 参数被误转为 `dataset.arg0` 的序列化回归，覆盖 `tests/e2e/real-example-acceptance.test.ts` 与 `tests/compiler/object-serializer.test.ts`。
+- [x] 真实示例 DevTools opt-in 冒烟脚本：新增 `pnpm test:real-devtools`，默认跳过真实 GUI 调用，显式设置 `FUCKMP_REAL_DEVTOOLS_SMOKE=1` 后先编译 `examples/real-miniprogram` 再调用微信开发者工具 `cli auto`；覆盖 `tests/scripts/real-miniprogram-devtools-smoke.test.ts`。
 - [x] 默认测试输出：Browserslist 过期提示已在 Vitest 环境中静默；真机测试默认跳过，需 `FUCKMP_REAL_DEVICE_TESTS=1` 显式启用。
 
 ## 后续约束 / 可选验收
 
 - [x] 真机测试可用性边界已核查（2026-05-21）：本机 `/Applications/wechatwebdevtools.app/Contents/MacOS/cli` 存在且可执行，`FUCKMP_REAL_DEVICE_TESTS=1 WECHAT_IDE_CLI=/Applications/wechatwebdevtools.app/Contents/MacOS/cli pnpm vitest run tests/e2e/real-device.test.ts` 当前无法完成；进一步执行 `cli auto --project /Users/bing/Projects/vue3-wx/test-output --auto-port 9420 --trust-project` 返回 `AppID 不合法, invalid appid`，原因是当前 `test-output/project.config.json` 使用测试占位 appid `test-miniprogram`。真实验收需要配置合法微信小程序 AppID / 项目并开启自动化 HTTP 端口后重跑，不将该环境失败伪造成通过。
-- [x] 真实示例 DevTools 自动化冒烟已核查（2026-05-22 16:07 CST）：`/Applications/wechatwebdevtools.app/Contents/MacOS/cli auto --project /Users/bing/Projects/vue3-wx/test-output/real-miniprogram --auto-port 9420 --trust-project` 返回 `IDE server has started`、`Using AppID: touristappid`、`auto`，说明真实示例输出可被微信开发者工具自动化打开。
+- [x] 真实示例 DevTools 自动化冒烟已核查（2026-05-22 16:07 CST）：`/Applications/wechatwebdevtools.app/Contents/MacOS/cli auto --project /Users/bing/Projects/vue3-wx/test-output/real-miniprogram --auto-port 9420 --trust-project` 返回 `IDE server has started`、`Using AppID: touristappid`、`auto`，说明真实示例输出可被微信开发者工具自动化打开；当前可通过 `FUCKMP_REAL_DEVTOOLS_SMOKE=1 WECHAT_IDE_CLI=/Applications/wechatwebdevtools.app/Contents/MacOS/cli pnpm test:real-devtools` 复跑该 opt-in 冒烟流程。
 - [x] 维护性后续边界已记录：当前已无超过 600 行的源码文件；后续只继续收敛能降低核心回归风险的明确边界，避免为拆分而拆分；维护性风险收敛后优先转向真实验收矩阵、真实项目覆盖和可映射到微信原生能力的高价值新特性。
 
 ## 后续优先任务
 
-1. 下一阶段优先补真实验收矩阵：扩大 `examples/real-miniprogram` 覆盖面，并使用合法微信小程序 AppID / 登录态运行 opt-in 真机测试；可按 `examples/real-miniprogram/README.md` 接入 `wechat-devtools-mcp`。
+1. 下一阶段优先补真实验收矩阵：继续扩大 `examples/real-miniprogram` 覆盖面，并使用合法微信小程序 AppID / 登录态运行 opt-in 真机测试；可按 `examples/real-miniprogram/README.md` 接入 `wechat-devtools-mcp`，或通过 `pnpm test:real-devtools` 复跑微信开发者工具 opt-in 冒烟。
 2. 如需继续做维护性瘦身，只选择能明确降低核心回归风险的边界；当前可关注 `src/compiler/compiler.ts` 334 行、`src/runtime/core/lifecycle.ts` 317 行、`src/runtime/core/reactivity.ts` 306 行、`src/runtime/core/event.ts` 301 行、`src/generator/page-generator-utils.ts` 298 行、`src/runtime/index.ts` 297 行、`src/plugins/registry.ts` 295 行等模块，不再盲目追求拆分数量。
 3. 新功能只选择能明确映射到微信原生能力、且能测试闭环的能力；对 `watch/watchEffect/onWatcherCleanup`、复杂 DI、scoped/dynamic slots、`Transition`、`KeepAlive` 等无法等价实现的 Vue 语义继续保持 Native-first 降级，不做伪 runtime。
 4. 发布与开发者体验仍需补强：CLI 使用文档、版本兼容策略、错误诊断信息和真实项目迁移指南应在新特性前并行完善。
