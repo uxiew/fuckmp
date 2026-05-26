@@ -21,8 +21,17 @@ import {
   transformVueIdentifier
 } from './script-codegen-node-utils.js'
 import type { ScriptCodegenVariables } from './script-codegen-node-utils.js'
+import {
+  generateBlockStatementCode
+} from './script-codegen-statement-utils.js'
+import type { ScriptStatementCodegenContext } from './script-codegen-statement-utils.js'
 
 export type { ScriptCodegenVariables } from './script-codegen-node-utils.js'
+
+const statementCodegenContext: ScriptStatementCodegenContext = {
+  generateCodeString,
+  extractArgumentValue
+}
 
 /**
  * 生成代码字符串（用于函数体等）。
@@ -127,60 +136,12 @@ function generateFunctionCode(node: any, variables?: ScriptCodegenVariables): st
 
   if (node.type === 'ArrowFunctionExpression') {
     if (node.body.type === 'BlockStatement') {
-      return `(${params}) => ${generateBlockStatement(node.body, variables)}`
+      return `(${params}) => ${generateBlockStatementCode(node.body, statementCodegenContext, variables)}`
     }
     return `(${params}) => ${extractArgumentValue(node.body, variables)}`
   }
 
-  return `function(${params}) ${generateBlockStatement(node.body, variables)}`
-}
-
-function generateBlockStatement(node: any, variables?: ScriptCodegenVariables): string {
-  if (node.type === 'BlockStatement') {
-    const statements = node.body
-      .map((stmt: any) => generateStatement(stmt, variables))
-      .join('\n    ')
-    return `{\n    ${statements}\n  }`
-  }
-  return '{}'
-}
-
-function generateStatement(node: any, variables?: ScriptCodegenVariables): string {
-  switch (node.type) {
-    case 'ReturnStatement':
-      return `return ${node.argument ? generateCodeString(node.argument, variables) : ''}`
-    case 'ExpressionStatement':
-      return generateCodeString(node.expression, variables)
-    case 'VariableDeclaration': {
-      const declarations = node.declarations
-        .map((decl: any) => {
-          const init = decl.init ? ` = ${generateCodeString(decl.init, variables)}` : ''
-          return `${decl.id.name}${init}`
-        })
-        .join(', ')
-      return `${node.kind} ${declarations}`
-    }
-    case 'SwitchStatement':
-      return generateSwitchStatement(node, variables)
-    case 'IfStatement':
-      return generateIfStatement(node, variables)
-    case 'ForStatement':
-      return generateForStatement(node, variables)
-    case 'WhileStatement':
-      return generateWhileStatement(node, variables)
-    case 'BlockStatement':
-      return generateBlockStatement(node, variables)
-    case 'UpdateExpression':
-      return generateUpdateExpression(node, variables)
-    case 'AssignmentExpression':
-      return generateAssignmentExpression(node, variables)
-    case 'BreakStatement':
-      return 'break'
-    case 'ContinueStatement':
-      return 'continue'
-    default:
-      return `// ${node.type}`
-  }
+  return `function(${params}) ${generateBlockStatementCode(node.body, statementCodegenContext, variables)}`
 }
 
 function generateCallExpressionCode(node: any, variables?: ScriptCodegenVariables): string {
@@ -193,7 +154,7 @@ function generateCallExpressionCode(node: any, variables?: ScriptCodegenVariable
       // 对于 computed，如果参数是箭头函数，提取函数体
       if (callee === 'computed' && arg.type === 'ArrowFunctionExpression') {
         if (arg.body.type === 'BlockStatement') {
-          return generateBlockStatement(arg.body, variables)
+          return generateBlockStatementCode(arg.body, statementCodegenContext, variables)
         }
         return generateCodeString(arg.body, variables)
       }
@@ -234,50 +195,6 @@ function generateBinaryExpressionCode(node: any, variables?: ScriptCodegenVariab
 
 function generateLogicalExpressionCode(node: any, variables?: ScriptCodegenVariables): string {
   return generateInfixExpressionCode(node, generateCodeString, variables)
-}
-
-function generateSwitchStatement(node: any, variables?: ScriptCodegenVariables): string {
-  const discriminant = extractArgumentValue(node.discriminant, variables)
-  const cases = node.cases.map((caseNode: any) => {
-    if (caseNode.test) {
-      // 对于 case 测试值，需要生成正确的代码字符串
-      const test = caseNode.test.type === 'StringLiteral'
-        ? JSON.stringify(caseNode.test.value)
-        : extractArgumentValue(caseNode.test, variables)
-      const consequent = caseNode.consequent
-        .map((stmt: any) => generateStatement(stmt, variables))
-        .join('\n      ')
-      return `    case ${test}:\n      ${consequent}`
-    }
-
-    const consequent = caseNode.consequent
-      .map((stmt: any) => generateStatement(stmt, variables))
-      .join('\n      ')
-    return `    default:\n      ${consequent}`
-  }).join('\n')
-
-  return `switch (${discriminant}) {\n${cases}\n  }`
-}
-
-function generateIfStatement(node: any, variables?: ScriptCodegenVariables): string {
-  const test = extractArgumentValue(node.test, variables)
-  const consequent = generateStatement(node.consequent, variables)
-  const alternate = node.alternate ? ` else ${generateStatement(node.alternate, variables)}` : ''
-  return `if (${test}) ${consequent}${alternate}`
-}
-
-function generateForStatement(node: any, variables?: ScriptCodegenVariables): string {
-  const init = node.init ? generateStatement(node.init, variables) : ''
-  const test = node.test ? extractArgumentValue(node.test, variables) : ''
-  const update = node.update ? extractArgumentValue(node.update, variables) : ''
-  const body = generateStatement(node.body, variables)
-  return `for (${init}; ${test}; ${update}) ${body}`
-}
-
-function generateWhileStatement(node: any, variables?: ScriptCodegenVariables): string {
-  const test = extractArgumentValue(node.test, variables)
-  const body = generateStatement(node.body, variables)
-  return `while (${test}) ${body}`
 }
 
 function generateTemplateLiteral(node: any, variables?: ScriptCodegenVariables): string {
