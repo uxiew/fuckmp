@@ -62,13 +62,21 @@
       </checkbox-group>
     </view>
 
-    <textarea
-      class="bio-input"
-      :value="bioDraft"
-      @input="handleBioInput"
-      @focus="handleBioFocus"
-      @blur="handleBioBlur"
-    ></textarea>
+    <form class="profile-form" @submit="handleProfileSubmit" @reset="handleProfileReset">
+      <textarea
+        class="bio-input"
+        name="bio"
+        :value="bioDraft"
+        @input="handleBioInput"
+        @focus="handleBioFocus"
+        @blur="handleBioBlur"
+      ></textarea>
+
+      <view class="form-actions">
+        <button class="form-button" form-type="submit">提交资料</button>
+        <button class="form-button secondary" form-type="reset">重置资料</button>
+      </view>
+    </form>
 
     <text class="muted-text">这是真实示例的第二个页面</text>
   </view>
@@ -114,6 +122,14 @@ interface MiniCheckboxChangeEvent {
   }
 }
 
+interface MiniFormSubmitEvent {
+  detail: {
+    value: {
+      bio: string
+    }
+  }
+}
+
 const profileTitle = ref('资料页')
 const profileName = ref('示例用户')
 const profileRole = ref('真实验收')
@@ -126,6 +142,7 @@ const themeIndex = ref(0)
 const completionLevel = ref(60)
 const contactMethod = ref('email')
 const selectedChannels = ref(['email'])
+const formSnapshot = ref({ bio: '' })
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
@@ -162,6 +179,15 @@ const handleContactMethodChange = (event: MiniRadioChangeEvent) => {
 
 const handleChannelChange = (event: MiniCheckboxChangeEvent) => {
   selectedChannels.value = event.detail.value
+}
+
+const handleProfileSubmit = (event: MiniFormSubmitEvent) => {
+  formSnapshot.value = event.detail.value
+}
+
+const handleProfileReset = () => {
+  bioDraft.value = ''
+  formSnapshot.value = { bio: '' }
 }
 </script>
 
@@ -208,6 +234,29 @@ const handleChannelChange = (event: MiniCheckboxChangeEvent) => {
   color: $text-color;
   min-height: 160rpx;
   padding: 20rpx;
+}
+
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12rpx;
+}
+
+.form-button {
+  background: $primary-color;
+  color: #ffffff;
+  flex: 1;
+  font-size: 24rpx;
+}
+
+.form-button.secondary {
+  background: #eef2f8;
+  color: $text-color;
 }
 
 .preference-row {

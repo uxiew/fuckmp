@@ -1,6 +1,6 @@
 # 真实小程序示例
 
-这个示例用于验收 Vue3 到微信小程序编译链路，覆盖页面、组件、props、emits、组件 `v-model`、基础 default / named slots、`v-if` / `v-for` / `v-show` 原生映射、`<img :src>` 图片资源映射、textarea 原生 `input/focus/blur` 事件映射、switch 原生 `checked/change` 映射、picker 原生 `value/range/change` 映射、slider 原生 `value/change` 映射、radio-group / checkbox-group 原生 `change` 映射、JavaScript 配置、SCSS 样式与 runtime 注入。
+这个示例用于验收 Vue3 到微信小程序编译链路，覆盖页面、组件、props、emits、组件 `v-model`、基础 default / named slots、`v-if` / `v-for` / `v-show` 原生映射、`<img :src>` 图片资源映射、textarea 原生 `input/focus/blur` 事件映射、switch 原生 `checked/change` 映射、picker 原生 `value/range/change` 映射、slider 原生 `value/change` 映射、radio-group / checkbox-group 原生 `change` 映射、form 原生 `submit/reset` 事件映射、JavaScript 配置、SCSS 样式与 runtime 注入。
 
 当前示例重点组件：
 
@@ -10,7 +10,7 @@
 - `components/ActivityList.vue`：`v-if` / `v-for`、动态 class、Vue 源侧 `@click="handler(arg)"` 事件参数到微信原生 dataset 的映射，以及子组件 `selectActivity` payload 经微信原生 `event.detail` 回传给父页面。
 - `components/SlotPanel.vue`：微信原生可等价的 default slot 与 named slot 内容投递；不覆盖 scoped slot props 或动态 slot 名。
 - `pages/index/index.vue`：`v-show` 到微信原生 `hidden` 属性的页面级映射，页面按钮 Vue 源侧 `@click` 到微信原生 `bind:tap` 的事件映射，以及 `<a href>` 到微信原生 `<navigator url>` 的页面导航映射。
-- `pages/profile.vue`：第二页面级 `ref` / `computed` / `v-if`、textarea 原生 `@input` / `@focus` / `@blur` 事件映射、switch 原生 `:checked` / `@change` 映射、picker 原生 `:value` / `:range` / `@change` 映射、slider 原生 `:value` / `@change` 映射、radio-group / checkbox-group 原生 `@change` 与动态 `:checked` 映射，以及 scoped/shared 样式验收。
+- `pages/profile.vue`：第二页面级 `ref` / `computed` / `v-if`、textarea 原生 `@input` / `@focus` / `@blur` 事件映射、switch 原生 `:checked` / `@change` 映射、picker 原生 `:value` / `:range` / `@change` 映射、slider 原生 `:value` / `@change` 映射、radio-group / checkbox-group 原生 `@change` 与动态 `:checked` 映射、form 原生 `@submit` / `@reset` 与 `form-type` 按钮映射，以及 scoped/shared 样式验收。
 
 推荐验证命令：
 
