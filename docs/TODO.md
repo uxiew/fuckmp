@@ -99,6 +99,7 @@
 - [x] build CLI 显式配置加载失败短路：传入 `--config` 后若配置文件缺失或解析失败，会输出具体配置路径与原始错误并退出，不再降级为默认配置继续构建；覆盖 `tests/cli/build-command.test.ts`。
 - [x] build CLI 配置合并优先级：`build --config` 未显式传入 `--input/--output/--minify/--no-minify/--sourcemap/--no-sourcemap` 时保留配置文件值，只有来源为 CLI 的选项才覆盖配置；合并后继续校验 input/output 路径冲突；覆盖 `tests/cli/build-command.test.ts`。
 - [x] dev CLI alias 行为闭环：`fuckmp dev` 抽出为 `build --watch` 的薄别名，只转发用户显式原始参数并支持 `--config/--app-id/--minify/--no-minify/--sourcemap/--no-sourcemap/--clean` 等常用 build 选项，避免 dev 默认值覆盖配置文件；覆盖 `tests/cli/dev-command.test.ts`。
+- [x] config CLI 可测试化：`config --init/--show/--validate` 已从 CLI 入口抽出为独立 `createConfigCommand()`，覆盖默认配置写入、缺失配置 fallback 展示和验证失败诊断退出，降低 `vue3mp.config.js` 使用链路回归风险；覆盖 `tests/cli/config-command.test.ts`。
 - [x] 默认测试输出：Browserslist 过期提示已在 Vitest 环境中静默；真机测试默认跳过，需 `FUCKMP_REAL_DEVICE_TESTS=1` 显式启用。
 
 ## 后续约束 / 可选验收

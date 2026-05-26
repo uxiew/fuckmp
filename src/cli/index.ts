@@ -6,6 +6,7 @@
 
 import { Command } from 'commander'
 import { createBuildCommand } from './commands/build.js'
+import { createConfigCommand } from './commands/config.js'
 import { createCreateCommand } from './commands/create.js'
 import { createDevCommand } from './commands/dev.js'
 import { logger } from '@/utils/index.js'
@@ -39,6 +40,7 @@ async function main(): Promise<void> {
   program.addCommand(createBuildCommand())
   program.addCommand(createCreateCommand())
   program.addCommand(createDevCommand())
+  program.addCommand(createConfigCommand())
 
   // 添加分析命令
   program
@@ -57,17 +59,6 @@ async function main(): Promise<void> {
     .option('-o, --output <dir>', '输出目录', 'dist')
     .action(async (options) => {
       await handleCleanCommand(options)
-    })
-
-  // 添加配置命令
-  program
-    .command('config')
-    .description('管理编译器配置')
-    .option('--init', '初始化配置文件')
-    .option('--show', '显示当前配置')
-    .option('--validate', '验证配置文件')
-    .action(async (options) => {
-      await handleConfigCommand(options)
     })
 
   // 错误处理
@@ -149,47 +140,6 @@ async function handleCleanCommand(options: { output: string }): Promise<void> {
 
   } catch (error) {
     logger.error('清理失败', error as Error)
-    process.exit(1)
-  }
-}
-
-/**
- * 处理配置命令
- */
-async function handleConfigCommand(options: { init?: boolean; show?: boolean; validate?: boolean }): Promise<void> {
-  try {
-    const { ConfigManager } = await import('@/compiler/index.js')
-
-    if (options.init) {
-      // 初始化配置文件
-      const configManager = new ConfigManager()
-      await configManager.saveToFile('vue3mp.config.js')
-      logger.success('配置文件已创建: vue3mp.config.js')
-    } else if (options.show) {
-      // 显示当前配置
-      try {
-        const configManager = await ConfigManager.fromFile('vue3mp.config.js')
-        console.log(configManager.toJSON())
-      } catch {
-        logger.warn('未找到配置文件，显示默认配置:')
-        const configManager = new ConfigManager()
-        console.log(configManager.toJSON())
-      }
-    } else if (options.validate) {
-      // 验证配置文件
-      try {
-        await ConfigManager.fromFile('vue3mp.config.js')
-        logger.success('配置文件验证通过')
-      } catch (error) {
-        logger.error('配置文件验证失败', error as Error)
-        process.exit(1)
-      }
-    } else {
-      logger.info('请指定配置操作: --init, --show, 或 --validate')
-    }
-
-  } catch (error) {
-    logger.error('配置操作失败', error as Error)
     process.exit(1)
   }
 }
