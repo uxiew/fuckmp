@@ -5,6 +5,7 @@
  */
 
 import { Command } from 'commander'
+import { createAnalyzeCommand } from './commands/analyze.js'
 import { createBuildCommand } from './commands/build.js'
 import { createCleanCommand } from './commands/clean.js'
 import { createConfigCommand } from './commands/config.js'
@@ -43,16 +44,7 @@ async function main(): Promise<void> {
   program.addCommand(createDevCommand())
   program.addCommand(createConfigCommand())
   program.addCommand(createCleanCommand())
-
-  // 添加分析命令
-  program
-    .command('analyze')
-    .description('分析项目结构和依赖')
-    .option('-i, --input <dir>', '输入目录', 'src')
-    .option('--output-format <format>', '输出格式 (json|text)', 'text')
-    .action(async (options) => {
-      await handleAnalyzeCommand(options)
-    })
+  program.addCommand(createAnalyzeCommand())
 
   // 错误处理
   program.exitOverride((err) => {
@@ -71,46 +63,6 @@ async function main(): Promise<void> {
     await program.parseAsync(process.argv)
   } catch (error) {
     logger.error('程序执行失败', error as Error)
-    process.exit(1)
-  }
-}
-
-/**
- * 处理分析命令
- */
-async function handleAnalyzeCommand(options: { input: string; outputFormat: string }): Promise<void> {
-  try {
-    logger.info('分析项目结构...')
-
-    const { scanVueFiles } = await import('@/utils/index.js')
-    const vueFiles = await scanVueFiles(options.input)
-
-    const analysis = {
-      totalFiles: vueFiles.length,
-      pages: vueFiles.filter(file => file.includes('/pages/')).length,
-      components: vueFiles.filter(file => file.includes('/components/')).length,
-      files: vueFiles
-    }
-
-    if (options.outputFormat === 'json') {
-      console.log(JSON.stringify(analysis, null, 2))
-    } else {
-      logger.info('\n项目分析结果:')
-      logger.info(`📁 总文件数: ${analysis.totalFiles}`)
-      logger.info(`📄 页面数: ${analysis.pages}`)
-      logger.info(`🧩 组件数: ${analysis.components}`)
-
-      if (analysis.files.length > 0) {
-        logger.info('\n文件列表:')
-        analysis.files.forEach(file => {
-          const type = file.includes('/pages/') ? '📄' : '🧩'
-          logger.info(`  ${type} ${file}`)
-        })
-      }
-    }
-
-  } catch (error) {
-    logger.error('项目分析失败', error as Error)
     process.exit(1)
   }
 }
