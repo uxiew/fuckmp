@@ -44,6 +44,8 @@ cd my-miniprogram
 pnpm install
 ```
 
+TS + SCSS 基础模板已纳入编译验收：模板写入临时项目后会由当前 `Vue3MiniprogramCompiler` 编译，并检查 app/page/component/runtime 关键产物与生成 JS 语法；覆盖 `tests/cli/create-templates.test.ts`。
+
 ### 开发
 
 ```bash
@@ -336,6 +338,9 @@ fuckmp config [options]
 # 基本构建
 fuckmp build --input src --output dist
 
+# CLI 短别名等价
+fmp build --input src --output dist
+
 # 禁用压缩 (默认启用)
 fuckmp build --no-minify
 
@@ -345,6 +350,18 @@ fuckmp build --sourcemap
 # 构建前清理输出目录
 fuckmp build --clean
 ```
+
+### 真实 DevTools opt-in 验收
+
+默认测试不会启动微信开发者工具。需要验证真实示例能被 DevTools 自动化打开时，显式设置环境变量后运行：
+
+```bash
+WECHAT_IDE_CLI=/Applications/wechatwebdevtools.app/Contents/MacOS/cli \
+FUCKMP_REAL_DEVTOOLS_SMOKE=1 \
+pnpm test:real-devtools
+```
+
+该命令执行 `tsx scripts/real-miniprogram-devtools-smoke.ts`：先编译 `examples/real-miniprogram`，再调用微信开发者工具 CLI `auto`。未设置 `FUCKMP_REAL_DEVTOOLS_SMOKE=1` 时会安全跳过 GUI 调用。
 
 ## API 使用
 
