@@ -8,7 +8,7 @@
 - [x] `<script setup lang="ts">` 基础解析：支持 `ref`、`reactive`、`computed`、函数方法、组件导入、样式导入。
 - [x] 模板转换：支持插值、组件标签、动态属性、事件参数（含动态参数到 WXML dataset 绑定）、`v-if`、动态 `:class` 基础对象语法。
 - [x] 事件属性规范：事件输出统一为 `bind:event` 形式；`@click` 映射为 `bind:tap`，自定义事件保持事件名。
-- [x] 生命周期映射：页面 `onMounted/onUnmounted` 输出到 `onReady/onUnload`，组件输出到 `lifetimes.attached/detached`，并有端到端断言覆盖。
+- [x] 生命周期映射：应用 `onMounted` 输出到可调用的 `App.onLaunch`，页面 `onMounted/onUnmounted` 输出到 `onReady/onUnload`，组件输出到 `lifetimes.attached/detached`，并有端到端断言覆盖。
 - [x] 样式转换：支持 SCSS、`@import`、JS 导入样式、scoped 样式和基础单位转换。
 - [x] 运行时注入：支持按特性生成自包含 `runtime-injection.js`，Proxy ref/reactive/computed 已有回归测试覆盖。
 - [x] 错误处理：输入目录不存在时返回结构化失败结果，不再静默成功。
@@ -16,7 +16,7 @@
 - [x] 监听模式输出清理：删除 `.vue` 源文件时清理对应 `.js/.json/.wxml/.wxss/.js.map` 编译产物，并限定删除范围在输出目录内。
 - [x] 监听模式项目级刷新：新增、变更或删除 `.vue` 源文件后同步刷新 `app.json`、runtime injection 和项目配置，避免页面列表与运行时特性分析残留旧状态。
 - [x] 类型检查基线：`pnpm type-check` 当前通过，范围限定为源码 `src/**/*`。
-- [x] 测试基线：`pnpm test:run` 当前通过 123 个测试文件、跳过 1 个显式 opt-in 真机测试文件；537 个测试通过、5 个真机测试跳过。
+- [x] 测试基线：`pnpm test:run` 当前通过 123 个测试文件、跳过 1 个显式 opt-in 真机测试文件；538 个测试通过、5 个真机测试跳过。
 - [x] 构建基线：`pnpm build` 当前通过，DTS 生成通过。
 - [x] Sass 弃用告警：运行时代码使用 Dart Sass namespace import，测试 SCSS 使用 `sass:color` 模块函数。
 - [x] 旧运行时兼容层：删除无引用旧文件和 `setupRuntime/cleanupRuntime` 兼容导出，当前保留 `src/runtime/core/*`。
@@ -97,7 +97,7 @@
 - [x] 真实示例 `@click` 原生事件映射覆盖：`UserCard` 源码改用 Vue 常用 `@click` / `@click.stop`，验收产物继续输出微信原生 `bind:tap` / `catch:tap`，避免真实示例停留在小程序专用 `@tap` 写法；覆盖 `tests/e2e/real-example-acceptance.test.ts`。
 - [x] 真实示例事件参数传递覆盖：`ActivityList` 源码改用 Vue 源侧 `@click="handleSelect(activity.id)"`，验收动态参数输出为 `data-arg0="{{activity.id}}"`，组件 handler 从 `event.currentTarget.dataset.arg0` 找回列表项并触发事件；覆盖 `tests/e2e/real-example-acceptance.test.ts` 与 `tests/transformer/vue-template-transformer-utils.test.ts`。
 - [x] 真实示例 profile 第二页面覆盖：`pages/profile.vue` 扩展页面级 `ref` / `computed` / `v-if` 与 scoped/shared 样式，验收 WXML 条件渲染、computed 页面方法、页面数据和 WXSS 输出；覆盖 `tests/e2e/real-example-acceptance.test.ts`。
-- [x] 真实示例生命周期映射覆盖：验收页面 `onMounted -> onReady`，并在 `UserCard` 中覆盖组件 `onMounted/onUnmounted -> lifetimes.attached/detached`，继续使用微信原生生命周期而不引入伪 runtime；覆盖 `tests/e2e/real-example-acceptance.test.ts`。
+- [x] 真实示例生命周期映射覆盖：验收应用 `onMounted -> App.onLaunch`、页面 `onMounted -> onReady`，并在 `UserCard` 中覆盖组件 `onMounted/onUnmounted -> lifetimes.attached/detached`，继续使用微信原生生命周期而不引入伪 runtime；覆盖 `tests/e2e/real-example-acceptance.test.ts` 与 `tests/compiler/mini-program-options-generator.test.ts`。
 - [x] 真实示例 DevTools opt-in 冒烟脚本：新增 `pnpm test:real-devtools`，默认跳过真实 GUI 调用，显式设置 `FUCKMP_REAL_DEVTOOLS_SMOKE=1` 后先编译 `examples/real-miniprogram` 再调用微信开发者工具 `cli auto`；覆盖 `tests/scripts/real-miniprogram-devtools-smoke.test.ts`。
 - [x] `create` 模板 CLI 契约修正：新项目模板生成的 `package.json` 使用当前 public surface `fuckmp` 依赖与显式 `--config vue3mp.config.js` 的 `fuckmp build` / `fuckmp build --watch` / `fuckmp build --minify --no-sourcemap` 脚本，确保模板配置真实生效且生产脚本可覆盖开发优化项；不再输出旧包名 `@vue3-miniprogram/compiler` 或旧命令 `vue3-mp`；覆盖 `tests/cli/create-templates.test.ts`。
 - [x] `create` 基础模板编译验收：TS + SCSS 基础模板可写入临时项目并由当前 `Vue3MiniprogramCompiler` 编译，断言 app/page/component/runtime 关键产物、页面组件绑定和生成 JS 语法；覆盖 `tests/cli/create-templates.test.ts`。

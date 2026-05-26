@@ -49,7 +49,7 @@ export class MiniProgramOptionsGenerator {
       ...createWatcherOptions(context.watch),
 
       // Vue 生命周期
-      ...createLifecycleOptions(context.lifecycle)
+      ...createAppLifecycleOptions(context.lifecycle)
     }
 
     return this.serializer.stringifyWithFunctions(filterInvalidOptions(options))
@@ -163,4 +163,51 @@ export class MiniProgramOptionsGenerator {
     })
     return result
   }
+}
+
+
+/**
+ * 将已映射的小程序生命周期归一为 App 可调用选项。
+ *
+ * App 没有 Component.lifetimes；当 app.vue 因非 page 上下文把 `onMounted`
+ * 映射为 `attached` 时，需要在 App 生成路径收敛为微信原生 `onLaunch`，
+ * 否则回调会停留在不可调用的 `lifetimes.attached` 中。
+ */
+function createAppLifecycleOptions(lifecycle: any): any {
+  const options = createLifecycleOptions(lifecycle)
+  const attached = options.lifetimes?.attached
+
+  if (!attached) {
+    return options
+  }
+
+  const normalized = { ...options }
+  const lifetimes = { ...normalized.lifetimes }
+  delete lifetimes.attached
+
+  if (Object.keys(lifetimes).length > 0) {
+    normalized.lifetimes = lifetimes
+  } else {
+    delete normalized.lifetimes
+  }
+
+  normalized.onLaunch = mergeLifecycleFunctionStrings(attached, normalized.onLaunch)
+  return normalized
+}
+
+/** 合并两个生命周期函数字符串，保持 App onLaunch 原生可调用。 */
+function mergeLifecycleFunctionStrings(first: string, second?: string): string {
+  const bodies = [first, second]
+    .filter((value): value is string => Boolean(value && value.trim()))
+    .map(extractFunctionBody)
+    .filter(Boolean)
+
+  return `function(options) {
+    ${bodies.join('\n    ')}
+  }`
+}
+
+function extractFunctionBody(functionString: string): string {
+  const match = functionString.match(/^function\s*\([^)]*\)\s*\{([\s\S]*)\}$/)
+  return (match?.[1] || functionString).trim()
 }

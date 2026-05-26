@@ -90,6 +90,14 @@ describe('真实示例工程验收', () => {
     expect(projectConfig.appid).toBe('touristappid')
     expect(projectConfig.projectname).toBe('vue3mp-real-miniprogram')
 
+    const appSource = await fs.readFile(join(exampleRoot, 'app.vue'), 'utf8')
+    const appJs = await readOutputFile('app.js')
+    expect(appSource).toContain('onMounted(() =>')
+    expect(appJs).toContain('onLaunch: function(options)')
+    expect(appJs).toContain("console.log('真实示例 App 启动')")
+    expect(appJs).not.toContain('lifetimes: {')
+    expect(appJs).not.toContain('attached: function()')
+
     const indexWxml = await readOutputFile('pages/index/index.wxml')
     const indexJs = await readOutputFile('pages/index/index.js')
     const indexSource = await fs.readFile(join(exampleRoot, 'pages/index/index.vue'), 'utf8')

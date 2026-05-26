@@ -27,6 +27,28 @@ describe('mini-program-options-generator', () => {
     expect(options).toContain('this.trackShow()')
   })
 
+  it('生成 app options 时把组件式 attached 生命周期归一为 App onLaunch', () => {
+    const generator = new MiniProgramOptionsGenerator()
+
+    const options = generator.generateAppOptions({
+      data: {},
+      methods: {},
+      computed: {},
+      watch: {},
+      lifecycle: {
+        attached: "console.log('app mounted')",
+        onShow: 'this.trackShow()'
+      }
+    })
+
+    expect(options).toContain('onLaunch: function(options)')
+    expect(options).toContain("console.log('app mounted')")
+    expect(options).toContain('onShow: function()')
+    expect(options).toContain('this.trackShow()')
+    expect(options).not.toContain('lifetimes: {')
+    expect(options).not.toContain('attached: function()')
+  })
+
   it('生成 page options 时把模板事件和 computed runtime methods 放在根级', () => {
     const generator = new MiniProgramOptionsGenerator()
     const templateResult = {
