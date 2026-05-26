@@ -6,6 +6,7 @@
 
 import { Command } from 'commander'
 import { createBuildCommand } from './commands/build.js'
+import { createCleanCommand } from './commands/clean.js'
 import { createConfigCommand } from './commands/config.js'
 import { createCreateCommand } from './commands/create.js'
 import { createDevCommand } from './commands/dev.js'
@@ -41,6 +42,7 @@ async function main(): Promise<void> {
   program.addCommand(createCreateCommand())
   program.addCommand(createDevCommand())
   program.addCommand(createConfigCommand())
+  program.addCommand(createCleanCommand())
 
   // 添加分析命令
   program
@@ -50,15 +52,6 @@ async function main(): Promise<void> {
     .option('--output-format <format>', '输出格式 (json|text)', 'text')
     .action(async (options) => {
       await handleAnalyzeCommand(options)
-    })
-
-  // 添加清理命令
-  program
-    .command('clean')
-    .description('清理输出目录')
-    .option('-o, --output <dir>', '输出目录', 'dist')
-    .action(async (options) => {
-      await handleCleanCommand(options)
     })
 
   // 错误处理
@@ -118,28 +111,6 @@ async function handleAnalyzeCommand(options: { input: string; outputFormat: stri
 
   } catch (error) {
     logger.error('项目分析失败', error as Error)
-    process.exit(1)
-  }
-}
-
-/**
- * 处理清理命令
- */
-async function handleCleanCommand(options: { output: string }): Promise<void> {
-  try {
-    logger.info(`清理输出目录: ${options.output}`)
-
-    const { remove, exists } = await import('@/utils/index.js')
-
-    if (await exists(options.output)) {
-      await remove(options.output)
-      logger.success('输出目录清理完成')
-    } else {
-      logger.info('输出目录不存在，无需清理')
-    }
-
-  } catch (error) {
-    logger.error('清理失败', error as Error)
     process.exit(1)
   }
 }
