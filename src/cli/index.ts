@@ -7,6 +7,7 @@
 import { Command } from 'commander'
 import { createBuildCommand } from './commands/build.js'
 import { createCreateCommand } from './commands/create.js'
+import { createDevCommand } from './commands/dev.js'
 import { logger } from '@/utils/index.js'
 
 /**
@@ -37,25 +38,7 @@ async function main(): Promise<void> {
   // 注册命令
   program.addCommand(createBuildCommand())
   program.addCommand(createCreateCommand())
-
-  // 添加开发命令（build --watch 的别名）
-  program
-    .command('dev')
-    .description('开发模式 (build --watch 的别名)')
-    .option('-i, --input <dir>', '输入目录', 'src')
-    .option('-o, --output <dir>', '输出目录', 'dist')
-    .option('-c, --config <file>', '配置文件路径')
-    .option('-v, --verbose', '详细输出')
-    .action(async (options) => {
-      const { createBuildCommand } = await import('./commands/build.js')
-      const buildCommand = createBuildCommand()
-
-      // 添加 --watch 选项
-      const buildOptions = { ...options, watch: true }
-
-      // 执行构建命令
-      await buildCommand.parseAsync(['build', '--watch', ...process.argv.slice(3)], { from: 'user' })
-    })
+  program.addCommand(createDevCommand())
 
   // 添加分析命令
   program

@@ -319,7 +319,7 @@ fuckmp create <project-name> [options]
 # 构建项目 (默认启用压缩，禁用 sourcemap)
 fuckmp build [options]
 
-# 开发模式 (默认禁用压缩，启用 sourcemap)
+# 开发模式 (build --watch 的别名，默认优化语义与 build 一致)
 fuckmp dev [options]
 
 # 分析项目
@@ -349,6 +349,10 @@ fuckmp build --sourcemap
 
 # 构建前清理输出目录
 fuckmp build --clean
+
+# 开发模式等价于 build --watch，支持常用 build 选项
+fuckmp dev --config vue3mp.config.js
+fuckmp dev --input src --output dist --sourcemap --no-minify
 ```
 
 ### 真实 DevTools opt-in 验收
