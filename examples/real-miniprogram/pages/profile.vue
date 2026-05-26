@@ -7,6 +7,17 @@
       <text class="profile-meta">{{ profileMeta }}</text>
     </view>
 
+    <view class="name-row">
+      <text class="preference-label">昵称</text>
+      <input
+        class="name-input"
+        :value="profileName"
+        @input="handleNameInput"
+        @focus="handleNameFocus"
+        @blur="handleNameBlur"
+      />
+    </view>
+
     <view class="preference-row">
       <text class="preference-label">接收验收提醒</text>
       <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
@@ -92,6 +103,13 @@ interface MiniTextareaInputEvent {
   }
 }
 
+/** 微信原生 input 事件，只取当前示例需要的输入值。 */
+interface MiniInputEvent {
+  detail: {
+    value: string
+  }
+}
+
 interface MiniSwitchChangeEvent {
   detail: {
     value: boolean
@@ -148,6 +166,21 @@ const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
 const contactMethodText = computed(() => (contactMethod.value === 'email' ? '邮箱' : '电话'))
 const selectedChannelsText = computed(() => selectedChannels.value.join(' / '))
+
+/** 将昵称 input 的原生输入值同步到页面响应式状态。 */
+const handleNameInput = (event: MiniInputEvent) => {
+  profileName.value = event.detail.value
+}
+
+/** 验收 input focus 事件会映射为微信原生 bind:focus。 */
+const handleNameFocus = () => {
+  console.log('name focus')
+}
+
+/** 验收 input blur 事件会映射为微信原生 bind:blur。 */
+const handleNameBlur = () => {
+  console.log('name blur')
+}
 
 const handleBioInput = (event: MiniTextareaInputEvent) => {
   bioDraft.value = event.detail.value
@@ -226,6 +259,19 @@ const handleProfileReset = () => {
 .profile-meta {
   color: #5f6b82;
   font-size: 24rpx;
+}
+
+.name-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.name-input {
+  background: #f6f8fb;
+  border-radius: 12rpx;
+  color: $text-color;
+  padding: 18rpx 20rpx;
 }
 
 .bio-input {
