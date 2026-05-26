@@ -51,9 +51,9 @@ describe('create templates', () => {
     expect(files['src/pages/index/index.vue']).toContain('<script setup lang="js">')
     expect(files['src/pages/index/index.vue']).toContain('<style lang="scss" scoped>')
     expect(packageJson.scripts).toEqual({
-      dev: 'fuckmp build --watch',
-      build: 'fuckmp build',
-      'build:prod': 'fuckmp build'
+      dev: 'fuckmp build --config vue3mp.config.js --watch',
+      build: 'fuckmp build --config vue3mp.config.js',
+      'build:prod': 'fuckmp build --config vue3mp.config.js --minify --no-sourcemap'
     })
     expect(Object.values(packageJson.scripts)).not.toContain('fuckmp build --minify')
     expect(packageJson.devDependencies).toEqual(expect.objectContaining({

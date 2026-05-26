@@ -78,6 +78,55 @@ describe('build command', () => {
     }))
   })
 
+  it('显式生产优化参数覆盖配置文件中的优化项', async () => {
+    configManagerFromFile.mockResolvedValueOnce({
+      getOptions: () => ({
+        input: 'configured-src',
+        output: 'configured-dist',
+        optimization: {
+          minify: false,
+          sourcemap: true,
+          treeshaking: false,
+          incremental: false
+        }
+      })
+    })
+    compilerConstructor.mockImplementationOnce(() => ({
+      compile: vi.fn(async () => ({
+        errors: [],
+        success: [],
+        stats: {
+          success: 0,
+          failed: 0,
+          duration: 0
+        }
+      }))
+    }))
+    const { createBuildCommand } = await import('@/cli/commands/build.js')
+    const command = createBuildCommand()
+
+    await command.parseAsync([
+      'node',
+      'fuckmp',
+      'build',
+      '--config',
+      'vue3mp.config.js',
+      '--minify',
+      '--no-sourcemap'
+    ])
+
+    expect(compilerConstructor).toHaveBeenCalledWith(expect.objectContaining({
+      input: 'configured-src',
+      output: 'configured-dist',
+      optimization: {
+        minify: true,
+        sourcemap: false,
+        treeshaking: false,
+        incremental: false
+      }
+    }))
+  })
+
   it('配置文件中的 input/output 路径等价时合并后提前诊断', async () => {
     configManagerFromFile.mockResolvedValueOnce({
       getOptions: () => ({

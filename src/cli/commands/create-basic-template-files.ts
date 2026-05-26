@@ -52,9 +52,9 @@ function createPackageJson(features: CreateTemplateFeatures): string {
     version: '1.0.0',
     description: 'Vue3 微信小程序项目',
     scripts: {
-      dev: 'fuckmp build --watch',
-      build: 'fuckmp build',
-      'build:prod': 'fuckmp build'
+      dev: 'fuckmp build --config vue3mp.config.js --watch',
+      build: 'fuckmp build --config vue3mp.config.js',
+      'build:prod': 'fuckmp build --config vue3mp.config.js --minify --no-sourcemap'
     },
     dependencies,
     devDependencies
@@ -197,6 +197,9 @@ pnpm dev
 
 # 构建
 pnpm build
+
+# 生产构建
+pnpm build:prod
 \`\`\`
 
 ## 目录结构

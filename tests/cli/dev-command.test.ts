@@ -49,6 +49,8 @@ describe('dev command', () => {
       '--app-id',
       'wx-test',
       '--sourcemap',
+      '--no-sourcemap',
+      '--minify',
       '--no-minify',
       '--clean'
     ]
@@ -65,6 +67,8 @@ describe('dev command', () => {
       '--app-id',
       'wx-test',
       '--sourcemap',
+      '--no-sourcemap',
+      '--minify',
       '--no-minify',
       '--clean'
     ], { from: 'user' })

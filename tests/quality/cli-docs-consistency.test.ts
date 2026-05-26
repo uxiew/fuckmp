@@ -23,9 +23,12 @@ describe('CLI 使用文档一致性', () => {
     for (const command of [
       'fuckmp create my-miniprogram',
       'fuckmp build --input src --output dist',
+      'fuckmp build --config vue3mp.config.js --minify',
+      'fuckmp build --config vue3mp.config.js --no-sourcemap',
       'fuckmp dev [options]',
       'fuckmp dev --config vue3mp.config.js',
       'fuckmp dev --input src --output dist --sourcemap --no-minify',
+      'fuckmp dev --config vue3mp.config.js --minify --no-sourcemap',
       'fmp build --input src --output dist'
     ]) {
       expect(readme).toContain(command)

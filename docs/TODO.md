@@ -92,13 +92,13 @@
 - [x] `VModelPlugin` helper 拆分：v-model 变量路径提取、input/textarea/picker/switch/slider 绑定代码、fallback 绑定和 generated method 上下文更新 helper 已抽离到 `src/plugins/directives/v-model-plugin-utils.ts`；`src/plugins/directives/v-model-plugin.ts` 当前为 197 行，新增定向单测覆盖。
 - [x] 真实示例 `v-if` / `v-for` 原生映射覆盖：新增 `components/ActivityList.vue` 并接入 `examples/real-miniprogram` 首页，覆盖列表/条件渲染、动态 class、微信原生 dataset 事件参数和最终组件 JS 语法；同步修复事件 handler 原生 `event` 参数被误转为 `dataset.arg0` 的序列化回归，覆盖 `tests/e2e/real-example-acceptance.test.ts` 与 `tests/compiler/object-serializer.test.ts`。
 - [x] 真实示例 DevTools opt-in 冒烟脚本：新增 `pnpm test:real-devtools`，默认跳过真实 GUI 调用，显式设置 `FUCKMP_REAL_DEVTOOLS_SMOKE=1` 后先编译 `examples/real-miniprogram` 再调用微信开发者工具 `cli auto`；覆盖 `tests/scripts/real-miniprogram-devtools-smoke.test.ts`。
-- [x] `create` 模板 CLI 契约修正：新项目模板生成的 `package.json` 使用当前 public surface `fuckmp` 依赖与 `fuckmp build` / `fuckmp build --watch` 脚本，生产脚本复用 build 默认压缩语义且不再输出未支持的 `--minify`、旧包名 `@vue3-miniprogram/compiler` 或旧命令 `vue3-mp`；覆盖 `tests/cli/create-templates.test.ts`。
+- [x] `create` 模板 CLI 契约修正：新项目模板生成的 `package.json` 使用当前 public surface `fuckmp` 依赖与显式 `--config vue3mp.config.js` 的 `fuckmp build` / `fuckmp build --watch` / `fuckmp build --minify --no-sourcemap` 脚本，确保模板配置真实生效且生产脚本可覆盖开发优化项；不再输出旧包名 `@vue3-miniprogram/compiler` 或旧命令 `vue3-mp`；覆盖 `tests/cli/create-templates.test.ts`。
 - [x] `create` 基础模板编译验收：TS + SCSS 基础模板可写入临时项目并由当前 `Vue3MiniprogramCompiler` 编译，断言 app/page/component/runtime 关键产物、页面组件绑定和生成 JS 语法；覆盖 `tests/cli/create-templates.test.ts`。
 - [x] CLI 使用文档一致性：README 明确当前 public CLI 入口 `fuckmp` / `fmp`、create TS + SCSS 模板编译验收与 `pnpm test:real-devtools` 真实 DevTools opt-in 流程，并由 `tests/quality/cli-docs-consistency.test.ts` 约束避免文档漂移。
 - [x] build CLI 参数错误诊断短路：`--input` 与 `--output` 相同或路径等价（如 `./src` 与 `src`）等无效参数会在实例化编译器前输出明确诊断并退出，避免进入含糊的编译失败路径；覆盖 `tests/cli/build-command.test.ts`。
 - [x] build CLI 显式配置加载失败短路：传入 `--config` 后若配置文件缺失或解析失败，会输出具体配置路径与原始错误并退出，不再降级为默认配置继续构建；覆盖 `tests/cli/build-command.test.ts`。
-- [x] build CLI 配置合并优先级：`build --config` 未显式传入 `--input/--output/--sourcemap/--no-minify` 时保留配置文件值，只有来源为 CLI 的选项才覆盖配置；合并后继续校验 input/output 路径冲突；覆盖 `tests/cli/build-command.test.ts`。
-- [x] dev CLI alias 行为闭环：`fuckmp dev` 抽出为 `build --watch` 的薄别名，只转发用户显式原始参数并支持 `--config/--app-id/--sourcemap/--no-minify/--clean` 等常用 build 选项，避免 dev 默认值覆盖配置文件；覆盖 `tests/cli/dev-command.test.ts`。
+- [x] build CLI 配置合并优先级：`build --config` 未显式传入 `--input/--output/--minify/--no-minify/--sourcemap/--no-sourcemap` 时保留配置文件值，只有来源为 CLI 的选项才覆盖配置；合并后继续校验 input/output 路径冲突；覆盖 `tests/cli/build-command.test.ts`。
+- [x] dev CLI alias 行为闭环：`fuckmp dev` 抽出为 `build --watch` 的薄别名，只转发用户显式原始参数并支持 `--config/--app-id/--minify/--no-minify/--sourcemap/--no-sourcemap/--clean` 等常用 build 选项，避免 dev 默认值覆盖配置文件；覆盖 `tests/cli/dev-command.test.ts`。
 - [x] 默认测试输出：Browserslist 过期提示已在 Vitest 环境中静默；真机测试默认跳过，需 `FUCKMP_REAL_DEVICE_TESTS=1` 显式启用。
 
 ## 后续约束 / 可选验收

@@ -344,8 +344,14 @@ fmp build --input src --output dist
 # 禁用压缩 (默认启用)
 fuckmp build --no-minify
 
+# 显式启用压缩，可覆盖配置文件中的 minify: false
+fuckmp build --config vue3mp.config.js --minify
+
 # 启用 sourcemap (默认禁用)
 fuckmp build --sourcemap
+
+# 显式禁用 sourcemap，可覆盖配置文件中的 sourcemap: true
+fuckmp build --config vue3mp.config.js --no-sourcemap
 
 # 构建前清理输出目录
 fuckmp build --clean
@@ -353,6 +359,7 @@ fuckmp build --clean
 # 开发模式等价于 build --watch，支持常用 build 选项
 fuckmp dev --config vue3mp.config.js
 fuckmp dev --input src --output dist --sourcemap --no-minify
+fuckmp dev --config vue3mp.config.js --minify --no-sourcemap
 ```
 
 ### 真实 DevTools opt-in 验收
