@@ -12,8 +12,7 @@
         :key="activity.id"
         class="activity-row"
         :class="{ done: activity.done }"
-        :data-activity-id="activity.id"
-        @tap="handleSelect"
+        @click="handleSelect(activity.id)"
       >
         <text class="activity-index">{{ index + 1 }}</text>
         <view class="activity-content">
@@ -46,11 +45,11 @@ const emit = defineEmits<{
   selectActivity: [activity: Activity]
 }>()
 
-/** 根据微信原生 dataset 找回当前点击的动态项。 */
-const handleSelect = (event: any) => {
+/** 根据 Vue 源侧事件参数找回当前点击的动态项。 */
+const handleSelect = (activityId: number) => {
   emit(
     'selectActivity',
-    props.items.find(item => item.id === Number(event.currentTarget.dataset.activityId))
+    props.items.find(item => item.id === Number(activityId))
   )
 }
 </script>

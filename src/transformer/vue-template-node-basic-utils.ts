@@ -77,6 +77,39 @@ export function parseVueTemplateEventArguments(argsString: string): string[] {
   return args
 }
 
+
+/**
+ * 将 Vue 事件调用参数转换为 WXML data-* 属性值。
+ *
+ * 字符串、数字、布尔值等静态字面量保持静态 dataset；标识符、成员访问、
+ * 表达式等动态参数使用 WXML moustache 绑定，避免把 `activity.id` 误写成
+ * 字面量字符串。
+ */
+export function formatVueTemplateEventDataArgument(arg: string): string {
+  const trimmed = arg.trim()
+
+  if (isQuotedStringLiteral(trimmed)) {
+    return trimmed.slice(1, -1)
+  }
+
+  if (isStaticDatasetLiteral(trimmed)) {
+    return trimmed
+  }
+
+  return `{{${trimmed.replace(/"/g, '&quot;')}}}`
+}
+
+function isQuotedStringLiteral(value: string): boolean {
+  if (value.length < 2) return false
+  const quote = value[0]
+  return (quote === '\'' || quote === '"') && value[value.length - 1] === quote
+}
+
+function isStaticDatasetLiteral(value: string): boolean {
+  if (/^-?\d+(\.\d+)?$/.test(value)) return true
+  return ['true', 'false', 'null', 'undefined'].includes(value)
+}
+
 /**
  * 转换自定义组件 v-model 为原生属性绑定与 update 事件监听。
  */

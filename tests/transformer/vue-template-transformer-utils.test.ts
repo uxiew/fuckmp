@@ -71,7 +71,7 @@ describe('vue-template-transformer-utils', () => {
     }, result, context, child => child.content)
 
     expect(output).toBe(
-      '<button bind:tap="submit" data-arg0="item" data-arg1="1" class="{{\'primary\' + \' \' + (isActive ? \'active\' : \'\')}}">Submit</button>'
+      '<button bind:tap="submit" data-arg0="{{item}}" data-arg1="1" class="{{\'primary\' + \' \' + (isActive ? \'active\' : \'\')}}">Submit</button>'
     )
     expect([...result.eventHandlers.keys()]).toEqual(['submit'])
   })

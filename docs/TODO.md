@@ -6,7 +6,7 @@
 
 - [x] Vue3 SFC 扫描与编译：支持 `app.vue`、`pages/**.vue`、`components/**.vue`，并过滤 `_` 开头的文件/目录。
 - [x] `<script setup lang="ts">` 基础解析：支持 `ref`、`reactive`、`computed`、函数方法、组件导入、样式导入。
-- [x] 模板转换：支持插值、组件标签、动态属性、事件参数、`v-if`、动态 `:class` 基础对象语法。
+- [x] 模板转换：支持插值、组件标签、动态属性、事件参数（含动态参数到 WXML dataset 绑定）、`v-if`、动态 `:class` 基础对象语法。
 - [x] 事件属性规范：事件输出统一为 `bind:event` 形式；`@click` 映射为 `bind:tap`，自定义事件保持事件名。
 - [x] 生命周期映射：页面 `onMounted/onUnmounted` 输出到 `onReady/onUnload`，组件输出到 `lifetimes.attached/detached`，并有端到端断言覆盖。
 - [x] 样式转换：支持 SCSS、`@import`、JS 导入样式、scoped 样式和基础单位转换。
@@ -95,6 +95,7 @@
 - [x] 真实示例 `v-show` 原生映射覆盖：在 `examples/real-miniprogram` 首页加入 `v-show` 提示块，验收其输出为微信原生 `hidden` 属性，继续不生成显示状态 runtime；覆盖 `tests/e2e/real-example-acceptance.test.ts`。
 - [x] 真实示例 `@tap.stop` 原生事件映射覆盖：`UserCard` 消息按钮的 `@tap.stop` 现在验收为微信原生 `catch:tap` 绑定，避免点击子按钮冒泡到卡片根节点；Vue AST 事件转换会传递 `.stop` modifiers，但不扩展未明确等价的事件 runtime；覆盖 `tests/e2e/real-example-acceptance.test.ts` 与 `tests/transformer/vue-template-transformer-utils.test.ts`。
 - [x] 真实示例 `@click` 原生事件映射覆盖：`UserCard` 源码改用 Vue 常用 `@click` / `@click.stop`，验收产物继续输出微信原生 `bind:tap` / `catch:tap`，避免真实示例停留在小程序专用 `@tap` 写法；覆盖 `tests/e2e/real-example-acceptance.test.ts`。
+- [x] 真实示例事件参数传递覆盖：`ActivityList` 源码改用 Vue 源侧 `@click="handleSelect(activity.id)"`，验收动态参数输出为 `data-arg0="{{activity.id}}"`，组件 handler 从 `event.currentTarget.dataset.arg0` 找回列表项并触发事件；覆盖 `tests/e2e/real-example-acceptance.test.ts` 与 `tests/transformer/vue-template-transformer-utils.test.ts`。
 - [x] 真实示例 DevTools opt-in 冒烟脚本：新增 `pnpm test:real-devtools`，默认跳过真实 GUI 调用，显式设置 `FUCKMP_REAL_DEVTOOLS_SMOKE=1` 后先编译 `examples/real-miniprogram` 再调用微信开发者工具 `cli auto`；覆盖 `tests/scripts/real-miniprogram-devtools-smoke.test.ts`。
 - [x] `create` 模板 CLI 契约修正：新项目模板生成的 `package.json` 使用当前 public surface `fuckmp` 依赖与显式 `--config vue3mp.config.js` 的 `fuckmp build` / `fuckmp build --watch` / `fuckmp build --minify --no-sourcemap` 脚本，确保模板配置真实生效且生产脚本可覆盖开发优化项；不再输出旧包名 `@vue3-miniprogram/compiler` 或旧命令 `vue3-mp`；覆盖 `tests/cli/create-templates.test.ts`。
 - [x] `create` 基础模板编译验收：TS + SCSS 基础模板可写入临时项目并由当前 `Vue3MiniprogramCompiler` 编译，断言 app/page/component/runtime 关键产物、页面组件绑定和生成 JS 语法；覆盖 `tests/cli/create-templates.test.ts`。

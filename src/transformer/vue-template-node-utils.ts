@@ -12,6 +12,7 @@ import { applyPropAccessMappingsToTemplate } from './prop-access-mapping.js'
 import {
   buildDynamicClassExpression,
   isCustomComponentTag,
+  formatVueTemplateEventDataArgument,
   parseVueTemplateEventArguments,
   toKebabCase,
   transformVueTemplateComponentVModel
@@ -179,10 +180,9 @@ export function transformVueTemplateEventHandler(
     return `${eventBindingPrefix}${eventName}="${expression}"`
   }
 
-  const dataAttrs = parseVueTemplateEventArguments(argsString).map((arg, index) => {
-    const cleanArg = arg.replace(/^['"]|['"]$/g, '')
-    return `data-arg${index}="${cleanArg}"`
-  })
+  const dataAttrs = parseVueTemplateEventArguments(argsString).map((arg, index) =>
+    `data-arg${index}="${formatVueTemplateEventDataArgument(arg)}"`
+  )
 
   result.eventHandlers.set(functionName, functionName)
 
