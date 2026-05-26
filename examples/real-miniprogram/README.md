@@ -9,6 +9,7 @@
 - `components/ActivityList.vue`：`v-if` / `v-for`、动态 class、Vue 源侧 `@click="handler(arg)"` 事件参数到微信原生 dataset 的映射，以及列表项事件回传。
 - `components/SlotPanel.vue`：微信原生可等价的 default slot 与 named slot 内容投递；不覆盖 scoped slot props 或动态 slot 名。
 - `pages/index/index.vue`：`v-show` 到微信原生 `hidden` 属性的页面级映射。
+- `pages/profile.vue`：第二页面级 `ref` / `computed` / `v-if` 与 scoped/shared 样式验收。
 
 推荐验证命令：
 
