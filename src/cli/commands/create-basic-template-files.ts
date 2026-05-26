@@ -42,7 +42,7 @@ function createPackageJson(features: CreateTemplateFeatures): string {
   }
 
   const devDependencies = {
-    '@vue3-miniprogram/compiler': '^1.0.0',
+    fuckmp: '^1.0.0',
     ...(features.typescript ? { typescript: '^5.6.0' } : {}),
     ...(features.scss ? { sass: '^1.69.0' } : {})
   }
@@ -52,9 +52,9 @@ function createPackageJson(features: CreateTemplateFeatures): string {
     version: '1.0.0',
     description: 'Vue3 微信小程序项目',
     scripts: {
-      dev: 'vue3-mp build --watch',
-      build: 'vue3-mp build',
-      'build:prod': 'vue3-mp build --minify'
+      dev: 'fuckmp build --watch',
+      build: 'fuckmp build',
+      'build:prod': 'fuckmp build --minify'
     },
     dependencies,
     devDependencies

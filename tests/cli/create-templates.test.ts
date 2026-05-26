@@ -40,11 +40,21 @@ describe('create templates', () => {
 
   it('基础模板文件生成器按特性切换脚本和样式扩展', () => {
     const files = createBasicTemplateFiles({ typescript: false, scss: true })
+    const packageJson = JSON.parse(files['package.json'] || '{}')
 
     expect(files).not.toHaveProperty('tsconfig.json')
     expect(files['src/pages/index/index.vue']).toContain('<script setup lang="js">')
     expect(files['src/pages/index/index.vue']).toContain('<style lang="scss" scoped>')
-    expect(files['package.json']).toContain('"sass": "^1.69.0"')
+    expect(packageJson.scripts).toEqual({
+      dev: 'fuckmp build --watch',
+      build: 'fuckmp build',
+      'build:prod': 'fuckmp build --minify'
+    })
+    expect(packageJson.devDependencies).toEqual(expect.objectContaining({
+      fuckmp: '^1.0.0',
+      sass: '^1.69.0'
+    }))
+    expect(packageJson.devDependencies).not.toHaveProperty('@vue3-miniprogram/compiler')
   })
 
   it('业务模板文件生成器只追加对应业务文件', () => {
