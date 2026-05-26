@@ -96,6 +96,7 @@
 - [x] `create` 基础模板编译验收：TS + SCSS 基础模板可写入临时项目并由当前 `Vue3MiniprogramCompiler` 编译，断言 app/page/component/runtime 关键产物、页面组件绑定和生成 JS 语法；覆盖 `tests/cli/create-templates.test.ts`。
 - [x] CLI 使用文档一致性：README 明确当前 public CLI 入口 `fuckmp` / `fmp`、create TS + SCSS 模板编译验收与 `pnpm test:real-devtools` 真实 DevTools opt-in 流程，并由 `tests/quality/cli-docs-consistency.test.ts` 约束避免文档漂移。
 - [x] build CLI 参数错误诊断短路：`--input` 与 `--output` 相同或路径等价（如 `./src` 与 `src`）等无效参数会在实例化编译器前输出明确诊断并退出，避免进入含糊的编译失败路径；覆盖 `tests/cli/build-command.test.ts`。
+- [x] build CLI 显式配置加载失败短路：传入 `--config` 后若配置文件缺失或解析失败，会输出具体配置路径与原始错误并退出，不再降级为默认配置继续构建；覆盖 `tests/cli/build-command.test.ts`。
 - [x] 默认测试输出：Browserslist 过期提示已在 Vitest 环境中静默；真机测试默认跳过，需 `FUCKMP_REAL_DEVICE_TESTS=1` 显式启用。
 
 ## 后续约束 / 可选验收

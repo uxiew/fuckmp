@@ -113,7 +113,8 @@ async function buildCompilerOptions(options: BuildOptions): Promise<Partial<Comp
       compilerOptions = configManager.getOptions()
       logger.info(`已加载配置文件: ${options.config}`)
     } catch (error) {
-      logger.warn(`配置文件加载失败: ${options.config}`, error as Error)
+      logger.error(`配置文件加载失败: ${options.config}`, error as Error)
+      process.exit(1)
     }
   }
 

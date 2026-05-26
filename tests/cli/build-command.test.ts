@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const { compilerConstructor, loggerMock } = vi.hoisted(() => ({
+const { compilerConstructor, configManagerFromFile, loggerMock } = vi.hoisted(() => ({
   compilerConstructor: vi.fn(),
+  configManagerFromFile: vi.fn(),
   loggerMock: {
     setLevel: vi.fn(),
     info: vi.fn(),
@@ -13,7 +14,10 @@ const { compilerConstructor, loggerMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/compiler/index.js', () => ({
-  Vue3MiniprogramCompiler: compilerConstructor
+  Vue3MiniprogramCompiler: compilerConstructor,
+  ConfigManager: {
+    fromFile: configManagerFromFile
+  }
 }))
 
 vi.mock('@/utils/index.js', () => ({
@@ -32,6 +36,29 @@ describe('build command', () => {
 
   it('输入目录和输出目录路径等价时提前给出明确诊断', async () => {
     await expectInvalidSamePathToExit(['--input', './src', '--output', 'src'])
+  })
+
+  it('显式配置文件加载失败时提前给出明确诊断且不启动编译器', async () => {
+    const configError = new Error('ENOENT: no such file or directory')
+    configManagerFromFile.mockRejectedValueOnce(configError)
+    const exit = vi.spyOn(process, 'exit').mockImplementation((code?: string | number | null | undefined) => {
+      throw new Error(`process.exit(${code})`)
+    })
+    const { createBuildCommand } = await import('@/cli/commands/build.js')
+    const command = createBuildCommand()
+
+    await expect(command.parseAsync([
+      'node',
+      'fuckmp',
+      'build',
+      '--config',
+      'missing.config.js'
+    ])).rejects.toThrow('process.exit(1)')
+
+    expect(configManagerFromFile).toHaveBeenCalledWith('missing.config.js')
+    expect(loggerMock.error).toHaveBeenCalledWith('配置文件加载失败: missing.config.js', configError)
+    expect(compilerConstructor).not.toHaveBeenCalled()
+    expect(exit).toHaveBeenCalledWith(1)
   })
 })
 
