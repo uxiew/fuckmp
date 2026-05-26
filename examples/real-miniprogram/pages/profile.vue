@@ -47,6 +47,21 @@
       </radio-group>
     </view>
 
+    <view class="checkbox-row">
+      <text class="preference-label">通知渠道</text>
+      <text class="channel-text">{{ selectedChannelsText }}</text>
+      <checkbox-group class="channel-group" @change="handleChannelChange">
+        <label class="checkbox-option">
+          <checkbox value="email" :checked="selectedChannels.includes('email')" />
+          <text>邮箱</text>
+        </label>
+        <label class="checkbox-option">
+          <checkbox value="sms" :checked="selectedChannels.includes('sms')" />
+          <text>短信</text>
+        </label>
+      </checkbox-group>
+    </view>
+
     <textarea
       class="bio-input"
       :value="bioDraft"
@@ -93,6 +108,12 @@ interface MiniRadioChangeEvent {
   }
 }
 
+interface MiniCheckboxChangeEvent {
+  detail: {
+    value: string[]
+  }
+}
+
 const profileTitle = ref('资料页')
 const profileName = ref('示例用户')
 const profileRole = ref('真实验收')
@@ -104,10 +125,12 @@ const themeOptions = ref(['默认主题', '活力主题', '沉稳主题'])
 const themeIndex = ref(0)
 const completionLevel = ref(60)
 const contactMethod = ref('email')
+const selectedChannels = ref(['email'])
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
 const contactMethodText = computed(() => (contactMethod.value === 'email' ? '邮箱' : '电话'))
+const selectedChannelsText = computed(() => selectedChannels.value.join(' / '))
 
 const handleBioInput = (event: MiniTextareaInputEvent) => {
   bioDraft.value = event.detail.value
@@ -135,6 +158,10 @@ const handleCompletionChange = (event: MiniSliderChangeEvent) => {
 
 const handleContactMethodChange = (event: MiniRadioChangeEvent) => {
   contactMethod.value = event.detail.value
+}
+
+const handleChannelChange = (event: MiniCheckboxChangeEvent) => {
+  selectedChannels.value = event.detail.value
 }
 </script>
 
@@ -238,6 +265,29 @@ const handleContactMethodChange = (event: MiniRadioChangeEvent) => {
 }
 
 .radio-option {
+  align-items: center;
+  display: flex;
+  gap: 8rpx;
+}
+
+.checkbox-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.channel-text {
+  color: $primary-color;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.channel-group {
+  display: flex;
+  gap: 24rpx;
+}
+
+.checkbox-option {
   align-items: center;
   display: flex;
   gap: 8rpx;
