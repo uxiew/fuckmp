@@ -1,5 +1,5 @@
 <template>
-  <view class="user-card shared-card" :class="{ active: active }" @tap="handleClick">
+  <view class="user-card shared-card" :class="{ active: active }" @click="handleClick">
     <view class="avatar">
       <text class="avatar-text">{{ user.name.slice(0, 1) }}</text>
     </view>
@@ -7,7 +7,7 @@
       <text class="name">{{ user.name }}</text>
       <text class="muted-text">{{ user.email }}</text>
     </view>
-    <button class="message-button" @tap.stop="handleMessage">消息</button>
+    <button class="message-button" @click.stop="handleMessage">消息</button>
   </view>
 </template>
 

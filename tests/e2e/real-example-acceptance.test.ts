@@ -118,9 +118,13 @@ describe('真实示例工程验收', () => {
 
     const userCardJs = await readOutputFile('components/UserCard.js')
     const userCardWxml = await readOutputFile('components/UserCard.wxml')
+    const userCardSource = await fs.readFile(join(exampleRoot, 'components/UserCard.vue'), 'utf8')
+    expect(userCardSource).toContain('@click="handleClick"')
+    expect(userCardSource).toContain('@click.stop="handleMessage"')
     expect(userCardJs).toContain('user: {')
     expect(userCardJs).toContain('active: {')
     expect(userCardJs).toContain("this.triggerEvent('userClick',")
+    expect(userCardWxml).toContain('bind:tap="handleClick"')
     expect(userCardWxml).toContain('catch:tap="handleMessage"')
     expect(userCardWxml).not.toContain('bind:tap="handleMessage"')
 
