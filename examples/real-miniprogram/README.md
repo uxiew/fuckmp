@@ -4,7 +4,7 @@
 
 当前示例重点组件：
 
-- `components/UserCard.vue`：props、`withDefaults`、emits，以及 Vue 常用 `@click` / `@click.stop` 到微信原生 `tap` / `catch:tap` 的事件映射。
+- `components/UserCard.vue`：props、`withDefaults`、emits，Vue 常用 `@click` / `@click.stop` 到微信原生 `tap` / `catch:tap` 的事件映射，以及组件 `onMounted` / `onUnmounted` 到 `attached` / `detached` 的生命周期映射。
 - `components/CounterInput.vue`：`defineModel`、组件 `v-model` 与输入修饰符。
 - `components/ActivityList.vue`：`v-if` / `v-for`、动态 class、Vue 源侧 `@click="handler(arg)"` 事件参数到微信原生 dataset 的映射，以及列表项事件回传。
 - `components/SlotPanel.vue`：微信原生可等价的 default slot 与 named slot 内容投递；不覆盖 scoped slot props 或动态 slot 名。

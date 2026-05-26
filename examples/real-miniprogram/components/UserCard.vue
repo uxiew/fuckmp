@@ -12,6 +12,8 @@
 </template>
 
 <script lang="ts" setup>
+import { onMounted, onUnmounted } from 'vue'
+
 interface User {
   id: number
   name: string
@@ -39,6 +41,14 @@ const handleClick = () => {
 const handleMessage = () => {
   emit('sendMessage', props.user)
 }
+
+onMounted(() => {
+  console.log('UserCard attached', props.user.name)
+})
+
+onUnmounted(() => {
+  console.log('UserCard detached', props.user.id)
+})
 </script>
 
 <style lang="scss" scoped>
