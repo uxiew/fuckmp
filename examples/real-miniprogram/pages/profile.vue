@@ -32,6 +32,21 @@
       />
     </view>
 
+    <view class="radio-row">
+      <text class="preference-label">联系偏好</text>
+      <text class="contact-method-text">{{ contactMethodText }}</text>
+      <radio-group class="contact-method-group" @change="handleContactMethodChange">
+        <label class="radio-option">
+          <radio value="email" :checked="contactMethod === 'email'" />
+          <text>邮箱</text>
+        </label>
+        <label class="radio-option">
+          <radio value="phone" :checked="contactMethod === 'phone'" />
+          <text>电话</text>
+        </label>
+      </radio-group>
+    </view>
+
     <textarea
       class="bio-input"
       :value="bioDraft"
@@ -72,6 +87,12 @@ interface MiniSliderChangeEvent {
   }
 }
 
+interface MiniRadioChangeEvent {
+  detail: {
+    value: string
+  }
+}
+
 const profileTitle = ref('资料页')
 const profileName = ref('示例用户')
 const profileRole = ref('真实验收')
@@ -82,9 +103,11 @@ const emailOptIn = ref(true)
 const themeOptions = ref(['默认主题', '活力主题', '沉稳主题'])
 const themeIndex = ref(0)
 const completionLevel = ref(60)
+const contactMethod = ref('email')
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
+const contactMethodText = computed(() => (contactMethod.value === 'email' ? '邮箱' : '电话'))
 
 const handleBioInput = (event: MiniTextareaInputEvent) => {
   bioDraft.value = event.detail.value
@@ -108,6 +131,10 @@ const handleThemeChange = (event: MiniPickerChangeEvent) => {
 
 const handleCompletionChange = (event: MiniSliderChangeEvent) => {
   completionLevel.value = event.detail.value
+}
+
+const handleContactMethodChange = (event: MiniRadioChangeEvent) => {
+  contactMethod.value = event.detail.value
 }
 </script>
 
@@ -191,5 +218,28 @@ const handleCompletionChange = (event: MiniSliderChangeEvent) => {
 
 .completion-slider {
   width: 100%;
+}
+
+.radio-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.contact-method-text {
+  color: $primary-color;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.contact-method-group {
+  display: flex;
+  gap: 24rpx;
+}
+
+.radio-option {
+  align-items: center;
+  display: flex;
+  gap: 8rpx;
 }
 </style>

@@ -186,7 +186,7 @@ function generateMemberExpressionCode(node: any, variables?: ScriptCodegenVariab
 }
 
 function generateConditionalExpressionCode(node: any, variables?: ScriptCodegenVariables): string {
-  return generateTernaryExpressionCode(node, extractArgumentValue, variables)
+  return generateTernaryExpressionCode(node, generateCodeString, variables)
 }
 
 function generateBinaryExpressionCode(node: any, variables?: ScriptCodegenVariables): string {

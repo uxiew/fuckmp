@@ -43,4 +43,10 @@ describe('script-codegen-utils', () => {
     expect(generateCodeString(expressionOf(`new Date('2026-05-21')`))).toBe(`new Date('2026-05-21')`)
     expect(generateCodeString(expressionOf('isReady ? count++ : --fallback'))).toBe('isReady ? count++ : --fallback')
   })
+
+  it('提取条件表达式代码时保留字符串字面量引号', () => {
+    const expression = expressionOf(`status === 'ok' ? '通过' : '失败'`)
+
+    expect(extractArgumentValue(expression)).toBe(`status === 'ok' ? '通过' : '失败'`)
+  })
 })
