@@ -2,6 +2,10 @@
  * Proxy-based ref/computed helpers for the mini-program reactivity runtime.
  */
 import { logger } from '../utils/logger'
+import {
+  resolveComputedProxyValue,
+  syncReactiveProxyContextData
+} from './reactivity-proxy-internals.js'
 
 /**
  * Runtime ref proxy surface.
@@ -103,7 +107,7 @@ export function createComputedProxy<T>(getter: () => T, context?: any): RuntimeC
   const computedProxy = new Proxy(target, {
     get(target, prop: string | symbol): any {
       if (prop === 'value') {
-        return resolveComputedValue(target, currentValue => {
+        return resolveComputedProxyValue(target, currentValue => {
           value = currentValue
         }, () => value)
       }
@@ -204,7 +208,7 @@ export function createReactiveProxy<T extends object>(target: T, context?: any):
 
           if (newValue !== oldValue) {
             target[prop] = newValue
-            syncContextData(context, key, path, prop, newValue)
+            syncReactiveProxyContextData(context, key, path, prop, newValue)
           }
         }
 
@@ -229,7 +233,7 @@ export function createReactiveProxy<T extends object>(target: T, context?: any):
           const result = Reflect.deleteProperty(target, prop)
 
           if (hadProperty && result) {
-            syncContextData(context, key, path, prop, undefined)
+            syncReactiveProxyContextData(context, key, path, prop, undefined)
           }
 
           return result
@@ -249,65 +253,4 @@ export function createReactiveProxy<T extends object>(target: T, context?: any):
   }
 
   return proxy
-}
-
-/**
- * Resolve a computed value with dirty and circular-computation protection.
- */
-function resolveComputedValue<T>(
-  target: {
-    _key: string
-    _getter: () => T
-    _context: any
-    _dirty: boolean
-    _computing: boolean
-  },
-  setValue: (value: T) => void,
-  getValue: () => T
-): T | undefined {
-  if (target._computing) {
-    logger.warn(`检测到计算属性 ${target._key} 的循环依赖`)
-    return undefined
-  }
-
-  if (target._dirty) {
-    target._computing = true
-    try {
-      const value = target._getter()
-      setValue(value)
-      target._dirty = false
-
-      if (target._context && typeof target._context.setData === 'function') {
-        target._context.setData({ [target._key]: value })
-      }
-    } catch (error) {
-      logger.error(`计算属性 ${target._key} 计算失败:`, error)
-      setValue(undefined as T)
-    } finally {
-      target._computing = false
-    }
-  }
-
-  return getValue()
-}
-
-/**
- * Sync one reactive mutation to the mini-program context when available.
- */
-function syncContextData(
-  context: any,
-  rootKey: string,
-  path: string[],
-  prop: string,
-  value: any
-): void {
-  if (!context || typeof context.setData !== 'function') {
-    return
-  }
-
-  const fullPath = path.length > 0
-    ? `${rootKey}.${[...path, prop].join('.')}`
-    : `${rootKey}.${prop}`
-
-  context.setData({ [fullPath]: value })
 }
