@@ -12,6 +12,13 @@
       <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
     </view>
 
+    <view class="preference-row">
+      <text class="preference-label">资料主题</text>
+      <picker class="theme-picker" :value="themeIndex" :range="themeOptions" @change="handleThemeChange">
+        <view class="picker-value">{{ selectedTheme }}</view>
+      </picker>
+    </view>
+
     <textarea
       class="bio-input"
       :value="bioDraft"
@@ -40,6 +47,12 @@ interface MiniSwitchChangeEvent {
   }
 }
 
+interface MiniPickerChangeEvent {
+  detail: {
+    value: number
+  }
+}
+
 const profileTitle = ref('资料页')
 const profileName = ref('示例用户')
 const profileRole = ref('真实验收')
@@ -47,7 +60,10 @@ const profileReady = ref(true)
 const profileMeta = ref('页面级 ref / computed / v-if')
 const bioDraft = ref('使用 textarea 验收原生 input / focus / blur 事件')
 const emailOptIn = ref(true)
+const themeOptions = ref(['默认主题', '活力主题', '沉稳主题'])
+const themeIndex = ref(0)
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
+const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 
 const handleBioInput = (event: MiniTextareaInputEvent) => {
   bioDraft.value = event.detail.value
@@ -63,6 +79,10 @@ const handleBioBlur = () => {
 
 const handleEmailOptInChange = (event: MiniSwitchChangeEvent) => {
   emailOptIn.value = event.detail.value
+}
+
+const handleThemeChange = (event: MiniPickerChangeEvent) => {
+  themeIndex.value = event.detail.value
 }
 </script>
 
@@ -120,5 +140,15 @@ const handleEmailOptInChange = (event: MiniSwitchChangeEvent) => {
 .preference-label {
   color: $text-color;
   font-size: 26rpx;
+}
+
+.theme-picker {
+  color: $primary-color;
+}
+
+.picker-value {
+  color: $primary-color;
+  font-size: 26rpx;
+  font-weight: 600;
 }
 </style>
