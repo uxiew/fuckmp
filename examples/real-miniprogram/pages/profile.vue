@@ -7,6 +7,11 @@
       <text class="profile-meta">{{ profileMeta }}</text>
     </view>
 
+    <view class="preference-row">
+      <text class="preference-label">接收验收提醒</text>
+      <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
+    </view>
+
     <textarea
       class="bio-input"
       :value="bioDraft"
@@ -29,12 +34,19 @@ interface MiniTextareaInputEvent {
   }
 }
 
+interface MiniSwitchChangeEvent {
+  detail: {
+    value: boolean
+  }
+}
+
 const profileTitle = ref('资料页')
 const profileName = ref('示例用户')
 const profileRole = ref('真实验收')
 const profileReady = ref(true)
 const profileMeta = ref('页面级 ref / computed / v-if')
 const bioDraft = ref('使用 textarea 验收原生 input / focus / blur 事件')
+const emailOptIn = ref(true)
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 
 const handleBioInput = (event: MiniTextareaInputEvent) => {
@@ -47,6 +59,10 @@ const handleBioFocus = () => {
 
 const handleBioBlur = () => {
   console.log('bio blur')
+}
+
+const handleEmailOptInChange = (event: MiniSwitchChangeEvent) => {
+  emailOptIn.value = event.detail.value
 }
 </script>
 
@@ -93,5 +109,16 @@ const handleBioBlur = () => {
   color: $text-color;
   min-height: 160rpx;
   padding: 20rpx;
+}
+
+.preference-row {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.preference-label {
+  color: $text-color;
+  font-size: 26rpx;
 }
 </style>
