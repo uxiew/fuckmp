@@ -3,6 +3,7 @@
  */
 
 import { Command } from 'commander'
+import { resolve } from 'node:path'
 import { Vue3MiniprogramCompiler } from '@/compiler/index.js'
 import type { CompilerOptions } from '@/types/index.js'
 import { logger } from '@/utils/index.js'
@@ -190,7 +191,7 @@ function validateBuildOptions(options: BuildOptions): { valid: boolean; errors: 
   }
 
   // 验证路径格式
-  if (options.input && options.input === options.output) {
+  if (options.input && options.output && resolve(options.input) === resolve(options.output)) {
     errors.push('输入目录和输出目录不能相同')
   }
 
