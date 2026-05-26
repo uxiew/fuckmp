@@ -179,7 +179,8 @@ export function transformVueTemplateElementProps(
       if (prop.name === 'class') {
         staticClass = prop.value?.content || ''
       } else {
-        attrs.push(`${prop.name}="${prop.value?.content || ''}"`)
+        const attrName = mapVueTemplateAttributeName(tagName, prop.name)
+        attrs.push(`${attrName}="${prop.value?.content || ''}"`)
       }
       return
     }
@@ -227,7 +228,7 @@ export function transformVueTemplateDirective(
       if (arg === 'class') {
         return null
       }
-      return `${arg}="{{${exp}}}"`
+      return `${mapVueTemplateAttributeName(tagName, arg)}="{{${exp}}}"`
 
     case 'on': {
       const eventName = mapVueTemplateEventName(arg)
@@ -263,4 +264,13 @@ export function transformVueTemplateDirective(
       logger.warn(`未处理的指令: v-${name}`)
       return null
   }
+}
+
+/** 将 Vue/HTML 源属性名收敛为微信原生属性名。 */
+function mapVueTemplateAttributeName(tagName: string | undefined, attrName: string | undefined): string {
+  if (tagName === 'a' && attrName === 'href') {
+    return 'url'
+  }
+
+  return attrName || ''
 }

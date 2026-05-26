@@ -44,6 +44,17 @@ describe('enhanced-template-transformer-utils', () => {
     )
   })
 
+  it('转换 a href 为微信原生 navigator url', () => {
+    const root = parse('<a href="/pages/profile">查看资料页</a>', {
+      lowerCaseTagName: false,
+      comment: false
+    })
+
+    expect(transformEnhancedTemplateNode(root, createResult(), createScriptTransformContext('pages/home.vue', true))).toBe(
+      '<navigator url="/pages/profile">查看资料页</navigator>'
+    )
+  })
+
   it('转换 v-for 与 v-model 指令字符串', () => {
     expect(transformEnhancedTemplateDirective('v-for', 'item, idx in list')).toBe(
       'wx:for="{{list}}" wx:for-item="item" wx:for-index="idx" wx:key="item"'

@@ -31,6 +31,8 @@
       <text>v-show 会编译为微信原生 hidden 属性</text>
     </view>
 
+    <a href="/pages/profile">查看资料页</a>
+
     <button class="primary-button" @click="incrementVisit">增加访问</button>
   </view>
 </template>

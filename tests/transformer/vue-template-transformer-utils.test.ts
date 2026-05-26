@@ -77,6 +77,21 @@ describe('vue-template-transformer-utils', () => {
     expect([...result.eventHandlers.keys()]).toEqual(['submit'])
   })
 
+  it('转换 a href 为微信原生 navigator url', () => {
+    const context = createScriptTransformContext('pages/index.vue', true)
+    const result = createResult()
+
+    const output = transformVueTemplateElementNode({
+      tag: 'a',
+      props: [
+        { type: 6, name: 'href', value: { content: '/pages/profile' } }
+      ],
+      children: [{ content: '查看资料页' }]
+    }, result, context, child => child.content)
+
+    expect(output).toBe('<navigator url="/pages/profile">查看资料页</navigator>')
+  })
+
   it('转换 Vue AST 事件 stop 修饰符为微信原生 catch 绑定', () => {
     const context = createScriptTransformContext('components/card.vue', false)
     const result = createResult()

@@ -130,6 +130,7 @@ export function transformEnhancedTemplateAttributes(
   const attrs: string[] = []
   let staticClass = ''
   let dynamicClass = ''
+  const sourceTagName = getEnhancedTemplateTagName(node)
 
   Object.entries(node.attributes || {}).forEach(([name, value]) => {
     if (name === 'class') {
@@ -137,7 +138,7 @@ export function transformEnhancedTemplateAttributes(
     } else if (name === ':class') {
       dynamicClass = value
     } else if (name.startsWith(':')) {
-      const propName = name.substring(1)
+      const propName = mapEnhancedTemplateAttributeName(sourceTagName, name.substring(1))
       attrs.push(`${propName}="{{${value}}}"`)
     } else if (name.startsWith('@')) {
       const eventName = name.substring(1)
@@ -149,7 +150,7 @@ export function transformEnhancedTemplateAttributes(
         attrs.push(transformed)
       }
     } else {
-      attrs.push(`${name}="${value}"`)
+      attrs.push(`${mapEnhancedTemplateAttributeName(sourceTagName, name)}="${value}"`)
     }
   })
 
@@ -161,6 +162,15 @@ export function transformEnhancedTemplateAttributes(
   }
 
   return attrs.length > 0 ? ` ${attrs.join(' ')}` : ''
+}
+
+/** 将 HTML 源属性名收敛为微信原生属性名。 */
+function mapEnhancedTemplateAttributeName(tagName: string, attrName: string): string {
+  if (tagName === 'a' && attrName === 'href') {
+    return 'url'
+  }
+
+  return attrName
 }
 
 /**
