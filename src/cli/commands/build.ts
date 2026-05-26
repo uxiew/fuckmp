@@ -57,6 +57,13 @@ async function handleBuildCommand(options: BuildOptions): Promise<void> {
       logger.setLevel('debug')
     }
 
+    const validation = validateBuildOptions(options)
+    if (!validation.valid) {
+      logger.error('构建参数无效')
+      validation.errors.forEach(error => logger.error(error))
+      process.exit(1)
+    }
+
     logger.info('开始构建项目...')
 
     // 构建编译器选项
