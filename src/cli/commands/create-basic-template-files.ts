@@ -54,7 +54,7 @@ function createPackageJson(features: CreateTemplateFeatures): string {
     scripts: {
       dev: 'fuckmp build --watch',
       build: 'fuckmp build',
-      'build:prod': 'fuckmp build --minify'
+      'build:prod': 'fuckmp build'
     },
     dependencies,
     devDependencies

@@ -53,8 +53,9 @@ describe('create templates', () => {
     expect(packageJson.scripts).toEqual({
       dev: 'fuckmp build --watch',
       build: 'fuckmp build',
-      'build:prod': 'fuckmp build --minify'
+      'build:prod': 'fuckmp build'
     })
+    expect(Object.values(packageJson.scripts)).not.toContain('fuckmp build --minify')
     expect(packageJson.devDependencies).toEqual(expect.objectContaining({
       fuckmp: '^1.0.0',
       sass: '^1.69.0'
