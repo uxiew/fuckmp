@@ -14,6 +14,12 @@
 
     <CounterInput v-model="displayName" v-model:count="visitCount" />
 
+    <ActivityList
+      :items="activities"
+      :loading="activitiesLoading"
+      @select-activity="handleSelectActivity"
+    />
+
     <button class="primary-button" @tap="incrementVisit">增加访问</button>
   </view>
 </template>
@@ -22,6 +28,7 @@
 import { computed, reactive, ref, onMounted } from 'vue'
 import UserCard from '@/components/UserCard.vue'
 import CounterInput from '@/components/CounterInput.vue'
+import ActivityList from '@/components/ActivityList.vue'
 import '../../styles/shared.scss'
 
 interface User {
@@ -30,15 +37,27 @@ interface User {
   email: string
 }
 
+interface Activity {
+  id: number
+  title: string
+  type: string
+  done: boolean
+}
+
 const title = ref('真实示例首页')
 const displayName = ref('访客')
 const visitCount = ref(1)
 const isActive = ref(true)
+const activitiesLoading = ref(false)
 const currentUser = reactive<User>({
   id: 1001,
   name: '张三',
   email: 'zhangsan@example.com'
 })
+const activities = ref<Activity[]>([
+  { id: 1, title: '完成首页编译验收', type: 'compile', done: true },
+  { id: 2, title: '接入微信开发者工具冒烟', type: 'devtools', done: false }
+])
 
 const statusText = computed(() => `${displayName.value} 已访问 ${visitCount.value} 次`)
 
@@ -52,6 +71,10 @@ const handleUserClick = (user: User) => {
 
 const handleSendMessage = (user: User) => {
   console.log('send message', user.id)
+}
+
+const handleSelectActivity = (activity: Activity) => {
+  console.log('select activity', activity.id)
 }
 
 onMounted(() => {

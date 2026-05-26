@@ -39,7 +39,7 @@
 - [x] `defineProps<T>()` 类型声明原生映射：支持内联 TypeScript props、本地 interface/type alias 和相对 import type 推断到 `Component.properties`，并将模板、computed getter 与 setup 方法中的 `props.xxx` 静态改写为原生 property 访问；覆盖 `tests/e2e/define-props-type-based.test.ts`。
 - [x] `defineEmits` 类型声明原生映射：支持 TypeScript call signature、named tuple、本地 interface/type alias 和相对 import type 事件名提取，生成原生 `this.triggerEvent` 与 `_emit*` 方法；覆盖 `tests/e2e/typed-emits.test.ts`。
 - [x] `defineModel` + 组件 `v-model` 原生闭环：子组件输出 `Component.properties`、原生 input handler 与 `update:*` 事件，父级输出属性绑定与 `bind:update:*` 回写 handler；`defineModel` tuple 解构配合 `v-model.trim/.number` 可复用原生输入修饰符 handler；覆盖 `tests/e2e/native-v-model.test.ts`。
-- [x] 真实示例工程验收闭环：新增 `examples/real-miniprogram`，覆盖页面、组件、props/emits、组件 `v-model`、JS 配置、SCSS、最终 runtime injection 覆盖后的页面/组件 JS 语法与关键行为；覆盖 `tests/e2e/real-example-acceptance.test.ts`。
+- [x] 真实示例工程验收闭环：新增 `examples/real-miniprogram`，覆盖页面、组件、props/emits、组件 `v-model`、`v-if` / `v-for` 原生映射、JS 配置、SCSS、最终 runtime injection 覆盖后的页面/组件 JS 语法与关键行为；覆盖 `tests/e2e/real-example-acceptance.test.ts`。
 - [x] `withDefaults(defineProps())` 默认值原生映射：静态默认值和数组/对象 factory 静态返回值写入 `Component.properties.value`；覆盖 `tests/e2e/with-defaults-props.test.ts`。
 - [x] Vue 3.5 响应式 props 解构映射：解构默认值写入 `Component.properties`，模板、computed getter、生命周期回调与 setup 方法中的局部别名还原为原始 prop 名且不误伤成员表达式；覆盖 `tests/e2e/reactive-props-destructure.test.ts`。
 - [x] `defineExpose` 原生目标降级：微信原生目标无 Vue template ref public instance 等价语义，产物输出降级注释和 exposed keys，不生成 runtime 桥接；覆盖 `tests/e2e/define-expose-degrade.test.ts`。
@@ -90,6 +90,7 @@
 - [x] `EnhancedTemplateTransformer` rendering helper 拆分：node-html-parser AST 节点分派、文本、元素、属性、class、事件和指令渲染已抽离到 `src/transformer/enhanced-template-transformer-utils.ts`；`src/transformer/enhanced-template-transformer.ts` 当前为 63 行，新增定向单测覆盖。
 - [x] `VForPlugin` helper 拆分：`v-for` 表达式解析、`wx:for` 属性生成、runtime config、列表表达式校验和过滤/排序表达式 helper 已抽离到 `src/plugins/directives/v-for-plugin-utils.ts`；`src/plugins/directives/v-for-plugin.ts` 当前为 62 行，新增定向单测覆盖。
 - [x] `VModelPlugin` helper 拆分：v-model 变量路径提取、input/textarea/picker/switch/slider 绑定代码、fallback 绑定和 generated method 上下文更新 helper 已抽离到 `src/plugins/directives/v-model-plugin-utils.ts`；`src/plugins/directives/v-model-plugin.ts` 当前为 197 行，新增定向单测覆盖。
+- [x] 真实示例 `v-if` / `v-for` 原生映射覆盖：新增 `components/ActivityList.vue` 并接入 `examples/real-miniprogram` 首页，覆盖列表/条件渲染、动态 class、微信原生 dataset 事件参数和最终组件 JS 语法；同步修复事件 handler 原生 `event` 参数被误转为 `dataset.arg0` 的序列化回归，覆盖 `tests/e2e/real-example-acceptance.test.ts` 与 `tests/compiler/object-serializer.test.ts`。
 - [x] 默认测试输出：Browserslist 过期提示已在 Vitest 环境中静默；真机测试默认跳过，需 `FUCKMP_REAL_DEVICE_TESTS=1` 显式启用。
 
 ## 后续约束 / 可选验收

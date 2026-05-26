@@ -16,7 +16,7 @@ describe('真实示例工程验收', () => {
     await fs.rm(outputRoot, { recursive: true, force: true })
   })
 
-  it('编译真实示例并覆盖页面、组件、props/emits、v-model、配置、样式与 runtime 注入', async () => {
+  it('编译真实示例并覆盖页面、组件、props/emits、v-model、v-if/v-for、配置、样式与 runtime 注入', async () => {
     const compiler = new Vue3MiniprogramCompiler({
       input: exampleRoot,
       output: outputRoot,
@@ -41,8 +41,8 @@ describe('真实示例工程验收', () => {
     const result = await compiler.compile()
 
     expect(result.errors).toEqual([])
-    expect(result.stats.total).toBe(5)
-    expect(result.stats.success).toBe(5)
+    expect(result.stats.total).toBe(6)
+    expect(result.stats.success).toBe(6)
     expect(result.stats.failed).toBe(0)
 
     await expectOutputFiles([
@@ -67,7 +67,11 @@ describe('真实示例工程验收', () => {
       'components/CounterInput.js',
       'components/CounterInput.json',
       'components/CounterInput.wxml',
-      'components/CounterInput.wxss'
+      'components/CounterInput.wxss',
+      'components/ActivityList.js',
+      'components/ActivityList.json',
+      'components/ActivityList.wxml',
+      'components/ActivityList.wxss'
     ])
 
     const appJson = JSON.parse(await readOutputFile('app.json'))
@@ -92,6 +96,10 @@ describe('真实示例工程验收', () => {
     expect(indexWxml).toContain('bind:update:modelValue="_handleUpdate_displayName"')
     expect(indexWxml).toContain('count="{{visitCount}}"')
     expect(indexWxml).toContain('bind:update:count="_handleUpdate_visitCount"')
+    expect(indexWxml).toContain('<activity-list')
+    expect(indexWxml).toContain('items="{{activities}}"')
+    expect(indexWxml).toContain('loading="{{activitiesLoading}}"')
+    expect(indexWxml).toContain('bind:select-activity="handleSelectActivity"')
     expect(indexJs).toMatch(/_handleUpdate_displayName(?:: function)?\(event\)/)
     expect(indexJs).toMatch(/_handleUpdate_visitCount(?:: function)?\(event\)/)
     expect(indexJs).toContain('displayName: event.detail')
@@ -118,6 +126,25 @@ describe('真实示例工程验收', () => {
     expect(counterInputWxml).toContain('value="{{count}}"')
     expect(counterInputWxml).toContain('bindinput="_handleNumberInput_count"')
 
+    const activityListJs = await readOutputFile('components/ActivityList.js')
+    const activityListWxml = await readOutputFile('components/ActivityList.wxml')
+    const activityListWxss = await readOutputFile('components/ActivityList.wxss')
+    expect(activityListJs).toContain('items: {')
+    expect(activityListJs).toContain('loading: {')
+    expect(activityListJs).toContain("this.triggerEvent('selectActivity',")
+    expect(activityListWxml).toContain('wx:if="{{loading}}"')
+    expect(activityListWxml).toContain('wx:for="{{items}}"')
+    expect(activityListWxml).toContain('wx:for-item="activity"')
+    expect(activityListWxml).toContain('wx:key="id"')
+    expect(activityListWxml).toContain('data-activity-id="{{activity.id}}"')
+    expect(activityListWxml).toContain('bind:tap="handleSelect"')
+    expect(activityListWxml).toContain("activity.done ? 'done' : ''")
+    expect(activityListJs).toContain('event.currentTarget.dataset.activityId')
+    expect(activityListJs).toContain('this.properties.items.find')
+    expect(activityListJs).not.toContain('const event = event.currentTarget.dataset.arg0')
+    expect(activityListWxss).toContain('.activity-list')
+    expect(activityListWxss).toContain('.activity-row')
+
     const indexWxss = await readOutputFile('pages/index/index.wxss')
     expect(indexWxss).toContain('.example-page')
     expect(indexWxss).toContain('.shared-card')
@@ -133,7 +160,8 @@ describe('真实示例工程验收', () => {
       'pages/index/index.js',
       'pages/profile.js',
       'components/UserCard.js',
-      'components/CounterInput.js'
+      'components/CounterInput.js',
+      'components/ActivityList.js'
     ]) {
       expect(() => parseOutputJavaScript(jsFile)).not.toThrow()
     }

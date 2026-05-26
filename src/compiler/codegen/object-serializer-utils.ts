@@ -265,6 +265,10 @@ function isSerializerEventHandlerName(functionName: string): boolean {
 }
 
 function convertSingleParamEventHandler(paramName: string, body: string): string {
+  if (isNativeEventParameterName(paramName)) {
+    return `function(${paramName}) { ${body} }`
+  }
+
   const newBody = `
     // 从事件对象的dataset中获取参数
     const ${paramName} = event.currentTarget.dataset.arg0;
@@ -272,4 +276,9 @@ function convertSingleParamEventHandler(paramName: string, body: string): string
 
   return `function(event) {${newBody}
   }`
+}
+
+/** 判断单参数事件 handler 是否已经接收微信原生事件对象。 */
+function isNativeEventParameterName(paramName: string): boolean {
+  return ['event', 'e', 'evt'].includes(paramName)
 }

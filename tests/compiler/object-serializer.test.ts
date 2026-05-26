@@ -91,6 +91,9 @@ describe('ObjectLiteralSerializer', () => {
     const item = event.currentTarget.dataset.arg0;
     this.select(item)
   }`)
+    expect(convertEventHandlerFunction('handleTap', 'function(event) { this.select(event.detail) }')).toBe(
+      'function(event) { this.select(event.detail) }'
+    )
     expect(convertEventHandlerFunction('formatLabel', 'function(item) { return item.name }')).toBe('function(item) { return item.name }')
 
     expect(convertObjectMethodArrowFunctions('"inc": (count) => { return count + 1 }')).toBe('"inc": function(count) { return count + 1 }')

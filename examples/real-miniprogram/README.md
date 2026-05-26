@@ -1,6 +1,12 @@
 # 真实小程序示例
 
-这个示例用于验收 Vue3 到微信小程序编译链路，覆盖页面、组件、props、emits、组件 `v-model`、JavaScript 配置、SCSS 样式与 runtime 注入。
+这个示例用于验收 Vue3 到微信小程序编译链路，覆盖页面、组件、props、emits、组件 `v-model`、`v-if` / `v-for` 原生映射、JavaScript 配置、SCSS 样式与 runtime 注入。
+
+当前示例重点组件：
+
+- `components/UserCard.vue`：props、`withDefaults`、emits 与事件修饰符。
+- `components/CounterInput.vue`：`defineModel`、组件 `v-model` 与输入修饰符。
+- `components/ActivityList.vue`：`v-if` / `v-for`、动态 class、微信原生 dataset 事件参数与列表项事件回传。
 
 推荐验证命令：
 
