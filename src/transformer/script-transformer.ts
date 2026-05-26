@@ -18,18 +18,14 @@ import {
   createLifecycleHandler
 } from './macro-handlers/index.js'
 import { applyPropAccessMappingsToScript, hasPropAccessMappings, registerPropNamespace } from './prop-access-mapping.js'
-import { resolveTypeReferenceParameters } from './type-reference-resolver.js'
-import { createLiteralNodeFromValue, parseScriptInitValue } from './script-value-utils.js'
+import { parseScriptInitValue } from './script-value-utils.js'
 import {
-  applyDefineExposeMacro,
-  applyDefineOptionsMacro,
   applyDefineSlotsVariable,
   applyInjectVariable,
-  applyProvideInjectMacro,
   applyUseIdVariable,
   applyUseTemplateRefVariable,
-  applyWatcherMacro
 } from './script-native-boundary-utils.js'
+import { processScriptMacros } from './script-macro-processing-utils.js'
 import {
   applyDefineModelVariable,
   applyDefinePropsDestructureVariable,
@@ -148,48 +144,8 @@ export class ScriptTransformer {
    * 处理宏调用
    */
   private processMacros(parseResult: ScriptParseResult, context: TransformContext): void {
-    if (!parseResult.macros) {
-      return
-    }
-
-    parseResult.macros.forEach((macroCalls, macroName) => {
-      if (macroName === 'defineExpose') {
-        macroCalls.forEach(macroCall => applyDefineExposeMacro(macroCall, context))
-        return
-      }
-      if (macroName === 'defineOptions') {
-        macroCalls.forEach(macroCall => applyDefineOptionsMacro(macroCall, context))
-        return
-      }
-      if (['watch', 'watchEffect', 'onWatcherCleanup'].includes(macroName)) {
-        macroCalls.forEach(macroCall => applyWatcherMacro(macroCall, context))
-        return
-      }
-      if (['provide', 'inject'].includes(macroName)) {
-        macroCalls.forEach(macroCall => applyProvideInjectMacro(macroCall, context))
-        return
-      }
-
-      const handler = this.macroHandlers.get(macroName)
-      if (handler) {
-        macroCalls.forEach(macroCall => {
-          try {
-            // 构造一个简单的 CallExpression 节点，包含 TypeScript 泛型
-            const node = {
-              type: 'CallExpression',
-              callee: { type: 'Identifier', name: macroName },
-              arguments: macroCall.arguments.map(arg => createLiteralNodeFromValue(arg)),
-              typeParameters: ['defineProps', 'defineEmits'].includes(macroName)
-                ? resolveTypeReferenceParameters(macroCall.typeParameters, parseResult, context.filename)
-                : macroCall.typeParameters // 传递 TypeScript 泛型参数
-            } as any
-
-            handler(node, context)
-          } catch (error) {
-            logger.error(`宏处理失败: ${macroName}`, error as Error)
-          }
-        })
-      }
+    processScriptMacros(parseResult, context, this.macroHandlers, (macroName, error) => {
+      logger.error(`宏处理失败: ${macroName}`, error as Error)
     })
   }
 
