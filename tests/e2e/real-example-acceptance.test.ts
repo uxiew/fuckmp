@@ -16,7 +16,7 @@ describe('真实示例工程验收', () => {
     await fs.rm(outputRoot, { recursive: true, force: true })
   })
 
-  it('编译真实示例并覆盖页面、组件、props/emits、v-model、v-if/v-for、配置、样式与 runtime 注入', async () => {
+  it('编译真实示例并覆盖页面、组件、props/emits、v-model、v-if/v-for、slots、配置、样式与 runtime 注入', async () => {
     const compiler = new Vue3MiniprogramCompiler({
       input: exampleRoot,
       output: outputRoot,
@@ -41,8 +41,8 @@ describe('真实示例工程验收', () => {
     const result = await compiler.compile()
 
     expect(result.errors).toEqual([])
-    expect(result.stats.total).toBe(6)
-    expect(result.stats.success).toBe(6)
+    expect(result.stats.total).toBe(7)
+    expect(result.stats.success).toBe(7)
     expect(result.stats.failed).toBe(0)
 
     await expectOutputFiles([
@@ -71,7 +71,11 @@ describe('真实示例工程验收', () => {
       'components/ActivityList.js',
       'components/ActivityList.json',
       'components/ActivityList.wxml',
-      'components/ActivityList.wxss'
+      'components/ActivityList.wxss',
+      'components/SlotPanel.js',
+      'components/SlotPanel.json',
+      'components/SlotPanel.wxml',
+      'components/SlotPanel.wxss'
     ])
 
     const appJson = JSON.parse(await readOutputFile('app.json'))
@@ -100,6 +104,10 @@ describe('真实示例工程验收', () => {
     expect(indexWxml).toContain('items="{{activities}}"')
     expect(indexWxml).toContain('loading="{{activitiesLoading}}"')
     expect(indexWxml).toContain('bind:select-activity="handleSelectActivity"')
+    expect(indexWxml).toContain('<slot-panel')
+    expect(indexWxml).toContain('slot="header"')
+    expect(indexWxml).toContain('原生 slot 验收')
+    expect(indexWxml).toContain('默认 slot 内容会透传到微信原生组件')
     expect(indexJs).toMatch(/_handleUpdate_displayName(?:: function)?\(event\)/)
     expect(indexJs).toMatch(/_handleUpdate_visitCount(?:: function)?\(event\)/)
     expect(indexJs).toContain('displayName: event.detail')
@@ -145,6 +153,14 @@ describe('真实示例工程验收', () => {
     expect(activityListWxss).toContain('.activity-list')
     expect(activityListWxss).toContain('.activity-row')
 
+    const slotPanelJson = JSON.parse(await readOutputFile('components/SlotPanel.json'))
+    const slotPanelWxml = await readOutputFile('components/SlotPanel.wxml')
+    const slotPanelWxss = await readOutputFile('components/SlotPanel.wxss')
+    expect(slotPanelJson.options).toEqual({ multipleSlots: true })
+    expect(slotPanelWxml).toContain('<slot name="header"')
+    expect(slotPanelWxml).toMatch(new RegExp('<slot(?:\\sdata-v-[^>]*)?></slot>'))
+    expect(slotPanelWxss).toContain('.slot-panel')
+
     const indexWxss = await readOutputFile('pages/index/index.wxss')
     expect(indexWxss).toContain('.example-page')
     expect(indexWxss).toContain('.shared-card')
@@ -161,7 +177,8 @@ describe('真实示例工程验收', () => {
       'pages/profile.js',
       'components/UserCard.js',
       'components/CounterInput.js',
-      'components/ActivityList.js'
+      'components/ActivityList.js',
+      'components/SlotPanel.js'
     ]) {
       expect(() => parseOutputJavaScript(jsFile)).not.toThrow()
     }

@@ -20,6 +20,13 @@
       @select-activity="handleSelectActivity"
     />
 
+    <SlotPanel>
+      <template #header>
+        <text>原生 slot 验收</text>
+      </template>
+      <text>默认 slot 内容会透传到微信原生组件</text>
+    </SlotPanel>
+
     <button class="primary-button" @tap="incrementVisit">增加访问</button>
   </view>
 </template>
@@ -29,6 +36,7 @@ import { computed, reactive, ref, onMounted } from 'vue'
 import UserCard from '@/components/UserCard.vue'
 import CounterInput from '@/components/CounterInput.vue'
 import ActivityList from '@/components/ActivityList.vue'
+import SlotPanel from '@/components/SlotPanel.vue'
 import '../../styles/shared.scss'
 
 interface User {

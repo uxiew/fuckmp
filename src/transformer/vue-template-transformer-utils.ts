@@ -122,6 +122,14 @@ export function transformVueTemplateElementNode(
   context: TransformContext,
   renderChild: VueTemplateChildRenderer
 ): string {
+  const staticSlotName = resolveStaticSlotTemplateName(node)
+  if (staticSlotName) {
+    const slotChildren = (node.children || []).map(renderChild).join('')
+    return staticSlotName === 'default'
+      ? slotChildren
+      : `<view slot="${staticSlotName}">${slotChildren}</view>`
+  }
+
   const tagName = transformVueTemplateTagName(node.tag)
   const attributes = transformVueTemplateElementProps(node.props || [], result, context, node.tag)
   const children = (node.children || []).map(renderChild).join('')
@@ -131,6 +139,25 @@ export function transformVueTemplateElementNode(
   }
 
   return `<${tagName}${attributes}>${children}</${tagName}>`
+}
+
+/**
+ * 解析 `<template #name>` 静态具名 slot 使用。
+ *
+ * 仅映射微信原生可等价的静态 named/default slot 内容投递；带 slot props 或动态 slot
+ * 名的模板仍交给现有 Native-first 降级记录，不在这里生成伪 runtime。
+ */
+function resolveStaticSlotTemplateName(node: any): string | null {
+  if (node.tag !== 'template') return null
+
+  const slotDirective = (node.props || []).find((prop: any) =>
+    prop.type === 7 && prop.name === 'slot'
+  )
+
+  if (!slotDirective || slotDirective.exp) return null
+  if (slotDirective.arg && slotDirective.arg.isStatic === false) return null
+
+  return slotDirective.arg?.content || 'default'
 }
 
 /**
