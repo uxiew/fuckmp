@@ -93,6 +93,7 @@
 - [x] 真实示例 `v-if` / `v-for` 原生映射覆盖：新增 `components/ActivityList.vue` 并接入 `examples/real-miniprogram` 首页，覆盖列表/条件渲染、动态 class、微信原生 dataset 事件参数和最终组件 JS 语法；同步修复事件 handler 原生 `event` 参数被误转为 `dataset.arg0` 的序列化回归，覆盖 `tests/e2e/real-example-acceptance.test.ts` 与 `tests/compiler/object-serializer.test.ts`。
 - [x] 真实示例 DevTools opt-in 冒烟脚本：新增 `pnpm test:real-devtools`，默认跳过真实 GUI 调用，显式设置 `FUCKMP_REAL_DEVTOOLS_SMOKE=1` 后先编译 `examples/real-miniprogram` 再调用微信开发者工具 `cli auto`；覆盖 `tests/scripts/real-miniprogram-devtools-smoke.test.ts`。
 - [x] `create` 模板 CLI 契约修正：新项目模板生成的 `package.json` 使用当前 public surface `fuckmp` 依赖与 `fuckmp build` / `fuckmp build --watch` / `fuckmp build --minify` 脚本，不再输出旧包名 `@vue3-miniprogram/compiler` 或旧命令 `vue3-mp`；覆盖 `tests/cli/create-templates.test.ts`。
+- [x] `create` 基础模板编译验收：TS + SCSS 基础模板可写入临时项目并由当前 `Vue3MiniprogramCompiler` 编译，断言 app/page/component/runtime 关键产物、页面组件绑定和生成 JS 语法；覆盖 `tests/cli/create-templates.test.ts`。
 - [x] 默认测试输出：Browserslist 过期提示已在 Vitest 环境中静默；真机测试默认跳过，需 `FUCKMP_REAL_DEVICE_TESTS=1` 显式启用。
 
 ## 后续约束 / 可选验收
