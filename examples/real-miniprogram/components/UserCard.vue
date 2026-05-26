@@ -1,7 +1,7 @@
 <template>
   <view class="user-card shared-card" :class="{ active: active }" @click="handleClick">
     <view class="avatar">
-      <text class="avatar-text">{{ user.name.slice(0, 1) }}</text>
+      <img class="avatar-image" :src="user.avatarUrl" />
     </view>
     <view class="content">
       <text class="name">{{ user.name }}</text>
@@ -18,6 +18,7 @@ interface User {
   id: number
   name: string
   email: string
+  avatarUrl: string
 }
 
 interface Props {
@@ -72,13 +73,14 @@ onUnmounted(() => {
   display: flex;
   height: 80rpx;
   justify-content: center;
+  overflow: hidden;
   width: 80rpx;
 }
 
-.avatar-text {
-  color: $primary-color;
-  font-size: 36rpx;
-  font-weight: 700;
+.avatar-image {
+  border-radius: 50%;
+  height: 80rpx;
+  width: 80rpx;
 }
 
 .content {

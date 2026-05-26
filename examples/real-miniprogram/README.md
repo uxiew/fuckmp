@@ -1,11 +1,11 @@
 # 真实小程序示例
 
-这个示例用于验收 Vue3 到微信小程序编译链路，覆盖页面、组件、props、emits、组件 `v-model`、基础 default / named slots、`v-if` / `v-for` / `v-show` 原生映射、JavaScript 配置、SCSS 样式与 runtime 注入。
+这个示例用于验收 Vue3 到微信小程序编译链路，覆盖页面、组件、props、emits、组件 `v-model`、基础 default / named slots、`v-if` / `v-for` / `v-show` 原生映射、`<img :src>` 图片资源映射、JavaScript 配置、SCSS 样式与 runtime 注入。
 
 当前示例重点组件：
 
 - `app.vue`：应用级 `onMounted` 归一到微信原生 `App.onLaunch`，避免生成不可调用的组件 `lifetimes`。
-- `components/UserCard.vue`：props、`withDefaults`、emits，Vue 常用 `@click` / `@click.stop` 到微信原生 `tap` / `catch:tap` 的事件映射，以及组件 `onMounted` / `onUnmounted` 到 `attached` / `detached` 的生命周期映射。
+- `components/UserCard.vue`：props、`withDefaults`、emits，Vue/HTML 常见 `<img :src>` 到微信原生 `<image src>` 的图片映射，Vue 常用 `@click` / `@click.stop` 到微信原生 `tap` / `catch:tap` 的事件映射，以及组件 `onMounted` / `onUnmounted` 到 `attached` / `detached` 的生命周期映射。
 - `components/CounterInput.vue`：`defineModel`、组件 `v-model` 与输入修饰符。
 - `components/ActivityList.vue`：`v-if` / `v-for`、动态 class、Vue 源侧 `@click="handler(arg)"` 事件参数到微信原生 dataset 的映射，以及子组件 `selectActivity` payload 经微信原生 `event.detail` 回传给父页面。
 - `components/SlotPanel.vue`：微信原生可等价的 default slot 与 named slot 内容投递；不覆盖 scoped slot props 或动态 slot 名。

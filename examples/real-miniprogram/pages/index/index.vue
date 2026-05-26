@@ -49,6 +49,7 @@ interface User {
   id: number
   name: string
   email: string
+  avatarUrl: string
 }
 
 interface Activity {
@@ -67,7 +68,8 @@ const showActivityHint = ref(true)
 const currentUser = reactive<User>({
   id: 1001,
   name: '张三',
-  email: 'zhangsan@example.com'
+  email: 'zhangsan@example.com',
+  avatarUrl: '/images/avatar-zhangsan.png'
 })
 const activities = ref<Activity[]>([
   { id: 1, title: '完成首页编译验收', type: 'compile', done: true },
