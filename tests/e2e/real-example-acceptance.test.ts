@@ -16,7 +16,7 @@ describe('真实示例工程验收', () => {
     await fs.rm(outputRoot, { recursive: true, force: true })
   })
 
-  it('编译真实示例并覆盖页面、组件、props/emits、v-model、v-if/v-for、slots、配置、样式与 runtime 注入', async () => {
+  it('编译真实示例并覆盖页面、组件、props/emits、v-model、v-if/v-for/v-show、slots、配置、样式与 runtime 注入', async () => {
     const compiler = new Vue3MiniprogramCompiler({
       input: exampleRoot,
       output: outputRoot,
@@ -108,6 +108,8 @@ describe('真实示例工程验收', () => {
     expect(indexWxml).toContain('slot="header"')
     expect(indexWxml).toContain('原生 slot 验收')
     expect(indexWxml).toContain('默认 slot 内容会透传到微信原生组件')
+    expect(indexWxml).toContain('hidden="{{!(showActivityHint)}}"')
+    expect(indexWxml).toContain('v-show 会编译为微信原生 hidden 属性')
     expect(indexJs).toMatch(/_handleUpdate_displayName(?:: function)?\(event\)/)
     expect(indexJs).toMatch(/_handleUpdate_visitCount(?:: function)?\(event\)/)
     expect(indexJs).toContain('displayName: event.detail')

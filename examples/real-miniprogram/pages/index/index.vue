@@ -27,6 +27,10 @@
       <text>默认 slot 内容会透传到微信原生组件</text>
     </SlotPanel>
 
+    <view v-show="showActivityHint" class="visibility-hint shared-card">
+      <text>v-show 会编译为微信原生 hidden 属性</text>
+    </view>
+
     <button class="primary-button" @tap="incrementVisit">增加访问</button>
   </view>
 </template>
@@ -57,6 +61,7 @@ const displayName = ref('访客')
 const visitCount = ref(1)
 const isActive = ref(true)
 const activitiesLoading = ref(false)
+const showActivityHint = ref(true)
 const currentUser = reactive<User>({
   id: 1001,
   name: '张三',
@@ -110,5 +115,10 @@ onMounted(() => {
   color: $text-color;
   font-size: 40rpx;
   font-weight: 800;
+}
+
+.visibility-hint {
+  color: #5f6b82;
+  font-size: 26rpx;
 }
 </style>

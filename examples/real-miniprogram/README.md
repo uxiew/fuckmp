@@ -1,6 +1,6 @@
 # 真实小程序示例
 
-这个示例用于验收 Vue3 到微信小程序编译链路，覆盖页面、组件、props、emits、组件 `v-model`、基础 default / named slots、`v-if` / `v-for` 原生映射、JavaScript 配置、SCSS 样式与 runtime 注入。
+这个示例用于验收 Vue3 到微信小程序编译链路，覆盖页面、组件、props、emits、组件 `v-model`、基础 default / named slots、`v-if` / `v-for` / `v-show` 原生映射、JavaScript 配置、SCSS 样式与 runtime 注入。
 
 当前示例重点组件：
 
@@ -8,6 +8,7 @@
 - `components/CounterInput.vue`：`defineModel`、组件 `v-model` 与输入修饰符。
 - `components/ActivityList.vue`：`v-if` / `v-for`、动态 class、微信原生 dataset 事件参数与列表项事件回传。
 - `components/SlotPanel.vue`：微信原生可等价的 default slot 与 named slot 内容投递；不覆盖 scoped slot props 或动态 slot 名。
+- `pages/index/index.vue`：`v-show` 到微信原生 `hidden` 属性的页面级映射。
 
 推荐验证命令：
 
