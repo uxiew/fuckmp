@@ -77,6 +77,37 @@ describe('mini-program-options-generator', () => {
     expect(options).not.toContain('methods: {')
   })
 
+  it('生成 page options 时自定义组件事件 handler 从 event.detail 读取 payload', () => {
+    const generator = new MiniProgramOptionsGenerator()
+    const templateResult = {
+      eventHandlers: new Map([
+        ['handleUserClick', 'handleUserClick'],
+        ['handleNativeTap', 'handleNativeTap']
+      ]),
+      customEventHandlers: new Set(['handleUserClick'])
+    }
+
+    const options = generator.generatePageOptions({
+      data: {},
+      methods: {
+        handleUserClick: { body: 'function(user) { this.selectUser(user) }' },
+        handleNativeTap: { body: 'function(item) { this.selectItem(item) }' }
+      },
+      computed: {},
+      watch: {},
+      lifecycle: {}
+    }, null, templateResult as any)
+
+    expect(options).toContain('handleUserClick: function(event)')
+    expect(options).toContain('const user = event.detail')
+    expect(options).toContain('this.selectUser(user)')
+    expect(options).not.toContain('const user = event.currentTarget.dataset.arg0')
+
+    expect(options).toContain('handleNativeTap: function(event)')
+    expect(options).toContain('const item = event.currentTarget.dataset.arg0')
+    expect(options).toContain('this.selectItem(item)')
+  })
+
   it('生成 component options 时把用户方法、模板 handler 和 computed runtime methods 合并到 methods', () => {
     const generator = new MiniProgramOptionsGenerator()
     const templateResult = {

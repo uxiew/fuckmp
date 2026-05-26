@@ -191,7 +191,16 @@ export function convertArrowFunctionToRegular(functionStr: string): string {
 /**
  * 检测并转换事件处理函数，使其能够从 dataset 中获取单个参数。
  */
-export function convertEventHandlerFunction(functionName: string, functionStr: string): string {
+export interface EventHandlerConversionOptions {
+  /** 单参数 handler 的 payload 来源。dataset 用于原生事件参数，detail 用于组件自定义事件。 */
+  singleParamSource?: 'dataset' | 'detail'
+}
+
+export function convertEventHandlerFunction(
+  functionName: string,
+  functionStr: string,
+  options: EventHandlerConversionOptions = {}
+): string {
   if (!functionStr || typeof functionStr !== 'string') {
     return functionStr
   }
@@ -208,7 +217,7 @@ export function convertEventHandlerFunction(functionName: string, functionStr: s
     const body = functionMatch[2].trim()
 
     if (params && !params.includes(',')) {
-      return convertSingleParamEventHandler(params.trim(), body)
+      return convertSingleParamEventHandler(params.trim(), body, options.singleParamSource || 'dataset')
     }
   }
 
@@ -224,7 +233,7 @@ export function convertEventHandlerFunction(functionName: string, functionStr: s
     }
 
     if (params && !params.includes(',')) {
-      return convertSingleParamEventHandler(params.trim(), body)
+      return convertSingleParamEventHandler(params.trim(), body, options.singleParamSource || 'dataset')
     }
   }
 
@@ -264,9 +273,22 @@ function isSerializerEventHandlerName(functionName: string): boolean {
   return eventHandlerPatterns.some(pattern => pattern.test(functionName))
 }
 
-function convertSingleParamEventHandler(paramName: string, body: string): string {
+function convertSingleParamEventHandler(
+  paramName: string,
+  body: string,
+  source: 'dataset' | 'detail'
+): string {
   if (isNativeEventParameterName(paramName)) {
     return `function(${paramName}) { ${body} }`
+  }
+
+  if (source === 'detail') {
+    const newBody = `
+    const ${paramName} = event.detail;
+    ${body}`
+
+    return `function(event) {${newBody}
+  }`
   }
 
   const newBody = `

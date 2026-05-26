@@ -30,7 +30,8 @@ export class VueTemplateTransformer {
       const result: TemplateTransformResult = {
         wxml: '',
         components: new Set(),
-        eventHandlers: new Map()
+        eventHandlers: new Map(),
+        customEventHandlers: new Set()
       }
 
       recordUnsupportedTemplateCapabilities(parseResult.source, context)
@@ -86,7 +87,8 @@ export class VueTemplateTransformer {
     const result: TemplateTransformResult = {
       wxml: transformVueTemplateFallbackString(parseResult.source),
       components: new Set(),
-      eventHandlers: new Map()
+      eventHandlers: new Map(),
+      customEventHandlers: new Set()
     }
 
     return result

@@ -163,13 +163,17 @@ export function transformVueTemplateEventHandler(
   eventName: string,
   expression: string,
   result: TemplateTransformResult,
-  modifiers: string[] = []
+  modifiers: string[] = [],
+  isCustomComponentEvent = false
 ): string | string[] {
   const eventBindingPrefix = getVueTemplateEventBindingPrefix(modifiers)
   const functionCallMatch = expression.match(/^(\w+)\s*\(\s*(.+)\s*\)$/)
 
   if (!functionCallMatch) {
     result.eventHandlers.set(expression, expression)
+    if (isCustomComponentEvent) {
+      result.customEventHandlers?.add(expression)
+    }
     return `${eventBindingPrefix}${eventName}="${expression}"`
   }
 

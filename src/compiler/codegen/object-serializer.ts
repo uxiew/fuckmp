@@ -10,6 +10,7 @@ import {
   deepCloneWithSerializerPlaceholders,
   stringifyObjectLiteral
 } from './object-serializer-utils.js'
+import type { EventHandlerConversionOptions } from './object-serializer-utils.js'
 
 export class ObjectLiteralSerializer {
   /**
@@ -44,7 +45,11 @@ export class ObjectLiteralSerializer {
   /**
    * 检测并转换事件处理函数，使其能够从 dataset 中获取参数。
    */
-  convertEventHandlerFunction(functionName: string, functionStr: string): string {
-    return convertEventHandlerFunction(functionName, functionStr)
+  convertEventHandlerFunction(
+    functionName: string,
+    functionStr: string,
+    options?: EventHandlerConversionOptions
+  ): string {
+    return convertEventHandlerFunction(functionName, functionStr, options)
   }
 }

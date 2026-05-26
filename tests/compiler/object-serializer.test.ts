@@ -94,6 +94,12 @@ describe('ObjectLiteralSerializer', () => {
     expect(convertEventHandlerFunction('handleTap', 'function(event) { this.select(event.detail) }')).toBe(
       'function(event) { this.select(event.detail) }'
     )
+    expect(convertEventHandlerFunction('handleUserClick', 'function(user) { this.select(user) }', {
+      singleParamSource: 'detail'
+    })).toBe(`function(event) {
+    const user = event.detail;
+    this.select(user)
+  }`)
     expect(convertEventHandlerFunction('formatLabel', 'function(item) { return item.name }')).toBe('function(item) { return item.name }')
 
     expect(convertObjectMethodArrowFunctions('"inc": (count) => { return count + 1 }')).toBe('"inc": function(count) { return count + 1 }')

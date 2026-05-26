@@ -12,7 +12,8 @@ function createResult(): TemplateTransformResult {
   return {
     wxml: '',
     components: new Set(),
-    eventHandlers: new Map()
+    eventHandlers: new Map(),
+    customEventHandlers: new Set()
   }
 }
 
@@ -90,6 +91,27 @@ describe('vue-template-transformer-utils', () => {
 
     expect(output).toBe('<button catch:tap="handleMessage">Message</button>')
     expect([...result.eventHandlers.keys()]).toEqual(['handleMessage'])
+  })
+
+  it('标记自定义组件直传事件 handler 使用 event.detail payload', () => {
+    const context = createScriptTransformContext('pages/index.vue', true)
+    const result = createResult()
+
+    const output = transformVueTemplateElementNode({
+      tag: 'UserCard',
+      props: [
+        { type: 7, name: 'on', arg: { content: 'user-click' }, exp: { content: 'handleUserClick' } },
+        { type: 7, name: 'on', arg: { content: 'tap' }, exp: { content: 'handleNativeTap(item)' } }
+      ],
+      children: []
+    }, result, context, child => child.content)
+
+    expect(output).toContain('<user-card')
+    expect(output).toContain('bind:user-click="handleUserClick"')
+    expect(output).toContain('bind:tap="handleNativeTap"')
+    expect(output).toContain('data-arg0="{{item}}"')
+    expect([...result.eventHandlers.keys()]).toEqual(['handleUserClick', 'handleNativeTap'])
+    expect([...result.customEventHandlers || []]).toEqual(['handleUserClick'])
   })
 
   it('转换普通指令并保留 v-model 修饰符旧语义', () => {

@@ -74,7 +74,8 @@ export function createTemplateTransformResult(): TemplateTransformResult {
   return {
     wxml: '',
     components: new Set(),
-    eventHandlers: new Map()
+    eventHandlers: new Map(),
+    customEventHandlers: new Set()
   }
 }
 

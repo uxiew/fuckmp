@@ -27,7 +27,8 @@ export class EnhancedTemplateTransformer {
       const result: TemplateTransformResult = {
         wxml: '',
         components: new Set(),
-        eventHandlers: new Map()
+        eventHandlers: new Map(),
+        customEventHandlers: new Set()
       }
 
       // 使用 node-html-parser 解析模板

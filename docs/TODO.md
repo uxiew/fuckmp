@@ -16,7 +16,7 @@
 - [x] 监听模式输出清理：删除 `.vue` 源文件时清理对应 `.js/.json/.wxml/.wxss/.js.map` 编译产物，并限定删除范围在输出目录内。
 - [x] 监听模式项目级刷新：新增、变更或删除 `.vue` 源文件后同步刷新 `app.json`、runtime injection 和项目配置，避免页面列表与运行时特性分析残留旧状态。
 - [x] 类型检查基线：`pnpm type-check` 当前通过，范围限定为源码 `src/**/*`。
-- [x] 测试基线：`pnpm test:run` 当前通过 123 个测试文件、跳过 1 个显式 opt-in 真机测试文件；538 个测试通过、5 个真机测试跳过。
+- [x] 测试基线：`pnpm test:run` 当前通过 123 个测试文件、跳过 1 个显式 opt-in 真机测试文件；540 个测试通过、5 个真机测试跳过。
 - [x] 构建基线：`pnpm build` 当前通过，DTS 生成通过。
 - [x] Sass 弃用告警：运行时代码使用 Dart Sass namespace import，测试 SCSS 使用 `sass:color` 模块函数。
 - [x] 旧运行时兼容层：删除无引用旧文件和 `setupRuntime/cleanupRuntime` 兼容导出，当前保留 `src/runtime/core/*`。
@@ -96,6 +96,7 @@
 - [x] 真实示例 `@tap.stop` 原生事件映射覆盖：`UserCard` 消息按钮的 `@tap.stop` 现在验收为微信原生 `catch:tap` 绑定，避免点击子按钮冒泡到卡片根节点；Vue AST 事件转换会传递 `.stop` modifiers，但不扩展未明确等价的事件 runtime；覆盖 `tests/e2e/real-example-acceptance.test.ts` 与 `tests/transformer/vue-template-transformer-utils.test.ts`。
 - [x] 真实示例 `@click` 原生事件映射覆盖：`UserCard` 源码改用 Vue 常用 `@click` / `@click.stop`，验收产物继续输出微信原生 `bind:tap` / `catch:tap`，避免真实示例停留在小程序专用 `@tap` 写法；覆盖 `tests/e2e/real-example-acceptance.test.ts`。
 - [x] 真实示例事件参数传递覆盖：`ActivityList` 源码改用 Vue 源侧 `@click="handleSelect(activity.id)"`，验收动态参数输出为 `data-arg0="{{activity.id}}"`，组件 handler 从 `event.currentTarget.dataset.arg0` 找回列表项并触发事件；覆盖 `tests/e2e/real-example-acceptance.test.ts` 与 `tests/transformer/vue-template-transformer-utils.test.ts`。
+- [x] 真实示例自定义组件事件 payload 覆盖：父页面直连 `@user-click`、`@send-message` 与 `@select-activity` 时，子组件 `triggerEvent` payload 从微信原生 `event.detail` 读取；原生事件显式参数仍保持 dataset 路径，避免把两类事件混用；覆盖 `tests/e2e/real-example-acceptance.test.ts`、`tests/compiler/mini-program-options-generator.test.ts`、`tests/compiler/object-serializer.test.ts` 与 `tests/transformer/vue-template-transformer-utils.test.ts`。
 - [x] 真实示例 profile 第二页面覆盖：`pages/profile.vue` 扩展页面级 `ref` / `computed` / `v-if` 与 scoped/shared 样式，验收 WXML 条件渲染、computed 页面方法、页面数据和 WXSS 输出；覆盖 `tests/e2e/real-example-acceptance.test.ts`。
 - [x] 真实示例生命周期映射覆盖：验收应用 `onMounted -> App.onLaunch`、页面 `onMounted -> onReady`，并在 `UserCard` 中覆盖组件 `onMounted/onUnmounted -> lifetimes.attached/detached`，继续使用微信原生生命周期而不引入伪 runtime；覆盖 `tests/e2e/real-example-acceptance.test.ts` 与 `tests/compiler/mini-program-options-generator.test.ts`。
 - [x] 真实示例 DevTools opt-in 冒烟脚本：新增 `pnpm test:real-devtools`，默认跳过真实 GUI 调用，显式设置 `FUCKMP_REAL_DEVTOOLS_SMOKE=1` 后先编译 `examples/real-miniprogram` 再调用微信开发者工具 `cli auto`；覆盖 `tests/scripts/real-miniprogram-devtools-smoke.test.ts`。

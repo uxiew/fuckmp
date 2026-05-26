@@ -17,6 +17,7 @@ import {
   transformVueTemplateTagName,
   transformVueTemplateVModel
 } from './vue-template-node-utils.js'
+import { isCustomComponentTag } from './vue-template-node-basic-utils.js'
 
 /**
  * Renders a Vue template AST child node to WXML.
@@ -233,7 +234,7 @@ export function transformVueTemplateDirective(
       const modifiers = (directive.modifiers || []).map((mod: any) =>
         typeof mod === 'string' ? mod : mod.content || mod
       )
-      return transformVueTemplateEventHandler(eventName, exp, result, modifiers)
+      return transformVueTemplateEventHandler(eventName, exp, result, modifiers, isCustomComponentTag(tagName))
     }
 
     case 'if':
