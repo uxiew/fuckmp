@@ -31,7 +31,7 @@
       <text>v-show 会编译为微信原生 hidden 属性</text>
     </view>
 
-    <button class="primary-button" @tap="incrementVisit">增加访问</button>
+    <button class="primary-button" @click="incrementVisit">增加访问</button>
   </view>
 </template>
 
