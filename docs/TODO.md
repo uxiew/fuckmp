@@ -16,7 +16,7 @@
 - [x] 监听模式输出清理：删除 `.vue` 源文件时清理对应 `.js/.json/.wxml/.wxss/.js.map` 编译产物，并限定删除范围在输出目录内。
 - [x] 监听模式项目级刷新：新增、变更或删除 `.vue` 源文件后同步刷新 `app.json`、runtime injection 和项目配置，避免页面列表与运行时特性分析残留旧状态。
 - [x] 类型检查基线：`pnpm type-check` 当前通过，范围限定为源码 `src/**/*`。
-- [x] 测试基线：`pnpm test:run` 当前通过 123 个测试文件、跳过 1 个显式 opt-in 真机测试文件；542 个测试通过、5 个真机测试跳过。
+- [x] 测试基线：`pnpm test:run` 当前通过 123 个测试文件、跳过 1 个显式 opt-in 真机测试文件；544 个测试通过、5 个真机测试跳过。
 - [x] 构建基线：`pnpm build` 当前通过，DTS 生成通过。
 - [x] Sass 弃用告警：运行时代码使用 Dart Sass namespace import，测试 SCSS 使用 `sass:color` 模块函数。
 - [x] 旧运行时兼容层：删除无引用旧文件和 `setupRuntime/cleanupRuntime` 兼容导出，当前保留 `src/runtime/core/*`。
@@ -111,6 +111,7 @@
 - [x] 真实示例 radio-group 原生 change 覆盖：`pages/profile.vue` 使用 Vue 源侧 `@change` 和 radio 动态 `:checked`，验收产物输出微信原生 `radio-group bind:change="handleContactMethodChange"` 与 `checked="{{contactMethod === 'email'}}"`，单选值继续通过 `event.detail.value` 更新响应式状态；同步修复条件表达式字符串字面量提取时丢失引号的代码生成回归；覆盖 `tests/e2e/real-example-acceptance.test.ts` 与 `tests/parser/script-codegen-utils.test.ts`。
 - [x] 真实示例 checkbox-group 原生 change 覆盖：`pages/profile.vue` 使用 Vue 源侧 `@change` 和 checkbox 动态 `:checked`，验收产物输出微信原生 `checkbox-group bind:change="handleChannelChange"` 与 `checked="{{selectedChannels.includes('email')}}"`，多选数组继续通过 `event.detail.value` 更新响应式状态；覆盖 `tests/e2e/real-example-acceptance.test.ts`。
 - [x] 真实示例 scroll-view 原生滚动事件覆盖：`pages/profile.vue` 使用微信原生 `<scroll-view scroll-y @scrolltoupper @scrolltolower @scroll>`，验收产物输出 `bind:scrolltoupper` / `bind:scrolltolower` / `bind:scroll`，滚动位置继续通过 `event.detail.scrollTop` 更新响应式状态；覆盖 `tests/e2e/real-example-acceptance.test.ts`。
+- [x] 真实示例 swiper 原生 change 覆盖：`pages/profile.vue` 使用微信原生 `<swiper :current @change>` 与静态 `swiper-item`，验收产物输出 `current="{{swiperIndex}}"` 与 `bind:change="handleSwiperChange"`，当前页继续通过 `event.detail.current` 更新响应式状态；覆盖 `tests/e2e/real-example-acceptance.test.ts`。
 - [x] 真实示例 form 原生 submit/reset 覆盖：`pages/profile.vue` 使用 Vue 源侧 `<form @submit @reset>` 与微信原生 `button form-type="submit/reset"`，验收产物输出 `form bind:submit="handleProfileSubmit"` / `bind:reset="handleProfileReset"`，提交值继续通过 `event.detail.value` 更新响应式表单快照，reset 清空页面可见输入状态；覆盖 `tests/e2e/real-example-acceptance.test.ts`。
 - [x] 真实示例生命周期映射覆盖：验收应用 `onMounted -> App.onLaunch`、页面 `onMounted -> onReady`，并在 `UserCard` 中覆盖组件 `onMounted/onUnmounted -> lifetimes.attached/detached`，继续使用微信原生生命周期而不引入伪 runtime；覆盖 `tests/e2e/real-example-acceptance.test.ts` 与 `tests/compiler/mini-program-options-generator.test.ts`。
 - [x] 真实示例 DevTools opt-in 冒烟脚本：新增 `pnpm test:real-devtools`，默认跳过真实 GUI 调用，显式设置 `FUCKMP_REAL_DEVTOOLS_SMOKE=1` 后先编译 `examples/real-miniprogram` 再调用微信开发者工具 `cli auto`；覆盖 `tests/scripts/real-miniprogram-devtools-smoke.test.ts`。

@@ -57,6 +57,24 @@
       </scroll-view>
     </view>
 
+    <view class="swiper-card">
+      <text class="preference-label">轮播验收</text>
+      <text class="swiper-index">当前页：{{ swiperIndex }}</text>
+      <swiper
+        class="profile-swiper"
+        indicator-dots="true"
+        :current="swiperIndex"
+        @change="handleSwiperChange"
+      >
+        <swiper-item>
+          <view class="swiper-panel primary-panel">原生 swiper 第一页</view>
+        </swiper-item>
+        <swiper-item>
+          <view class="swiper-panel secondary-panel">原生 swiper 第二页</view>
+        </swiper-item>
+      </swiper>
+    </view>
+
     <view class="preference-row">
       <text class="preference-label">接收验收提醒</text>
       <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
@@ -193,6 +211,12 @@ interface MiniScrollEvent {
   }
 }
 
+interface MiniSwiperChangeEvent {
+  detail: {
+    current: number
+  }
+}
+
 const profileTitle = ref('资料页')
 const profileName = ref('示例用户')
 const profileRole = ref('真实验收')
@@ -211,6 +235,7 @@ const capturePhase = ref('idle')
 const scrollItems = ref(['资料概览', '偏好设置', '通知渠道', '提交资料'])
 const scrollStatus = ref('idle')
 const scrollTop = ref(0)
+const swiperIndex = ref(0)
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
@@ -286,6 +311,11 @@ const handleScrollToLower = () => {
 const handleProfileScroll = (event: MiniScrollEvent) => {
   scrollStatus.value = 'scroll'
   scrollTop.value = event.detail.scrollTop
+}
+
+/** 验收 swiper change 事件读取微信原生 event.detail.current。 */
+const handleSwiperChange = (event: MiniSwiperChangeEvent) => {
+  swiperIndex.value = event.detail.current
 }
 
 const handleBioInput = (event: MiniTextareaInputEvent) => {
@@ -446,6 +476,44 @@ const handleProfileReset = () => {
   color: $text-color;
   margin-bottom: 8rpx;
   padding: 18rpx;
+}
+
+.swiper-card {
+  background: rgba($primary-color, 0.06);
+  border-radius: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  padding: 20rpx;
+}
+
+.swiper-index {
+  color: $primary-color;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.profile-swiper {
+  height: 180rpx;
+}
+
+.swiper-panel {
+  align-items: center;
+  border-radius: 12rpx;
+  color: #ffffff;
+  display: flex;
+  font-size: 26rpx;
+  font-weight: 600;
+  height: 180rpx;
+  justify-content: center;
+}
+
+.primary-panel {
+  background: $primary-color;
+}
+
+.secondary-panel {
+  background: #5f6b82;
 }
 
 .bio-input {
