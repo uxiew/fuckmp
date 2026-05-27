@@ -41,6 +41,22 @@
       <text class="capture-text">{{ capturePhase }}</text>
     </view>
 
+    <view class="scroll-card">
+      <text class="preference-label">滚动验收</text>
+      <text class="scroll-status">阶段：{{ scrollStatus }} · scrollTop：{{ scrollTop }}</text>
+      <scroll-view
+        class="scroll-box"
+        scroll-y="true"
+        @scrolltoupper="handleScrollToUpper"
+        @scrolltolower="handleScrollToLower"
+        @scroll="handleProfileScroll"
+      >
+        <view v-for="item in scrollItems" :key="item" class="scroll-row">
+          <text>{{ item }}</text>
+        </view>
+      </scroll-view>
+    </view>
+
     <view class="preference-row">
       <text class="preference-label">接收验收提醒</text>
       <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
@@ -171,6 +187,12 @@ interface MiniFormSubmitEvent {
   }
 }
 
+interface MiniScrollEvent {
+  detail: {
+    scrollTop: number
+  }
+}
+
 const profileTitle = ref('资料页')
 const profileName = ref('示例用户')
 const profileRole = ref('真实验收')
@@ -186,6 +208,9 @@ const selectedChannels = ref(['email'])
 const formSnapshot = ref({ bio: '' })
 const touchPhase = ref('idle')
 const capturePhase = ref('idle')
+const scrollItems = ref(['资料概览', '偏好设置', '通知渠道', '提交资料'])
+const scrollStatus = ref('idle')
+const scrollTop = ref(0)
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
@@ -245,6 +270,22 @@ const handleCaptureTap = () => {
 /** 验收 click.capture.stop 事件会映射为微信原生 capture-catch:tap。 */
 const handleCaptureStopTap = () => {
   capturePhase.value = 'capture-stop'
+}
+
+/** 验收 scrolltoupper 事件会映射为微信原生 bind:scrolltoupper。 */
+const handleScrollToUpper = () => {
+  scrollStatus.value = 'upper'
+}
+
+/** 验收 scrolltolower 事件会映射为微信原生 bind:scrolltolower。 */
+const handleScrollToLower = () => {
+  scrollStatus.value = 'lower'
+}
+
+/** 验收 scroll 事件读取微信原生 event.detail.scrollTop。 */
+const handleProfileScroll = (event: MiniScrollEvent) => {
+  scrollStatus.value = 'scroll'
+  scrollTop.value = event.detail.scrollTop
 }
 
 const handleBioInput = (event: MiniTextareaInputEvent) => {
@@ -378,6 +419,33 @@ const handleProfileReset = () => {
   color: $primary-color;
   font-size: 24rpx;
   font-weight: 600;
+}
+
+.scroll-card {
+  background: #f8fbff;
+  border-radius: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  padding: 20rpx;
+}
+
+.scroll-status {
+  color: $primary-color;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.scroll-box {
+  height: 160rpx;
+}
+
+.scroll-row {
+  background: #ffffff;
+  border-radius: 8rpx;
+  color: $text-color;
+  margin-bottom: 8rpx;
+  padding: 18rpx;
 }
 
 .bio-input {
