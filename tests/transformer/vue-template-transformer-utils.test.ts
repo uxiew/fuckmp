@@ -108,6 +108,22 @@ describe('vue-template-transformer-utils', () => {
     expect([...result.eventHandlers.keys()]).toEqual(['handleMessage'])
   })
 
+  it('转换 Vue AST 事件 capture.stop 组合修饰符为微信原生 capture-catch 绑定', () => {
+    const context = createScriptTransformContext('components/card.vue', false)
+    const result = createResult()
+
+    const output = transformVueTemplateElementNode({
+      tag: 'button',
+      props: [
+        { type: 7, name: 'on', arg: { content: 'tap' }, exp: { content: 'handleCaptureStop' }, modifiers: ['capture', 'stop'] }
+      ],
+      children: [{ content: 'Capture Stop' }]
+    }, result, context, child => child.content)
+
+    expect(output).toBe('<button capture-catch:tap="handleCaptureStop">Capture Stop</button>')
+    expect([...result.eventHandlers.keys()]).toEqual(['handleCaptureStop'])
+  })
+
   it('标记自定义组件直传事件 handler 使用 event.detail payload', () => {
     const context = createScriptTransformContext('pages/index.vue', true)
     const result = createResult()

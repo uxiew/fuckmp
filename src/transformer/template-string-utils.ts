@@ -77,7 +77,15 @@ export function transformVOnDirective(directive: TemplateDirectiveLike): Record<
   const handler = directive.expression
   const modifiers = directive.modifiers || []
   const mappedEvent = eventName ? mapAstEventName(eventName) : ''
-  const bindType = modifiers.includes('capture') ? 'capture-bind:' : 'bind:'
+  const hasCapture = modifiers.includes('capture')
+  const hasStop = modifiers.includes('stop')
+  const bindType = hasCapture && hasStop
+    ? 'capture-catch:'
+    : hasCapture
+      ? 'capture-bind:'
+      : hasStop
+        ? 'catch:'
+        : 'bind:'
 
   return {
     [`${bindType}${mappedEvent}`]: handler

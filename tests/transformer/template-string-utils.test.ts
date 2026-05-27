@@ -75,6 +75,9 @@ describe('template-string-utils', () => {
     expect(transformVOnDirective({ arg: 'touchstart', expression: 'start', modifiers: ['capture'] })).toEqual({
       'capture-bind:touchstart': 'start'
     })
+    expect(transformVOnDirective({ arg: 'click', expression: 'captureStop', modifiers: ['capture', 'stop'] })).toEqual({
+      'capture-catch:tap': 'captureStop'
+    })
   })
 
   it('验证 WXML 转换结果边界', () => {

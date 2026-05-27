@@ -198,8 +198,12 @@ export function transformVueTemplateEventHandler(
  * 根据 Vue 事件修饰符选择微信原生事件绑定前缀。
  */
 function getVueTemplateEventBindingPrefix(modifiers: string[]): string {
-  if (modifiers.includes('stop')) return 'catch:'
-  if (modifiers.includes('capture')) return 'capture-bind:'
+  const hasCapture = modifiers.includes('capture')
+  const hasStop = modifiers.includes('stop')
+
+  if (hasCapture && hasStop) return 'capture-catch:'
+  if (hasCapture) return 'capture-bind:'
+  if (hasStop) return 'catch:'
   return 'bind:'
 }
 

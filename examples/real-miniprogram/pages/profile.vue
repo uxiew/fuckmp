@@ -35,6 +35,11 @@
       <text class="capture-text">{{ capturePhase }}</text>
     </view>
 
+    <view class="capture-stop-card" @click.capture.stop="handleCaptureStopTap">
+      <text class="preference-label">捕获阻止验收</text>
+      <text class="capture-text">{{ capturePhase }}</text>
+    </view>
+
     <view class="preference-row">
       <text class="preference-label">接收验收提醒</text>
       <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
@@ -231,6 +236,11 @@ const handleCaptureTap = () => {
   capturePhase.value = 'captured'
 }
 
+/** 验收 click.capture.stop 事件会映射为微信原生 capture-catch:tap。 */
+const handleCaptureStopTap = () => {
+  capturePhase.value = 'capture-stop'
+}
+
 const handleBioInput = (event: MiniTextareaInputEvent) => {
   bioDraft.value = event.detail.value
 }
@@ -340,6 +350,16 @@ const handleProfileReset = () => {
 
 .capture-card {
   background: #f8fbff;
+  border: 1rpx solid rgba($primary-color, 0.16);
+  border-radius: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  padding: 20rpx;
+}
+
+.capture-stop-card {
+  background: #fff8f2;
   border: 1rpx solid rgba($primary-color, 0.16);
   border-radius: 12rpx;
   display: flex;

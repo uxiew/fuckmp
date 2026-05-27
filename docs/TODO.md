@@ -1,6 +1,6 @@
 # TODO / 当前支持状态
 
-更新时间：2026-05-26
+更新时间：2026-05-27
 
 ## 当前已验证
 
@@ -103,6 +103,7 @@
 - [x] 真实示例 input 原生事件覆盖：`pages/profile.vue` 使用 Vue 源侧 `<input :value @input @focus @blur>`，验收产物输出微信原生 `value="{{profileName}}"`、`bind:input`、`bind:focus` 与 `bind:blur`，输入值继续通过 `event.detail.value` 更新响应式状态；覆盖 `tests/e2e/real-example-acceptance.test.ts`。
 - [x] 真实示例 touch/longpress 原生事件覆盖：`pages/profile.vue` 使用 Vue 源侧 `@touchstart/@touchmove/@touchend/@touchcancel/@longpress`，验收产物输出微信原生 `bind:touchstart`、`bind:touchmove`、`bind:touchend`、`bind:touchcancel` 与 `bind:longpress`，触摸阶段继续通过页面响应式状态展示；覆盖 `tests/e2e/real-example-acceptance.test.ts`。
 - [x] 真实示例 `.capture` 事件修饰符覆盖：`pages/profile.vue` 使用 Vue 源侧 `@click.capture`，验收产物输出微信原生 `capture-bind:tap="handleCaptureTap"`，捕获阶段继续通过页面响应式状态展示；覆盖 `tests/e2e/real-example-acceptance.test.ts`。
+- [x] 真实示例 `.capture.stop` 事件修饰符覆盖：`pages/profile.vue` 使用 Vue 源侧 `@click.capture.stop`，验收产物输出微信原生 `capture-catch:tap="handleCaptureStopTap"`，捕获阻止冒泡阶段继续通过页面响应式状态展示；覆盖 `tests/e2e/real-example-acceptance.test.ts`、`tests/transformer/vue-template-transformer-utils.test.ts` 与 `tests/transformer/template-string-utils.test.ts`。
 - [x] 真实示例 textarea 原生事件覆盖：`pages/profile.vue` 使用 Vue 源侧 `@input` / `@focus` / `@blur`，验收产物输出微信原生 `bind:input` / `bind:focus` / `bind:blur`，输入值继续通过 `event.detail.value` 更新响应式状态；覆盖 `tests/e2e/real-example-acceptance.test.ts`。
 - [x] 真实示例 switch 原生 change 覆盖：`pages/profile.vue` 使用 Vue 源侧 `:checked` / `@change`，验收产物输出微信原生 `checked="{{emailOptIn}}"` 与 `bind:change="handleEmailOptInChange"`，布尔值继续通过 `event.detail.value` 更新响应式状态；覆盖 `tests/e2e/real-example-acceptance.test.ts`。
 - [x] 真实示例 picker 原生 change 覆盖：`pages/profile.vue` 使用 Vue 源侧 `:value` / `:range` / `@change`，验收产物输出微信原生 `value="{{themeIndex}}"`、`range="{{themeOptions}}"` 与 `bind:change="handleThemeChange"`，选择索引继续通过 `event.detail.value` 更新响应式状态；覆盖 `tests/e2e/real-example-acceptance.test.ts`。
