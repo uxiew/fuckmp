@@ -24,6 +24,7 @@
       @touchmove="handleTouchMove"
       @touchend="handleTouchEnd"
       @touchcancel="handleTouchCancel"
+      @longtap="handleLongTap"
       @longpress="handleLongPress"
     >
       <text class="preference-label">触摸验收</text>
@@ -224,6 +225,11 @@ const handleTouchEnd = () => {
 /** 验收 touchcancel 事件会映射为微信原生 bind:touchcancel。 */
 const handleTouchCancel = () => {
   touchPhase.value = 'cancel'
+}
+
+/** 验收 longtap 事件会映射为微信原生 bind:longtap。 */
+const handleLongTap = () => {
+  touchPhase.value = 'longtap'
 }
 
 /** 验收 longpress 事件会映射为微信原生 bind:longpress。 */
