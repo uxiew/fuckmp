@@ -1,7 +1,12 @@
 <template>
   <view class="user-card shared-card" :class="{ active: active }" @click="handleClick">
     <view class="avatar">
-      <img class="avatar-image" :src="user.avatarUrl" />
+      <img
+        class="avatar-image"
+        :src="user.avatarUrl"
+        @load="handleAvatarLoad"
+        @error="handleAvatarError"
+      />
     </view>
     <view class="content">
       <text class="name">{{ user.name }}</text>
@@ -41,6 +46,16 @@ const handleClick = () => {
 
 const handleMessage = () => {
   emit('sendMessage', props.user)
+}
+
+/** 验收 image load 事件会映射为微信原生 bind:load。 */
+const handleAvatarLoad = () => {
+  console.log('avatar loaded', props.user.avatarUrl)
+}
+
+/** 验收 image error 事件会映射为微信原生 bind:error。 */
+const handleAvatarError = () => {
+  console.log('avatar load failed', props.user.avatarUrl)
 }
 
 onMounted(() => {
