@@ -30,6 +30,11 @@
       <text class="touch-text">{{ touchPhase }}</text>
     </view>
 
+    <view class="capture-card" @click.capture="handleCaptureTap">
+      <text class="preference-label">捕获验收</text>
+      <text class="capture-text">{{ capturePhase }}</text>
+    </view>
+
     <view class="preference-row">
       <text class="preference-label">接收验收提醒</text>
       <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
@@ -174,6 +179,7 @@ const contactMethod = ref('email')
 const selectedChannels = ref(['email'])
 const formSnapshot = ref({ bio: '' })
 const touchPhase = ref('idle')
+const capturePhase = ref('idle')
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
@@ -218,6 +224,11 @@ const handleTouchCancel = () => {
 /** 验收 longpress 事件会映射为微信原生 bind:longpress。 */
 const handleLongPress = () => {
   touchPhase.value = 'longpress'
+}
+
+/** 验收 click.capture 事件会映射为微信原生 capture-bind:tap。 */
+const handleCaptureTap = () => {
+  capturePhase.value = 'captured'
 }
 
 const handleBioInput = (event: MiniTextareaInputEvent) => {
@@ -322,6 +333,22 @@ const handleProfileReset = () => {
 }
 
 .touch-text {
+  color: $primary-color;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.capture-card {
+  background: #f8fbff;
+  border: 1rpx solid rgba($primary-color, 0.16);
+  border-radius: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  padding: 20rpx;
+}
+
+.capture-text {
   color: $primary-color;
   font-size: 24rpx;
   font-weight: 600;
