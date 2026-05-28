@@ -89,6 +89,24 @@
       />
     </view>
 
+    <view class="movable-card">
+      <text class="preference-label">拖拽验收</text>
+      <text class="movable-status">位置：{{ movableX }}, {{ movableY }} · 缩放：{{ movableScale }}</text>
+      <movable-area class="movable-area">
+        <movable-view
+          class="movable-handle"
+          :x="movableX"
+          :y="movableY"
+          direction="all"
+          scale="true"
+          @change="handleMovableChange"
+          @scale="handleMovableScale"
+        >
+          拖拽
+        </movable-view>
+      </movable-area>
+    </view>
+
     <view class="preference-row">
       <text class="preference-label">接收验收提醒</text>
       <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
@@ -237,6 +255,19 @@ interface MiniVideoTimeUpdateEvent {
   }
 }
 
+interface MiniMovableChangeEvent {
+  detail: {
+    x: number
+    y: number
+  }
+}
+
+interface MiniMovableScaleEvent {
+  detail: {
+    scale: number
+  }
+}
+
 const profileTitle = ref('资料页')
 const profileName = ref('示例用户')
 const profileRole = ref('真实验收')
@@ -259,6 +290,9 @@ const swiperIndex = ref(0)
 const profileVideoSrc = ref('https://media.w3.org/2010/05/sintel/trailer.mp4')
 const videoStatus = ref('idle')
 const videoCurrentTime = ref(0)
+const movableX = ref(0)
+const movableY = ref(0)
+const movableScale = ref(1)
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
@@ -359,6 +393,17 @@ const handleVideoEnded = () => {
 /** 验收 video timeupdate 事件读取微信原生 event.detail.currentTime。 */
 const handleVideoTimeUpdate = (event: MiniVideoTimeUpdateEvent) => {
   videoCurrentTime.value = event.detail.currentTime
+}
+
+/** 验收 movable-view change 事件读取微信原生 event.detail.x/y。 */
+const handleMovableChange = (event: MiniMovableChangeEvent) => {
+  movableX.value = event.detail.x
+  movableY.value = event.detail.y
+}
+
+/** 验收 movable-view scale 事件读取微信原生 event.detail.scale。 */
+const handleMovableScale = (event: MiniMovableScaleEvent) => {
+  movableScale.value = event.detail.scale
 }
 
 const handleBioInput = (event: MiniTextareaInputEvent) => {
@@ -579,6 +624,40 @@ const handleProfileReset = () => {
   height: 220rpx;
   overflow: hidden;
   width: 100%;
+}
+
+.movable-card {
+  background: rgba($primary-color, 0.06);
+  border-radius: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  padding: 20rpx;
+}
+
+.movable-status {
+  color: $primary-color;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.movable-area {
+  background: #eef2f8;
+  border-radius: 12rpx;
+  height: 180rpx;
+  width: 100%;
+}
+
+.movable-handle {
+  align-items: center;
+  background: $primary-color;
+  border-radius: 50%;
+  color: #ffffff;
+  display: flex;
+  font-size: 24rpx;
+  height: 96rpx;
+  justify-content: center;
+  width: 96rpx;
 }
 
 .bio-input {
