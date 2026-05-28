@@ -75,6 +75,20 @@
       </swiper>
     </view>
 
+    <view class="video-card">
+      <text class="preference-label">视频验收</text>
+      <text class="video-status">状态：{{ videoStatus }} · {{ videoCurrentTime }}s</text>
+      <video
+        class="profile-video"
+        :src="profileVideoSrc"
+        controls="true"
+        @play="handleVideoPlay"
+        @pause="handleVideoPause"
+        @ended="handleVideoEnded"
+        @timeupdate="handleVideoTimeUpdate"
+      />
+    </view>
+
     <view class="preference-row">
       <text class="preference-label">接收验收提醒</text>
       <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
@@ -217,6 +231,12 @@ interface MiniSwiperChangeEvent {
   }
 }
 
+interface MiniVideoTimeUpdateEvent {
+  detail: {
+    currentTime: number
+  }
+}
+
 const profileTitle = ref('资料页')
 const profileName = ref('示例用户')
 const profileRole = ref('真实验收')
@@ -236,6 +256,9 @@ const scrollItems = ref(['资料概览', '偏好设置', '通知渠道', '提交
 const scrollStatus = ref('idle')
 const scrollTop = ref(0)
 const swiperIndex = ref(0)
+const profileVideoSrc = ref('https://media.w3.org/2010/05/sintel/trailer.mp4')
+const videoStatus = ref('idle')
+const videoCurrentTime = ref(0)
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
@@ -316,6 +339,26 @@ const handleProfileScroll = (event: MiniScrollEvent) => {
 /** 验收 swiper change 事件读取微信原生 event.detail.current。 */
 const handleSwiperChange = (event: MiniSwiperChangeEvent) => {
   swiperIndex.value = event.detail.current
+}
+
+/** 验收 video play 事件会映射为微信原生 bind:play。 */
+const handleVideoPlay = () => {
+  videoStatus.value = 'playing'
+}
+
+/** 验收 video pause 事件会映射为微信原生 bind:pause。 */
+const handleVideoPause = () => {
+  videoStatus.value = 'paused'
+}
+
+/** 验收 video ended 事件会映射为微信原生 bind:ended。 */
+const handleVideoEnded = () => {
+  videoStatus.value = 'ended'
+}
+
+/** 验收 video timeupdate 事件读取微信原生 event.detail.currentTime。 */
+const handleVideoTimeUpdate = (event: MiniVideoTimeUpdateEvent) => {
+  videoCurrentTime.value = event.detail.currentTime
 }
 
 const handleBioInput = (event: MiniTextareaInputEvent) => {
@@ -514,6 +557,28 @@ const handleProfileReset = () => {
 
 .secondary-panel {
   background: #5f6b82;
+}
+
+.video-card {
+  background: #f8fbff;
+  border-radius: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  padding: 20rpx;
+}
+
+.video-status {
+  color: $primary-color;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.profile-video {
+  border-radius: 12rpx;
+  height: 220rpx;
+  overflow: hidden;
+  width: 100%;
 }
 
 .bio-input {
