@@ -107,6 +107,20 @@
       </movable-area>
     </view>
 
+    <view class="cover-card">
+      <text class="preference-label">覆盖层验收</text>
+      <text class="cover-status">状态：{{ coverStatus }}</text>
+      <cover-view class="cover-layer" @tap="handleCoverTap">
+        <cover-image
+          class="cover-image"
+          :src="coverImageSrc"
+          @load="handleCoverImageLoad"
+          @error="handleCoverImageError"
+        />
+        <cover-view class="cover-label">cover-view tap</cover-view>
+      </cover-view>
+    </view>
+
     <view class="preference-row">
       <text class="preference-label">接收验收提醒</text>
       <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
@@ -293,6 +307,8 @@ const videoCurrentTime = ref(0)
 const movableX = ref(0)
 const movableY = ref(0)
 const movableScale = ref(1)
+const coverImageSrc = ref('/images/avatar-zhangsan.png')
+const coverStatus = ref('idle')
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
@@ -404,6 +420,21 @@ const handleMovableChange = (event: MiniMovableChangeEvent) => {
 /** 验收 movable-view scale 事件读取微信原生 event.detail.scale。 */
 const handleMovableScale = (event: MiniMovableScaleEvent) => {
   movableScale.value = event.detail.scale
+}
+
+/** 验收 cover-view tap 事件会映射为微信原生 bind:tap。 */
+const handleCoverTap = () => {
+  coverStatus.value = 'tapped'
+}
+
+/** 验收 cover-image load 事件会映射为微信原生 bind:load。 */
+const handleCoverImageLoad = () => {
+  coverStatus.value = 'loaded'
+}
+
+/** 验收 cover-image error 事件会映射为微信原生 bind:error。 */
+const handleCoverImageError = () => {
+  coverStatus.value = 'error'
 }
 
 const handleBioInput = (event: MiniTextareaInputEvent) => {
@@ -658,6 +689,41 @@ const handleProfileReset = () => {
   height: 96rpx;
   justify-content: center;
   width: 96rpx;
+}
+
+.cover-card {
+  background: #f8fbff;
+  border-radius: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  padding: 20rpx;
+}
+
+.cover-status {
+  color: $primary-color;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.cover-layer {
+  align-items: center;
+  background: rgba($primary-color, 0.12);
+  border-radius: 12rpx;
+  display: flex;
+  gap: 12rpx;
+  padding: 16rpx;
+}
+
+.cover-image {
+  height: 64rpx;
+  width: 64rpx;
+}
+
+.cover-label {
+  color: $text-color;
+  font-size: 24rpx;
+  font-weight: 600;
 }
 
 .bio-input {
