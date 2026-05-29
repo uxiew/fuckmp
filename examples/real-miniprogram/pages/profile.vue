@@ -163,6 +163,24 @@
       ></camera>
     </view>
 
+    <view class="live-player-card">
+      <text class="preference-label">直播播放验收</text>
+      <text class="live-player-status">状态：{{ livePlayerStatus }}</text>
+      <live-player
+        class="profile-live-player"
+        :src="livePlayerSrc"
+        mode="live"
+        autoplay="false"
+        muted="true"
+        orientation="vertical"
+        object-fit="contain"
+        @statechange="handleLivePlayerStateChange"
+        @fullscreenchange="handleLivePlayerFullscreenChange"
+        @netstatus="handleLivePlayerNetStatus"
+        @error="handleLivePlayerError"
+      ></live-player>
+    </view>
+
     <view class="preference-row">
       <text class="preference-label">接收验收提醒</text>
       <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
@@ -342,6 +360,24 @@ interface MiniCameraScanCodeEvent {
   }
 }
 
+interface MiniLivePlayerStateChangeEvent {
+  detail: {
+    code: number
+  }
+}
+
+interface MiniLivePlayerFullscreenChangeEvent {
+  detail: {
+    fullScreen: boolean
+  }
+}
+
+interface MiniLivePlayerNetStatusEvent {
+  detail: {
+    videoBitrate: number
+  }
+}
+
 const profileTitle = ref('资料页')
 const profileName = ref('示例用户')
 const profileRole = ref('真实验收')
@@ -383,6 +419,8 @@ const mapMarkers = ref([
 ])
 const mapStatus = ref('idle')
 const cameraStatus = ref('idle')
+const livePlayerSrc = ref('rtmp://example.com/live/profile-demo')
+const livePlayerStatus = ref('idle')
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
@@ -544,6 +582,26 @@ const handleCameraScanCode = (event: MiniCameraScanCodeEvent) => {
 /** 验收 camera stop 事件会映射为微信原生 bind:stop。 */
 const handleCameraStop = () => {
   cameraStatus.value = 'stop'
+}
+
+/** 验收 live-player statechange 事件读取微信原生 event.detail.code。 */
+const handleLivePlayerStateChange = (event: MiniLivePlayerStateChangeEvent) => {
+  livePlayerStatus.value = `state:${event.detail.code}`
+}
+
+/** 验收 live-player fullscreenchange 事件读取微信原生 event.detail.fullScreen。 */
+const handleLivePlayerFullscreenChange = (event: MiniLivePlayerFullscreenChangeEvent) => {
+  livePlayerStatus.value = `fullscreen:${event.detail.fullScreen}`
+}
+
+/** 验收 live-player netstatus 事件读取微信原生 event.detail.videoBitrate。 */
+const handleLivePlayerNetStatus = (event: MiniLivePlayerNetStatusEvent) => {
+  livePlayerStatus.value = `net:${event.detail.videoBitrate}`
+}
+
+/** 验收 live-player error 事件会映射为微信原生 bind:error。 */
+const handleLivePlayerError = () => {
+  livePlayerStatus.value = 'error'
 }
 
 const handleBioInput = (event: MiniTextareaInputEvent) => {
@@ -895,6 +953,28 @@ const handleProfileReset = () => {
 }
 
 .profile-camera {
+  border-radius: 12rpx;
+  height: 220rpx;
+  overflow: hidden;
+  width: 100%;
+}
+
+.live-player-card {
+  background: #f8fbff;
+  border-radius: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  padding: 20rpx;
+}
+
+.live-player-status {
+  color: $primary-color;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.profile-live-player {
   border-radius: 12rpx;
   height: 220rpx;
   overflow: hidden;
