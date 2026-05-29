@@ -121,6 +121,17 @@
       </cover-view>
     </view>
 
+    <view class="canvas-card">
+      <text class="preference-label">画布验收</text>
+      <text class="canvas-status">状态：{{ canvasStatus }}</text>
+      <canvas
+        class="profile-canvas"
+        canvas-id="profileCanvas"
+        type="2d"
+        @error="handleCanvasError"
+      ></canvas>
+    </view>
+
     <view class="preference-row">
       <text class="preference-label">接收验收提醒</text>
       <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
@@ -309,6 +320,7 @@ const movableY = ref(0)
 const movableScale = ref(1)
 const coverImageSrc = ref('/images/avatar-zhangsan.png')
 const coverStatus = ref('idle')
+const canvasStatus = ref('idle')
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
@@ -435,6 +447,11 @@ const handleCoverImageLoad = () => {
 /** 验收 cover-image error 事件会映射为微信原生 bind:error。 */
 const handleCoverImageError = () => {
   coverStatus.value = 'error'
+}
+
+/** 验收 canvas error 事件会映射为微信原生 bind:error。 */
+const handleCanvasError = () => {
+  canvasStatus.value = 'error'
 }
 
 const handleBioInput = (event: MiniTextareaInputEvent) => {
@@ -724,6 +741,28 @@ const handleProfileReset = () => {
   color: $text-color;
   font-size: 24rpx;
   font-weight: 600;
+}
+
+.canvas-card {
+  background: rgba($primary-color, 0.06);
+  border-radius: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  padding: 20rpx;
+}
+
+.canvas-status {
+  color: $primary-color;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.profile-canvas {
+  background: #ffffff;
+  border-radius: 12rpx;
+  height: 160rpx;
+  width: 100%;
 }
 
 .bio-input {
