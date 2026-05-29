@@ -181,6 +181,24 @@
       ></live-player>
     </view>
 
+    <view class="live-pusher-card">
+      <text class="preference-label">直播推流验收</text>
+      <text class="live-pusher-status">状态：{{ livePusherStatus }}</text>
+      <live-pusher
+        class="profile-live-pusher"
+        :url="livePusherUrl"
+        mode="RTC"
+        autopush="false"
+        muted="true"
+        enable-camera="true"
+        auto-focus="true"
+        aspect="9:16"
+        @statechange="handleLivePusherStateChange"
+        @netstatus="handleLivePusherNetStatus"
+        @error="handleLivePusherError"
+      ></live-pusher>
+    </view>
+
     <view class="preference-row">
       <text class="preference-label">接收验收提醒</text>
       <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
@@ -378,6 +396,18 @@ interface MiniLivePlayerNetStatusEvent {
   }
 }
 
+interface MiniLivePusherStateChangeEvent {
+  detail: {
+    code: number
+  }
+}
+
+interface MiniLivePusherNetStatusEvent {
+  detail: {
+    videoBitrate: number
+  }
+}
+
 const profileTitle = ref('资料页')
 const profileName = ref('示例用户')
 const profileRole = ref('真实验收')
@@ -421,6 +451,8 @@ const mapStatus = ref('idle')
 const cameraStatus = ref('idle')
 const livePlayerSrc = ref('rtmp://example.com/live/profile-demo')
 const livePlayerStatus = ref('idle')
+const livePusherUrl = ref('rtmp://example.com/live/profile-upload')
+const livePusherStatus = ref('idle')
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
@@ -602,6 +634,21 @@ const handleLivePlayerNetStatus = (event: MiniLivePlayerNetStatusEvent) => {
 /** 验收 live-player error 事件会映射为微信原生 bind:error。 */
 const handleLivePlayerError = () => {
   livePlayerStatus.value = 'error'
+}
+
+/** 验收 live-pusher statechange 事件读取微信原生 event.detail.code。 */
+const handleLivePusherStateChange = (event: MiniLivePusherStateChangeEvent) => {
+  livePusherStatus.value = `state:${event.detail.code}`
+}
+
+/** 验收 live-pusher netstatus 事件读取微信原生 event.detail.videoBitrate。 */
+const handleLivePusherNetStatus = (event: MiniLivePusherNetStatusEvent) => {
+  livePusherStatus.value = `net:${event.detail.videoBitrate}`
+}
+
+/** 验收 live-pusher error 事件会映射为微信原生 bind:error。 */
+const handleLivePusherError = () => {
+  livePusherStatus.value = 'error'
 }
 
 const handleBioInput = (event: MiniTextareaInputEvent) => {
@@ -975,6 +1022,28 @@ const handleProfileReset = () => {
 }
 
 .profile-live-player {
+  border-radius: 12rpx;
+  height: 220rpx;
+  overflow: hidden;
+  width: 100%;
+}
+
+.live-pusher-card {
+  background: rgba($primary-color, 0.06);
+  border-radius: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  padding: 20rpx;
+}
+
+.live-pusher-status {
+  color: $primary-color;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.profile-live-pusher {
   border-radius: 12rpx;
   height: 220rpx;
   overflow: hidden;
