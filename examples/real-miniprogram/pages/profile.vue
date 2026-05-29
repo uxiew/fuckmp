@@ -147,6 +147,22 @@
       ></map>
     </view>
 
+    <view class="camera-card">
+      <text class="preference-label">相机验收</text>
+      <text class="camera-status">状态：{{ cameraStatus }}</text>
+      <camera
+        class="profile-camera"
+        mode="scanCode"
+        resolution="medium"
+        device-position="back"
+        flash="off"
+        @error="handleCameraError"
+        @initdone="handleCameraInitDone"
+        @scancode="handleCameraScanCode"
+        @stop="handleCameraStop"
+      ></camera>
+    </view>
+
     <view class="preference-row">
       <text class="preference-label">接收验收提醒</text>
       <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
@@ -320,6 +336,12 @@ interface MiniMapRegionChangeEvent {
   }
 }
 
+interface MiniCameraScanCodeEvent {
+  detail: {
+    result: string
+  }
+}
+
 const profileTitle = ref('资料页')
 const profileName = ref('示例用户')
 const profileRole = ref('真实验收')
@@ -360,6 +382,7 @@ const mapMarkers = ref([
   }
 ])
 const mapStatus = ref('idle')
+const cameraStatus = ref('idle')
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
@@ -501,6 +524,26 @@ const handleMapMarkerTap = (event: MiniMapMarkerTapEvent) => {
 /** 验收 map regionchange 事件读取微信原生 event.detail.type。 */
 const handleMapRegionChange = (event: MiniMapRegionChangeEvent) => {
   mapStatus.value = `region:${event.detail.type}`
+}
+
+/** 验收 camera error 事件会映射为微信原生 bind:error。 */
+const handleCameraError = () => {
+  cameraStatus.value = 'error'
+}
+
+/** 验收 camera initdone 事件会映射为微信原生 bind:initdone。 */
+const handleCameraInitDone = () => {
+  cameraStatus.value = 'initdone'
+}
+
+/** 验收 camera scancode 事件读取微信原生 event.detail.result。 */
+const handleCameraScanCode = (event: MiniCameraScanCodeEvent) => {
+  cameraStatus.value = `scan:${event.detail.result}`
+}
+
+/** 验收 camera stop 事件会映射为微信原生 bind:stop。 */
+const handleCameraStop = () => {
+  cameraStatus.value = 'stop'
 }
 
 const handleBioInput = (event: MiniTextareaInputEvent) => {
@@ -830,6 +873,28 @@ const handleProfileReset = () => {
 }
 
 .profile-map {
+  border-radius: 12rpx;
+  height: 220rpx;
+  overflow: hidden;
+  width: 100%;
+}
+
+.camera-card {
+  background: rgba($primary-color, 0.06);
+  border-radius: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  padding: 20rpx;
+}
+
+.camera-status {
+  color: $primary-color;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.profile-camera {
   border-radius: 12rpx;
   height: 220rpx;
   overflow: hidden;
