@@ -199,6 +199,24 @@
       ></live-pusher>
     </view>
 
+    <view class="editor-card">
+      <text class="preference-label">富文本编辑验收</text>
+      <text class="editor-status">状态：{{ editorStatus }}</text>
+      <editor
+        class="profile-editor"
+        placeholder="请输入富文本资料"
+        :read-only="editorReadOnly"
+        show-img-size="true"
+        show-img-toolbar="true"
+        show-img-resize="true"
+        @ready="handleEditorReady"
+        @focus="handleEditorFocus"
+        @blur="handleEditorBlur"
+        @input="handleEditorInput"
+        @statuschange="handleEditorStatusChange"
+      ></editor>
+    </view>
+
     <view class="preference-row">
       <text class="preference-label">接收验收提醒</text>
       <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
@@ -408,6 +426,20 @@ interface MiniLivePusherNetStatusEvent {
   }
 }
 
+interface MiniEditorInputEvent {
+  detail: {
+    html: string
+  }
+}
+
+interface MiniEditorStatusChangeEvent {
+  detail: {
+    formats: {
+      bold?: boolean
+    }
+  }
+}
+
 const profileTitle = ref('资料页')
 const profileName = ref('示例用户')
 const profileRole = ref('真实验收')
@@ -453,6 +485,9 @@ const livePlayerSrc = ref('rtmp://example.com/live/profile-demo')
 const livePlayerStatus = ref('idle')
 const livePusherUrl = ref('rtmp://example.com/live/profile-upload')
 const livePusherStatus = ref('idle')
+const editorReadOnly = ref(false)
+const editorStatus = ref('idle')
+const editorHtml = ref('')
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
@@ -649,6 +684,31 @@ const handleLivePusherNetStatus = (event: MiniLivePusherNetStatusEvent) => {
 /** 验收 live-pusher error 事件会映射为微信原生 bind:error。 */
 const handleLivePusherError = () => {
   livePusherStatus.value = 'error'
+}
+
+/** 验收 editor ready 事件会映射为微信原生 bind:ready。 */
+const handleEditorReady = () => {
+  editorStatus.value = 'ready'
+}
+
+/** 验收 editor focus 事件会映射为微信原生 bind:focus。 */
+const handleEditorFocus = () => {
+  editorStatus.value = 'focus'
+}
+
+/** 验收 editor blur 事件会映射为微信原生 bind:blur。 */
+const handleEditorBlur = () => {
+  editorStatus.value = 'blur'
+}
+
+/** 验收 editor input 事件读取微信原生 event.detail.html。 */
+const handleEditorInput = (event: MiniEditorInputEvent) => {
+  editorHtml.value = event.detail.html
+}
+
+/** 验收 editor statuschange 事件读取微信原生 event.detail.formats。 */
+const handleEditorStatusChange = (event: MiniEditorStatusChangeEvent) => {
+  editorStatus.value = `status:${event.detail.formats.bold === true}`
 }
 
 const handleBioInput = (event: MiniTextareaInputEvent) => {
@@ -1048,6 +1108,28 @@ const handleProfileReset = () => {
   height: 220rpx;
   overflow: hidden;
   width: 100%;
+}
+
+.editor-card {
+  background: #f8fbff;
+  border-radius: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  padding: 20rpx;
+}
+
+.editor-status {
+  color: $primary-color;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.profile-editor {
+  background: #ffffff;
+  border-radius: 12rpx;
+  min-height: 180rpx;
+  padding: 18rpx;
 }
 
 .bio-input {
