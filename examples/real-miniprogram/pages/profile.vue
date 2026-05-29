@@ -132,6 +132,21 @@
       ></canvas>
     </view>
 
+    <view class="map-card">
+      <text class="preference-label">地图验收</text>
+      <text class="map-status">状态：{{ mapStatus }}</text>
+      <map
+        class="profile-map"
+        :longitude="mapLongitude"
+        :latitude="mapLatitude"
+        :scale="mapScale"
+        :markers="mapMarkers"
+        show-location="true"
+        @markertap="handleMapMarkerTap"
+        @regionchange="handleMapRegionChange"
+      ></map>
+    </view>
+
     <view class="preference-row">
       <text class="preference-label">接收验收提醒</text>
       <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
@@ -293,6 +308,18 @@ interface MiniMovableScaleEvent {
   }
 }
 
+interface MiniMapMarkerTapEvent {
+  detail: {
+    markerId: number
+  }
+}
+
+interface MiniMapRegionChangeEvent {
+  detail: {
+    type: string
+  }
+}
+
 const profileTitle = ref('资料页')
 const profileName = ref('示例用户')
 const profileRole = ref('真实验收')
@@ -321,6 +348,18 @@ const movableScale = ref(1)
 const coverImageSrc = ref('/images/avatar-zhangsan.png')
 const coverStatus = ref('idle')
 const canvasStatus = ref('idle')
+const mapLongitude = ref(116.39742)
+const mapLatitude = ref(39.909)
+const mapScale = ref(14)
+const mapMarkers = ref([
+  {
+    id: 1,
+    latitude: 39.909,
+    longitude: 116.39742,
+    title: '真实示例标记'
+  }
+])
+const mapStatus = ref('idle')
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
@@ -452,6 +491,16 @@ const handleCoverImageError = () => {
 /** 验收 canvas error 事件会映射为微信原生 bind:error。 */
 const handleCanvasError = () => {
   canvasStatus.value = 'error'
+}
+
+/** 验收 map markertap 事件读取微信原生 event.detail.markerId。 */
+const handleMapMarkerTap = (event: MiniMapMarkerTapEvent) => {
+  mapStatus.value = `marker:${event.detail.markerId}`
+}
+
+/** 验收 map regionchange 事件读取微信原生 event.detail.type。 */
+const handleMapRegionChange = (event: MiniMapRegionChangeEvent) => {
+  mapStatus.value = `region:${event.detail.type}`
 }
 
 const handleBioInput = (event: MiniTextareaInputEvent) => {
@@ -762,6 +811,28 @@ const handleProfileReset = () => {
   background: #ffffff;
   border-radius: 12rpx;
   height: 160rpx;
+  width: 100%;
+}
+
+.map-card {
+  background: #f8fbff;
+  border-radius: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  padding: 20rpx;
+}
+
+.map-status {
+  color: $primary-color;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.profile-map {
+  border-radius: 12rpx;
+  height: 220rpx;
+  overflow: hidden;
   width: 100%;
 }
 
