@@ -217,6 +217,18 @@
       ></editor>
     </view>
 
+    <view class="web-view-card">
+      <text class="preference-label">网页容器验收</text>
+      <text class="web-view-status">状态：{{ webViewStatus }}</text>
+      <web-view
+        class="profile-web-view"
+        :src="webViewSrc"
+        @message="handleWebViewMessage"
+        @load="handleWebViewLoad"
+        @error="handleWebViewError"
+      ></web-view>
+    </view>
+
     <view class="preference-row">
       <text class="preference-label">接收验收提醒</text>
       <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
@@ -440,6 +452,12 @@ interface MiniEditorStatusChangeEvent {
   }
 }
 
+interface MiniWebViewMessageEvent {
+  detail: {
+    data: unknown[]
+  }
+}
+
 const profileTitle = ref('资料页')
 const profileName = ref('示例用户')
 const profileRole = ref('真实验收')
@@ -488,6 +506,8 @@ const livePusherStatus = ref('idle')
 const editorReadOnly = ref(false)
 const editorStatus = ref('idle')
 const editorHtml = ref('')
+const webViewSrc = ref('https://example.com/profile')
+const webViewStatus = ref('idle')
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
@@ -709,6 +729,21 @@ const handleEditorInput = (event: MiniEditorInputEvent) => {
 /** 验收 editor statuschange 事件读取微信原生 event.detail.formats。 */
 const handleEditorStatusChange = (event: MiniEditorStatusChangeEvent) => {
   editorStatus.value = `status:${event.detail.formats.bold === true}`
+}
+
+/** 验收 web-view message 事件读取微信原生 event.detail.data。 */
+const handleWebViewMessage = (event: MiniWebViewMessageEvent) => {
+  webViewStatus.value = `message:${event.detail.data.length}`
+}
+
+/** 验收 web-view load 事件会映射为微信原生 bind:load。 */
+const handleWebViewLoad = () => {
+  webViewStatus.value = 'loaded'
+}
+
+/** 验收 web-view error 事件会映射为微信原生 bind:error。 */
+const handleWebViewError = () => {
+  webViewStatus.value = 'error'
 }
 
 const handleBioInput = (event: MiniTextareaInputEvent) => {
@@ -1130,6 +1165,28 @@ const handleProfileReset = () => {
   border-radius: 12rpx;
   min-height: 180rpx;
   padding: 18rpx;
+}
+
+.web-view-card {
+  background: rgba($primary-color, 0.06);
+  border-radius: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  padding: 20rpx;
+}
+
+.web-view-status {
+  color: $primary-color;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.profile-web-view {
+  border-radius: 12rpx;
+  height: 220rpx;
+  overflow: hidden;
+  width: 100%;
 }
 
 .bio-input {
