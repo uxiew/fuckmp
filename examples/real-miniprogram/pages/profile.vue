@@ -229,6 +229,33 @@
       ></web-view>
     </view>
 
+    <view class="page-container-card">
+      <text class="preference-label">页面容器验收</text>
+      <text class="page-container-status">状态：{{ pageContainerStatus }}</text>
+      <button class="page-container-button" @tap="showPageContainer">打开容器</button>
+      <page-container
+        class="profile-page-container"
+        :show="pageContainerVisible"
+        position="bottom"
+        round="true"
+        overlay="true"
+        duration="300"
+        @beforeenter="handlePageContainerBeforeEnter"
+        @enter="handlePageContainerEnter"
+        @afterenter="handlePageContainerAfterEnter"
+        @beforeleave="handlePageContainerBeforeLeave"
+        @leave="handlePageContainerLeave"
+        @afterleave="handlePageContainerAfterLeave"
+        @clickoverlay="handlePageContainerClickOverlay"
+      >
+        <view class="page-container-panel">
+          <text class="page-container-title">原生 page-container</text>
+          <text class="page-container-body">生命周期事件透传验收</text>
+          <button class="page-container-button secondary" @tap="hidePageContainer">关闭容器</button>
+        </view>
+      </page-container>
+    </view>
+
     <view class="preference-row">
       <text class="preference-label">接收验收提醒</text>
       <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
@@ -508,6 +535,8 @@ const editorStatus = ref('idle')
 const editorHtml = ref('')
 const webViewSrc = ref('https://example.com/profile')
 const webViewStatus = ref('idle')
+const pageContainerVisible = ref(false)
+const pageContainerStatus = ref('idle')
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
@@ -744,6 +773,52 @@ const handleWebViewLoad = () => {
 /** 验收 web-view error 事件会映射为微信原生 bind:error。 */
 const handleWebViewError = () => {
   webViewStatus.value = 'error'
+}
+
+/** 打开 page-container，用于触发微信原生进入生命周期事件。 */
+const showPageContainer = () => {
+  pageContainerVisible.value = true
+}
+
+/** 关闭 page-container，用于触发微信原生离开生命周期事件。 */
+const hidePageContainer = () => {
+  pageContainerVisible.value = false
+}
+
+/** 验收 page-container beforeenter 事件会映射为微信原生 bind:beforeenter。 */
+const handlePageContainerBeforeEnter = () => {
+  pageContainerStatus.value = 'beforeenter'
+}
+
+/** 验收 page-container enter 事件会映射为微信原生 bind:enter。 */
+const handlePageContainerEnter = () => {
+  pageContainerStatus.value = 'enter'
+}
+
+/** 验收 page-container afterenter 事件会映射为微信原生 bind:afterenter。 */
+const handlePageContainerAfterEnter = () => {
+  pageContainerStatus.value = 'afterenter'
+}
+
+/** 验收 page-container beforeleave 事件会映射为微信原生 bind:beforeleave。 */
+const handlePageContainerBeforeLeave = () => {
+  pageContainerStatus.value = 'beforeleave'
+}
+
+/** 验收 page-container leave 事件会映射为微信原生 bind:leave。 */
+const handlePageContainerLeave = () => {
+  pageContainerStatus.value = 'leave'
+}
+
+/** 验收 page-container afterleave 事件会映射为微信原生 bind:afterleave。 */
+const handlePageContainerAfterLeave = () => {
+  pageContainerStatus.value = 'afterleave'
+}
+
+/** 验收 page-container clickoverlay 事件会映射为微信原生 bind:clickoverlay。 */
+const handlePageContainerClickOverlay = () => {
+  pageContainerStatus.value = 'overlay'
+  pageContainerVisible.value = false
 }
 
 const handleBioInput = (event: MiniTextareaInputEvent) => {
@@ -1187,6 +1262,56 @@ const handleProfileReset = () => {
   height: 220rpx;
   overflow: hidden;
   width: 100%;
+}
+
+.page-container-card {
+  background: #f8fbff;
+  border-radius: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  padding: 20rpx;
+}
+
+.page-container-status {
+  color: $primary-color;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.profile-page-container {
+  color: $text-color;
+}
+
+.page-container-panel {
+  background: #ffffff;
+  border-radius: 24rpx 24rpx 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  padding: 28rpx;
+}
+
+.page-container-title {
+  color: $text-color;
+  font-size: 30rpx;
+  font-weight: 700;
+}
+
+.page-container-body {
+  color: #5f6b82;
+  font-size: 24rpx;
+}
+
+.page-container-button {
+  background: $primary-color;
+  color: #ffffff;
+  font-size: 24rpx;
+}
+
+.page-container-button.secondary {
+  background: #eef2f8;
+  color: $text-color;
 }
 
 .bio-input {
