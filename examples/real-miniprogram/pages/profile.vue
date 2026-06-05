@@ -320,6 +320,19 @@
       />
     </view>
 
+    <view class="text-card">
+      <text class="preference-label">文本展示验收</text>
+      <text class="native-text-status">状态：{{ nativeTextStatus }}</text>
+      <text
+        class="native-text-sample"
+        selectable="true"
+        space="emsp"
+        decode="true"
+      >
+        text 原生属性 &amp; decode
+      </text>
+    </view>
+
     <view class="preference-row">
       <text class="preference-label">接收验收提醒</text>
       <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
@@ -628,6 +641,7 @@ const richTextNodes = ref([
 const richTextStatus = ref('nodes-ready')
 const profileIconSize = ref(32)
 const profileIconStatus = ref('success-ready')
+const nativeTextStatus = ref('selectable-ready')
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
@@ -1510,6 +1524,27 @@ const handleProfileReset = () => {
 .profile-icon {
   height: 48rpx;
   width: 48rpx;
+}
+
+.text-card {
+  background: rgba($primary-color, 0.06);
+  border-radius: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  padding: 20rpx;
+}
+
+.native-text-status {
+  color: $primary-color;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.native-text-sample {
+  color: $text-color;
+  font-size: 26rpx;
+  line-height: 1.6;
 }
 
 .bio-input {
