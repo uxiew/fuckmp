@@ -298,6 +298,17 @@
       </picker-view>
     </view>
 
+    <view class="rich-text-card">
+      <text class="preference-label">富文本展示验收</text>
+      <text class="rich-text-status">状态：{{ richTextStatus }}</text>
+      <rich-text
+        class="profile-rich-text"
+        :nodes="richTextNodes"
+        space="ensp"
+        user-select="true"
+      />
+    </view>
+
     <view class="preference-row">
       <text class="preference-label">接收验收提醒</text>
       <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
@@ -589,6 +600,21 @@ const profileProgressPercent = ref(72)
 const profileProgressStatus = ref('idle')
 const pickerViewValue = ref([0, 1])
 const pickerViewStatus = ref('idle')
+const richTextNodes = ref([
+  {
+    name: 'div',
+    attrs: {
+      class: 'rich-text-node'
+    },
+    children: [
+      {
+        type: 'text',
+        text: 'rich-text 原生 nodes 属性透传'
+      }
+    ]
+  }
+])
+const richTextStatus = ref('nodes-ready')
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
@@ -1427,6 +1453,29 @@ const handleProfileReset = () => {
   display: flex;
   height: 56rpx;
   justify-content: center;
+}
+
+.rich-text-card {
+  background: rgba($primary-color, 0.06);
+  border-radius: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  padding: 20rpx;
+}
+
+.rich-text-status {
+  color: $primary-color;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.profile-rich-text {
+  background: #ffffff;
+  border-radius: 12rpx;
+  color: $text-color;
+  font-size: 26rpx;
+  padding: 18rpx;
 }
 
 .bio-input {
