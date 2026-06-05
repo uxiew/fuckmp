@@ -274,6 +274,30 @@
       />
     </view>
 
+    <view class="picker-view-card">
+      <text class="preference-label">联动选择验收</text>
+      <text class="picker-view-status">状态：{{ pickerViewStatus }}</text>
+      <picker-view
+        class="profile-picker-view"
+        :value="pickerViewValue"
+        indicator-style="height: 56rpx;"
+        mask-style="background: rgba(255,255,255,0.36);"
+        immediate-change="true"
+        @change="handlePickerViewChange"
+      >
+        <picker-view-column class="picker-view-column">
+          <view class="picker-view-option">工作日</view>
+          <view class="picker-view-option">周末</view>
+          <view class="picker-view-option">节假日</view>
+        </picker-view-column>
+        <picker-view-column class="picker-view-column">
+          <view class="picker-view-option">上午</view>
+          <view class="picker-view-option">下午</view>
+          <view class="picker-view-option">晚上</view>
+        </picker-view-column>
+      </picker-view>
+    </view>
+
     <view class="preference-row">
       <text class="preference-label">接收验收提醒</text>
       <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
@@ -375,6 +399,12 @@ interface MiniSwitchChangeEvent {
 interface MiniPickerChangeEvent {
   detail: {
     value: number
+  }
+}
+
+interface MiniPickerViewChangeEvent {
+  detail: {
+    value: number[]
   }
 }
 
@@ -557,6 +587,8 @@ const pageContainerVisible = ref(false)
 const pageContainerStatus = ref('idle')
 const profileProgressPercent = ref(72)
 const profileProgressStatus = ref('idle')
+const pickerViewValue = ref([0, 1])
+const pickerViewStatus = ref('idle')
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
@@ -844,6 +876,12 @@ const handlePageContainerClickOverlay = () => {
 /** 验收 progress activeend 事件会映射为微信原生 bind:activeend。 */
 const handleProfileProgressActiveEnd = () => {
   profileProgressStatus.value = 'activeend'
+}
+
+/** 验收 picker-view change 事件读取微信原生 event.detail.value。 */
+const handlePickerViewChange = (event: MiniPickerViewChangeEvent) => {
+  pickerViewValue.value = event.detail.value
+  pickerViewStatus.value = `selected:${event.detail.value.join('-')}`
 }
 
 const handleBioInput = (event: MiniTextareaInputEvent) => {
@@ -1356,6 +1394,39 @@ const handleProfileReset = () => {
 
 .profile-progress {
   width: 100%;
+}
+
+.picker-view-card {
+  background: #f8fbff;
+  border-radius: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  padding: 20rpx;
+}
+
+.picker-view-status {
+  color: $primary-color;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.profile-picker-view {
+  background: #ffffff;
+  border-radius: 12rpx;
+  height: 180rpx;
+}
+
+.picker-view-column {
+  color: $text-color;
+  font-size: 26rpx;
+}
+
+.picker-view-option {
+  align-items: center;
+  display: flex;
+  height: 56rpx;
+  justify-content: center;
 }
 
 .bio-input {
