@@ -309,6 +309,17 @@
       />
     </view>
 
+    <view class="icon-card">
+      <text class="preference-label">图标展示验收</text>
+      <text class="icon-status">状态：{{ profileIconStatus }}</text>
+      <icon
+        class="profile-icon"
+        type="success"
+        :size="profileIconSize"
+        color="#1677ff"
+      />
+    </view>
+
     <view class="preference-row">
       <text class="preference-label">接收验收提醒</text>
       <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
@@ -615,6 +626,8 @@ const richTextNodes = ref([
   }
 ])
 const richTextStatus = ref('nodes-ready')
+const profileIconSize = ref(32)
+const profileIconStatus = ref('success-ready')
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
@@ -1476,6 +1489,27 @@ const handleProfileReset = () => {
   color: $text-color;
   font-size: 26rpx;
   padding: 18rpx;
+}
+
+.icon-card {
+  align-items: flex-start;
+  background: #f8fbff;
+  border-radius: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  padding: 20rpx;
+}
+
+.icon-status {
+  color: $primary-color;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.profile-icon {
+  height: 48rpx;
+  width: 48rpx;
 }
 
 .bio-input {
