@@ -256,6 +256,24 @@
       </page-container>
     </view>
 
+    <view class="progress-card">
+      <text class="preference-label">进度条验收</text>
+      <text class="progress-status">状态：{{ profileProgressStatus }}</text>
+      <progress
+        class="profile-progress"
+        :percent="profileProgressPercent"
+        show-info="true"
+        border-radius="8"
+        font-size="14"
+        stroke-width="6"
+        active="true"
+        active-mode="forwards"
+        active-color="#1677ff"
+        background-color="#edf2f7"
+        @activeend="handleProfileProgressActiveEnd"
+      />
+    </view>
+
     <view class="preference-row">
       <text class="preference-label">接收验收提醒</text>
       <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
@@ -537,6 +555,8 @@ const webViewSrc = ref('https://example.com/profile')
 const webViewStatus = ref('idle')
 const pageContainerVisible = ref(false)
 const pageContainerStatus = ref('idle')
+const profileProgressPercent = ref(72)
+const profileProgressStatus = ref('idle')
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
@@ -819,6 +839,11 @@ const handlePageContainerAfterLeave = () => {
 const handlePageContainerClickOverlay = () => {
   pageContainerStatus.value = 'overlay'
   pageContainerVisible.value = false
+}
+
+/** 验收 progress activeend 事件会映射为微信原生 bind:activeend。 */
+const handleProfileProgressActiveEnd = () => {
+  profileProgressStatus.value = 'activeend'
 }
 
 const handleBioInput = (event: MiniTextareaInputEvent) => {
@@ -1312,6 +1337,25 @@ const handleProfileReset = () => {
 .page-container-button.secondary {
   background: #eef2f8;
   color: $text-color;
+}
+
+.progress-card {
+  background: rgba($primary-color, 0.06);
+  border-radius: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  padding: 20rpx;
+}
+
+.progress-status {
+  color: $primary-color;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.profile-progress {
+  width: 100%;
 }
 
 .bio-input {
