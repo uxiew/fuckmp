@@ -333,6 +333,16 @@
       </text>
     </view>
 
+    <view
+      class="hover-view-card"
+      hover-class="hover-view-active"
+      hover-start-time="20"
+      hover-stay-time="80"
+    >
+      <text class="preference-label">View hover 验收</text>
+      <text class="hover-view-status">状态：{{ hoverViewStatus }}</text>
+    </view>
+
     <view class="preference-row">
       <text class="preference-label">接收验收提醒</text>
       <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
@@ -642,6 +652,7 @@ const richTextStatus = ref('nodes-ready')
 const profileIconSize = ref(32)
 const profileIconStatus = ref('success-ready')
 const nativeTextStatus = ref('selectable-ready')
+const hoverViewStatus = ref('hover-ready')
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
@@ -1545,6 +1556,25 @@ const handleProfileReset = () => {
   color: $text-color;
   font-size: 26rpx;
   line-height: 1.6;
+}
+
+.hover-view-card {
+  background: #f8fbff;
+  border-radius: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  padding: 20rpx;
+}
+
+.hover-view-active {
+  background: rgba($primary-color, 0.12);
+}
+
+.hover-view-status {
+  color: $primary-color;
+  font-size: 24rpx;
+  font-weight: 600;
 }
 
 .bio-input {
