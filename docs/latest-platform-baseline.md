@@ -1,6 +1,6 @@
 # Latest Platform Baseline
 
-更新时间：2026-05-21
+更新时间：2026-06-06
 
 ## 当前基线
 
@@ -8,9 +8,9 @@
 
 | 范围 | 当前采用 | 事实来源 |
 |---|---:|---|
-| Vue runtime / peer | `vue@3.5.34` | `peerDependencies.vue` + `npm view vue version` |
-| Vue SFC compiler | `@vue/compiler-sfc@3.5.34` | `dependencies.@vue/compiler-sfc` + `npm view @vue/compiler-sfc version` |
-| Vue reactivity bridge | `@vue/reactivity@3.5.34` | `dependencies.@vue/reactivity` + `npm view @vue/reactivity version` |
+| Vue runtime / peer | `vue@3.5.35` | `peerDependencies.vue` + `pnpm view vue version` |
+| Vue SFC compiler | `@vue/compiler-sfc@3.5.35` | `dependencies.@vue/compiler-sfc` + `pnpm view @vue/compiler-sfc version` |
+| Vue reactivity bridge | `@vue/reactivity@3.5.35` | `dependencies.@vue/reactivity` + `pnpm view @vue/reactivity version` |
 | 微信小程序目标 | 原生 `Page / Component / WXML / WXSS / JSON` | 微信开放文档 |
 
 ## Vue 3.5 编译能力约束

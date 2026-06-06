@@ -1,6 +1,6 @@
 # TODO / 当前支持状态
 
-更新时间：2026-06-02
+更新时间：2026-06-06
 
 ## 当前已验证
 
@@ -35,7 +35,7 @@
 - [x] `script-codegen-utils` 节点/语句 helper 拆分：字符串转义、Vue 标识符映射、数组/对象、成员/运算符/new/模板字面量等节点级纯 helper 已抽离到 `src/parser/script-codegen-node-utils.ts`；block/statement/switch/if/for/while 语句级 helper 已抽离到 `src/parser/script-codegen-statement-utils.ts`；`src/parser/script-codegen-utils.ts` 当前为 222 行，新增定向单测覆盖。
 - [x] `ScriptParser` AST 信息构造 helper 拆分：import、Vue 宏调用、变量、函数与 export 信息构造已抽离到 `src/parser/script-parser-utils.ts`；`src/parser/script-parser.ts` 当前为 245 行，新增定向单测覆盖。
 - [x] Native-first runtime 边界：正式记录 `docs/native-first-runtime-boundary.md`，并用测试约束 runtime 只返回 `core` 或 `core + reactivity`，不再为模板/事件/生命周期/组件语义注入伪模块。
-- [x] 最新平台基线：Vue 相关依赖升级到 `3.5.34`，新增 `docs/latest-platform-baseline.md` 与 Vue 3.5 `<script setup>` 宏兼容测试。
+- [x] 最新平台基线：Vue 相关依赖升级到 `3.5.35`，新增 `docs/latest-platform-baseline.md` 与 Vue 3.5 `<script setup>` 宏兼容测试。
 - [x] `defineProps<T>()` 类型声明原生映射：支持内联 TypeScript props、本地 interface/type alias 和相对 import type 推断到 `Component.properties`，并将模板、computed getter 与 setup 方法中的 `props.xxx` 静态改写为原生 property 访问；覆盖 `tests/e2e/define-props-type-based.test.ts`。
 - [x] `defineEmits` 类型声明原生映射：支持 TypeScript call signature、named tuple、本地 interface/type alias 和相对 import type 事件名提取，生成原生 `this.triggerEvent` 与 `_emit*` 方法；覆盖 `tests/e2e/typed-emits.test.ts`。
 - [x] `defineModel` + 组件 `v-model` 原生闭环：子组件输出 `Component.properties`、原生 input handler 与 `update:*` 事件，父级输出属性绑定与 `bind:update:*` 回写 handler；`defineModel` tuple 解构配合 `v-model.trim/.number` 可复用原生输入修饰符 handler；覆盖 `tests/e2e/native-v-model.test.ts`。

@@ -411,7 +411,7 @@ await compiler.watch()
 
 ## 平台基线
 
-- 当前 Vue3 基线：`vue@3.5.34`、`@vue/compiler-sfc@3.5.34`、`@vue/reactivity@3.5.34`。
+- 当前 Vue3 基线：`vue@3.5.35`、`@vue/compiler-sfc@3.5.35`、`@vue/reactivity@3.5.35`。
 - 目标小程序基线：原生微信小程序 `Page / Component / WXML / WXSS / JSON`。
 - 最新基线与参考链接见 `docs/latest-platform-baseline.md`。
 

@@ -1,6 +1,6 @@
 # Native-first Runtime Boundary
 
-更新时间：2026-05-21
+更新时间：2026-06-06
 
 ## 决策
 
@@ -14,7 +14,7 @@ FuckMP 的目标是把 Vue3 SFC 编译为原生微信小程序工程，而不是
 
 ## 平台版本基线
 
-当前 Vue 相关依赖基线为 `vue@3.5.34`、`@vue/compiler-sfc@3.5.34`、`@vue/reactivity@3.5.34`；微信小程序目标保持原生 `Page / Component / WXML / WXSS / JSON`。详细记录见 `docs/latest-platform-baseline.md`。
+当前 Vue 相关依赖基线为 `vue@3.5.35`、`@vue/compiler-sfc@3.5.35`、`@vue/reactivity@3.5.35`；微信小程序目标保持原生 `Page / Component / WXML / WXSS / JSON`。详细记录见 `docs/latest-platform-baseline.md`。
 
 ## 当前运行时白名单
 

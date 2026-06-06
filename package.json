@@ -56,8 +56,8 @@
     "@babel/parser": "^7.23.6",
     "@babel/traverse": "^7.23.7",
     "@babel/types": "^7.23.6",
-    "@vue/compiler-sfc": "^3.5.34",
-    "@vue/reactivity": "^3.5.34",
+    "@vue/compiler-sfc": "^3.5.35",
+    "@vue/reactivity": "^3.5.35",
     "autoprefixer": "^10.4.16",
     "chokidar": "^3.5.3",
     "commander": "^11.1.0",
@@ -92,7 +92,7 @@
     "vitest": "^1.2.1"
   },
   "peerDependencies": {
-    "vue": "^3.5.34"
+    "vue": "^3.5.35"
   },
   "repository": {
     "type": "git",
