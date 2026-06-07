@@ -1,6 +1,6 @@
 # TODO / 当前支持状态
 
-更新时间：2026-06-06
+更新时间：2026-06-07
 
 ## 当前已验证
 
@@ -135,6 +135,7 @@
 - [x] `create` 模板 CLI 契约修正：新项目模板生成的 `package.json` 使用当前 public surface `fuckmp` 依赖与显式 `--config vue3mp.config.js` 的 `fuckmp build` / `fuckmp build --watch` / `fuckmp build --minify --no-sourcemap` 脚本，确保模板配置真实生效且生产脚本可覆盖开发优化项；不再输出旧包名 `@vue3-miniprogram/compiler` 或旧命令 `vue3-mp`；覆盖 `tests/cli/create-templates.test.ts`。
 - [x] `create` 基础模板编译验收：TS + SCSS 基础模板可写入临时项目并由当前 `Vue3MiniprogramCompiler` 编译，断言 app/page/component/runtime 关键产物、页面组件绑定和生成 JS 语法；覆盖 `tests/cli/create-templates.test.ts`。
 - [x] CLI 使用文档一致性：README 明确当前 public CLI 入口 `fuckmp` / `fmp`、create TS + SCSS 模板编译验收与 `pnpm test:real-devtools` 真实 DevTools opt-in 流程，并由 `tests/quality/cli-docs-consistency.test.ts` 约束避免文档漂移。
+- [x] 真实项目迁移指南：新增 `docs/migration-guide.md`，覆盖迁移步骤、Vue3 特性迁移策略、版本兼容策略、验证清单和回滚建议，并由 `tests/quality/migration-docs-consistency.test.ts` 约束 README/TODO 入口不漂移。
 - [x] build CLI 参数错误诊断短路：`--input` 与 `--output` 相同或路径等价（如 `./src` 与 `src`）等无效参数会在实例化编译器前输出明确诊断并退出，避免进入含糊的编译失败路径；覆盖 `tests/cli/build-command.test.ts`。
 - [x] build CLI 显式配置加载失败短路：传入 `--config` 后若配置文件缺失或解析失败，会输出具体配置路径与原始错误并退出，不再降级为默认配置继续构建；覆盖 `tests/cli/build-command.test.ts`。
 - [x] build CLI 配置合并优先级：`build --config` 未显式传入 `--input/--output/--minify/--no-minify/--sourcemap/--no-sourcemap` 时保留配置文件值，只有来源为 CLI 的选项才覆盖配置；合并后继续校验 input/output 路径冲突；覆盖 `tests/cli/build-command.test.ts`。
@@ -156,4 +157,4 @@
 1. 下一阶段优先补真实验收矩阵：继续扩大 `examples/real-miniprogram` 覆盖面，并使用合法微信小程序 AppID / 登录态运行 opt-in 真机测试；可按 `examples/real-miniprogram/README.md` 接入 `wechat-devtools-mcp`，或通过 `pnpm test:real-devtools` 复跑微信开发者工具 opt-in 冒烟。
 2. 如需继续做维护性瘦身，只选择能明确降低核心回归风险的边界；当前可关注 `src/compiler/compiler.ts` 334 行、`src/runtime/core/lifecycle.ts` 317 行、`src/runtime/core/reactivity.ts` 306 行、`src/runtime/core/event.ts` 301 行、`src/generator/page-generator-utils.ts` 298 行、`src/runtime/index.ts` 297 行、`src/plugins/registry.ts` 295 行等模块，不再盲目追求拆分数量。
 3. 新功能只选择能明确映射到微信原生能力、且能测试闭环的能力；对 `watch/watchEffect/onWatcherCleanup`、复杂 DI、scoped/dynamic slots、`Transition`、`KeepAlive` 等无法等价实现的 Vue 语义继续保持 Native-first 降级，不做伪 runtime。
-4. 发布与开发者体验仍需补强：CLI 使用文档、版本兼容策略、错误诊断信息和真实项目迁移指南应在新特性前并行完善。
+4. 发布与开发者体验继续补强：真实项目迁移指南和版本兼容策略已补齐；后续可继续完善错误诊断信息、发布流程与更多真实项目迁移案例。

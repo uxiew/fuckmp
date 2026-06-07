@@ -46,6 +46,8 @@ pnpm install
 
 TS + SCSS 基础模板已纳入编译验收：模板写入临时项目后会由当前 `Vue3MiniprogramCompiler` 编译，并检查 app/page/component/runtime 关键产物与生成 JS 语法；覆盖 `tests/cli/create-templates.test.ts`。
 
+已有真实项目迁移指南：`docs/migration-guide.md`。建议迁移前先阅读其中的 Native-first 边界、版本兼容策略和验证清单。
+
 ### 开发
 
 ```bash
