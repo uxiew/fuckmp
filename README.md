@@ -406,6 +406,8 @@ await compiler.compileFile('src/pages/index/index.vue')
 await compiler.watch()
 ```
 
+`FuckMPCompiler` 是根入口公开的友好别名，等价于 `Vue3MiniprogramCompiler`；也可以使用 `createCompiler()`、`compile()` 和 `compileFile()` 便捷函数。
+
 架构边界：
 
 - 项目目标是 **Native-first + Thin Runtime**：优先输出原生微信小程序 `wxml / wxss / js / json`，运行时只保留必要桥接。
