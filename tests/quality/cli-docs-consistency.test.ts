@@ -43,6 +43,12 @@ describe('CLI 使用文档一致性', () => {
     expect(readme).toContain('FUCKMP_REAL_DEVTOOLS_SMOKE=1')
     expect(readme).toContain('WECHAT_IDE_CLI=')
   })
+
+  it('README 记录 build 编译失败诊断入口', () => {
+    expect(readme).toContain('常见构建失败排查')
+    expect(readme).toContain('诊断建议')
+    expect(readme).toContain('docs/migration-guide.md')
+  })
 })
 
 /**

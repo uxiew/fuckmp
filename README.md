@@ -364,6 +364,15 @@ fuckmp dev --input src --output dist --sourcemap --no-minify
 fuckmp dev --config vue3mp.config.js --minify --no-sourcemap
 ```
 
+### 常见构建失败排查
+
+`fuckmp build` 在编译失败时会输出 `诊断建议`，优先提示以下可操作方向：
+
+- 输入/输出路径：检查 `--input`、`--output` 或 `vue3mp.config.js`，避免路径不存在、不可访问或输入输出等价。
+- 明确降级能力：如果错误涉及 `defineExpose`、`watch/watchEffect/onWatcherCleanup`、`provide/inject`、`useTemplateRef`、`Transition/KeepAlive` 等能力，按 `docs/latest-platform-baseline.md` 与 `docs/migration-guide.md` 改写为微信原生生命周期、事件回调或显式状态流。
+- AppID / DevTools：真实 DevTools 或真机验收需要合法微信小程序 AppID，并确认 `WECHAT_IDE_CLI` 指向微信开发者工具 CLI。
+- SFC 语法：先缩小到单页面纵向切片，检查 `<template>`、`<script setup lang="ts">` 与 `<style>` 结构。
+
 ### 真实 DevTools opt-in 验收
 
 默认测试不会启动微信开发者工具。需要验证真实示例能被 DevTools 自动化打开时，显式设置环境变量后运行：

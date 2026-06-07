@@ -7,6 +7,7 @@ import { resolve } from 'node:path'
 import { Vue3MiniprogramCompiler } from '@/compiler/index.js'
 import type { CompilerOptions } from '@/types/index.js'
 import { logger } from '@/utils/index.js'
+import { createBuildFailureDiagnostics } from './build-diagnostics.js'
 import { formatTime } from './build-progress-utils.js'
 
 export { BuildProgress, BuildStats } from './build-progress-utils.js'
@@ -188,6 +189,14 @@ function printBuildResult(result: any): void {
       logger.error(`${index + 1}. ${error.file}`)
       logger.error(`   ${error.message}`)
     })
+
+    const diagnostics = createBuildFailureDiagnostics(result.errors)
+    if (diagnostics.length > 0) {
+      logger.error('\n诊断建议:')
+      diagnostics.forEach((diagnostic, index) => {
+        logger.error(`${index + 1}. ${diagnostic}`)
+      })
+    }
   }
 
   // 输出成功文件列表（在详细模式下）

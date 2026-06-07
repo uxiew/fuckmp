@@ -18,6 +18,7 @@ describe('真实项目迁移文档一致性', () => {
       '# 真实项目迁移指南',
       '## 适用范围',
       '## 迁移步骤',
+      '## 常见构建失败排查',
       '## Vue3 特性迁移策略',
       '## 版本兼容策略',
       '## 验证清单',
@@ -37,7 +38,9 @@ describe('真实项目迁移文档一致性', () => {
       'pnpm type-check',
       'pnpm test:run',
       'pnpm build',
-      'pnpm test:real-devtools'
+      'pnpm test:real-devtools',
+      '诊断建议',
+      'WECHAT_IDE_CLI'
     ]) {
       expect(guide).toContain(requiredText)
     }

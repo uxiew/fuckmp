@@ -68,6 +68,15 @@ pnpm test:real-devtools
 
 该命令会先编译 `examples/real-miniprogram`，再调用 DevTools 自动化入口。真实业务项目仍需要合法 AppID、登录态和项目配置。
 
+## 常见构建失败排查
+
+`fuckmp build` 返回编译错误时会追加 `诊断建议`，迁移项目优先按以下方向处理：
+
+- **输入/输出路径**：检查 `--input`、`--output` 或 `vue3mp.config.js` 中的 `input/output`，确认源码目录存在、输出目录可写，且二者不是同一路径。
+- **明确降级能力**：如果错误或生成产物提示 `defineExpose`、`watch/watchEffect/onWatcherCleanup`、`provide/inject`、`useTemplateRef`、`Transition/KeepAlive` 等能力降级，不要继续补伪 runtime；应迁移为微信原生生命周期、事件回调、computed 派生状态或显式 props/emits 状态流。
+- **AppID / DevTools**：`AppID 不合法` 或 `invalid appid` 说明当前项目配置不满足真实 DevTools/真机验收；请配置合法微信小程序 AppID，并确认 `WECHAT_IDE_CLI` 指向微信开发者工具 CLI。
+- **SFC 语法**：遇到 `SFC 验证失败`、`Unexpected token` 等错误时，先缩小到一个页面/组件，检查 `<template>`、`<script setup lang="ts">` 和 `<style>` 是否完整合法。
+
 ## Vue3 特性迁移策略
 
 | Vue3 能力 | 迁移策略 |

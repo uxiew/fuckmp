@@ -184,6 +184,60 @@ describe('build command', () => {
     expect(compilerConstructor).not.toHaveBeenCalled()
     expect(exit).toHaveBeenCalledWith(1)
   })
+
+  it('编译返回明确降级能力错误时输出迁移诊断建议', async () => {
+    await expectCompileErrorsToExit([
+      {
+        file: 'src/pages/profile.vue',
+        message: 'watch/watchEffect 降级: watch 无法等价映射到原生微信小程序'
+      }
+    ])
+
+    expect(loggerMock.error).toHaveBeenCalledWith('\n诊断建议:')
+    expect(loggerMock.error).toHaveBeenCalledWith(
+      expect.stringContaining('明确降级的 Vue 能力')
+    )
+    expect(loggerMock.error).toHaveBeenCalledWith(
+      expect.stringContaining('docs/latest-platform-baseline.md')
+    )
+    expect(loggerMock.error).toHaveBeenCalledWith(
+      expect.stringContaining('docs/migration-guide.md')
+    )
+  })
+
+  it('编译返回 AppID/DevTools 错误时输出环境诊断建议', async () => {
+    await expectCompileErrorsToExit([
+      {
+        file: 'project.config.json',
+        message: 'AppID 不合法, invalid appid'
+      }
+    ])
+
+    expect(loggerMock.error).toHaveBeenCalledWith('\n诊断建议:')
+    expect(loggerMock.error).toHaveBeenCalledWith(
+      expect.stringContaining('合法微信小程序 AppID')
+    )
+    expect(loggerMock.error).toHaveBeenCalledWith(
+      expect.stringContaining('WECHAT_IDE_CLI')
+    )
+  })
+
+  it('编译返回输入目录错误时输出路径诊断建议', async () => {
+    await expectCompileErrorsToExit([
+      {
+        file: 'missing-src',
+        message: '输入目录不存在或不可访问: missing-src'
+      }
+    ])
+
+    expect(loggerMock.error).toHaveBeenCalledWith('\n诊断建议:')
+    expect(loggerMock.error).toHaveBeenCalledWith(
+      expect.stringContaining('--input')
+    )
+    expect(loggerMock.error).toHaveBeenCalledWith(
+      expect.stringContaining('vue3mp.config.js')
+    )
+  })
 })
 
 async function expectInvalidSamePathToExit(args: string[]): Promise<void> {
@@ -203,5 +257,37 @@ async function expectInvalidSamePathToExit(args: string[]): Promise<void> {
   expect(loggerMock.error).toHaveBeenCalledWith('构建参数无效')
   expect(loggerMock.error).toHaveBeenCalledWith('输入目录和输出目录不能相同')
   expect(compilerConstructor).not.toHaveBeenCalled()
+  expect(exit).toHaveBeenCalledWith(1)
+}
+
+async function expectCompileErrorsToExit(errors: Array<{ file: string; message: string }>): Promise<void> {
+  const exit = vi.spyOn(process, 'exit').mockImplementation((code?: string | number | null | undefined) => {
+    throw new Error(`process.exit(${code})`)
+  })
+  compilerConstructor.mockImplementationOnce(() => ({
+    compile: vi.fn(async () => ({
+      errors,
+      success: [],
+      stats: {
+        success: 0,
+        failed: errors.length,
+        duration: 0
+      }
+    }))
+  }))
+  const { createBuildCommand } = await import('@/cli/commands/build.js')
+  const command = createBuildCommand()
+
+  await expect(command.parseAsync([
+    'node',
+    'fuckmp',
+    'build',
+    '--input',
+    'src',
+    '--output',
+    'dist'
+  ])).rejects.toThrow('process.exit(1)')
+
+  expect(compilerConstructor).toHaveBeenCalled()
   expect(exit).toHaveBeenCalledWith(1)
 }
