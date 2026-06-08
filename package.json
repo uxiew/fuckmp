@@ -36,6 +36,7 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
     "test:e2e": "vitest tests/e2e",
+    "test:package-smoke": "tsx scripts/package-smoke.ts",
     "test:real-devtools": "tsx scripts/real-miniprogram-devtools-smoke.ts",
     "test:watch": "vitest --watch",
     "test:run": "vitest run",

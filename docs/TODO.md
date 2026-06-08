@@ -136,6 +136,7 @@
 - [x] `create` 基础模板编译验收：TS + SCSS 基础模板可写入临时项目并由当前 `Vue3MiniprogramCompiler` 编译，断言 app/page/component/runtime 关键产物、页面组件绑定和生成 JS 语法；覆盖 `tests/cli/create-templates.test.ts`。
 - [x] CLI 使用文档一致性：README 明确当前 public CLI 入口 `fuckmp` / `fmp`、create TS + SCSS 模板编译验收与 `pnpm test:real-devtools` 真实 DevTools opt-in 流程，并由 `tests/quality/cli-docs-consistency.test.ts` 约束避免文档漂移。
 - [x] npm 发布包契约一致性：移除不存在的 `templates` 发包项，根入口公开 `FuckMPCompiler` / `Vue3MiniprogramCompiler` 并移除便捷 API 中的 CommonJS `require()` 依赖，约束 main/types/bin/files 与 README 示例不漂移；覆盖 `tests/quality/package-publish-consistency.test.ts`。
+- [x] npm 包真实安装 smoke：新增 `pnpm test:package-smoke`，默认跳过，显式设置 `FUCKMP_PACKAGE_SMOKE=1` 后执行 build、npm pack、临时项目安装 tarball、根入口 API 与 `fuckmp` / `fmp` bin 验证；覆盖 `tests/quality/package-smoke-docs-consistency.test.ts`。
 - [x] 真实项目迁移指南：新增 `docs/migration-guide.md`，覆盖迁移步骤、Vue3 特性迁移策略、版本兼容策略、验证清单和回滚建议，并由 `tests/quality/migration-docs-consistency.test.ts` 约束 README/TODO 入口不漂移。
 - [x] build CLI 参数错误诊断短路：`--input` 与 `--output` 相同或路径等价（如 `./src` 与 `src`）等无效参数会在实例化编译器前输出明确诊断并退出，避免进入含糊的编译失败路径；覆盖 `tests/cli/build-command.test.ts`。
 - [x] build CLI 显式配置加载失败短路：传入 `--config` 后若配置文件缺失或解析失败，会输出具体配置路径与原始错误并退出，不再降级为默认配置继续构建；覆盖 `tests/cli/build-command.test.ts`。

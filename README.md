@@ -385,6 +385,16 @@ pnpm test:real-devtools
 
 该命令执行 `tsx scripts/real-miniprogram-devtools-smoke.ts`：先编译 `examples/real-miniprogram`，再调用微信开发者工具 CLI `auto`。未设置 `FUCKMP_REAL_DEVTOOLS_SMOKE=1` 时会安全跳过 GUI 调用。
 
+### npm 包真实安装 opt-in 验收
+
+默认测试不会执行真实 tarball 安装。需要从消费者视角验证发布包时，显式设置环境变量后运行：
+
+```bash
+FUCKMP_PACKAGE_SMOKE=1 pnpm test:package-smoke
+```
+
+该命令会先执行 `pnpm build`，再 `npm pack`，随后在临时项目中安装生成的 tarball 与 `vue@3.5.35`，验证根入口 `FuckMPCompiler / Vue3MiniprogramCompiler / createCompiler` 和 `fuckmp` / `fmp` CLI bin。
+
 ## API 使用
 
 ```typescript
