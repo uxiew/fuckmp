@@ -5,6 +5,7 @@
 import { generateAppStyles } from './app-styles.js'
 import { buildCompiledFileList, buildPageRoutesFromFiles } from './compiler-output-utils.js'
 import { buildRuntimeInjectionEntries, type CompiledRuntimeRecord } from './compiler-runtime-utils.js'
+import { copyStaticAssetDirectories } from './compiler-static-assets-utils.js'
 import { logger } from '@/utils/index.js'
 
 /**
@@ -53,6 +54,10 @@ export async function refreshProjectOutputFiles(options: {
     options.outputRoot
   )
   await generateAppStyles(options.outputRoot)
+  await copyStaticAssetDirectories({
+    inputRoot: options.inputRoot,
+    outputRoot: options.outputRoot
+  })
   await performRuntimeInjection(options)
   await options.configGenerator.generateProjectConfig(options.outputRoot)
   await options.configGenerator.generateSitemapConfig(options.outputRoot)

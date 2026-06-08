@@ -77,6 +77,12 @@ describe('TouchWX 迁移示例验收', () => {
       expect.objectContaining({ pagePath: 'pages/index', text: '组件' }),
       expect.objectContaining({ pagePath: 'pages/home/about', text: '关于' })
     ]))
+    await expectTabBarIconTargetsToExist(appJson)
+    await expectStaticAssetsToExist([
+      'static/data/city.js',
+      'static/map/amap-wx.js',
+      'static/map/qqmap-wx-jssdk.min.js'
+    ])
 
     const indexJson = JSON.parse(await readOutputFile('pages/index.json'))
     expect(indexJson.usingComponents).toMatchObject({
@@ -120,6 +126,32 @@ describe('TouchWX 迁移示例验收', () => {
         const target = resolve(dirname(file), `${componentPath}.json`)
         await expect(fs.access(target), `${file} -> ${tag}: ${target}`).resolves.toBeUndefined()
       }
+    }
+  }
+
+  async function expectTabBarIconTargetsToExist(appJson: {
+    tabBar?: {
+      list?: Array<{
+        iconPath?: string
+        selectedIconPath?: string
+      }>
+    }
+  }): Promise<void> {
+    const iconPaths = (appJson.tabBar?.list || []).flatMap(item => [
+      item.iconPath,
+      item.selectedIconPath
+    ]).filter((iconPath): iconPath is string => Boolean(iconPath))
+
+    for (const iconPath of iconPaths) {
+      const target = join(outputRoot, iconPath)
+      await expect(fs.access(target), `tabBar iconPath: ${target}`).resolves.toBeUndefined()
+    }
+  }
+
+  async function expectStaticAssetsToExist(relativePaths: string[]): Promise<void> {
+    for (const relativePath of relativePaths) {
+      const target = join(outputRoot, relativePath)
+      await expect(fs.access(target), `static asset: ${target}`).resolves.toBeUndefined()
     }
   }
 })

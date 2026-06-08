@@ -52,6 +52,36 @@ describe('compiler project output utils', () => {
     await expect(fs.readFile(join(outputRoot, 'app.wxss'), 'utf8')).resolves.toContain('Vue3 微信小程序编译器')
   })
 
+  it('刷新项目级输出时复制根级静态资源目录', async () => {
+    const inputRoot = join(tempRoot, 'src')
+    const outputRoot = join(tempRoot, 'dist')
+    const configGenerator = createConfigGenerator()
+    const runtimeInjector = createRuntimeInjector()
+
+    await fs.mkdir(join(inputRoot, 'images'), { recursive: true })
+    await fs.mkdir(join(inputRoot, 'static/map'), { recursive: true })
+    await fs.writeFile(join(inputRoot, 'images/component.png'), 'png')
+    await fs.writeFile(join(inputRoot, 'static/map/amap-wx.js'), 'sdk')
+    await fs.mkdir(join(outputRoot, 'images'), { recursive: true })
+    await fs.writeFile(join(outputRoot, 'images/stale.png'), 'stale')
+
+    await refreshProjectOutputFiles({
+      inputRoot,
+      outputRoot,
+      sourceFiles: new Map(),
+      appConfig: {},
+      compiledPages: new Map(),
+      compiledComponents: new Map(),
+      configGenerator,
+      runtimeInjector,
+      typescript: false
+    })
+
+    await expect(fs.readFile(join(outputRoot, 'images/component.png'), 'utf8')).resolves.toBe('png')
+    await expect(fs.readFile(join(outputRoot, 'static/map/amap-wx.js'), 'utf8')).resolves.toBe('sdk')
+    await expect(fs.access(join(outputRoot, 'images/stale.png'))).rejects.toThrow()
+  })
+
   it('运行时注入失败时仍继续生成项目配置', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
 

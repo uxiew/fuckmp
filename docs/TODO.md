@@ -1,6 +1,6 @@
 # TODO / 当前支持状态
 
-更新时间：2026-06-07
+更新时间：2026-06-08
 
 ## 当前已验证
 
@@ -41,6 +41,7 @@
 - [x] `defineModel` + 组件 `v-model` 原生闭环：子组件输出 `Component.properties`、原生 input handler 与 `update:*` 事件，父级输出属性绑定与 `bind:update:*` 回写 handler；`defineModel` tuple 解构配合 `v-model.trim/.number` 可复用原生输入修饰符 handler；覆盖 `tests/e2e/native-v-model.test.ts`。
 - [x] 真实示例工程验收闭环：新增 `examples/real-miniprogram`，覆盖页面、组件、props/emits、组件 `v-model`、`v-if` / `v-for` 原生映射、JS 配置、SCSS、最终 runtime injection 覆盖后的页面/组件 JS 语法与关键行为；覆盖 `tests/e2e/real-example-acceptance.test.ts`。
 - [x] TouchWX 真实迁移示例验收：新增 `scripts/migrate-touchwx.ts` 与 `examples/touchwx-migrated`，从外部 TouchWX `.wxa/.wx` 项目生成 84 个页面、42 个 `ui-*` stub 组件和静态资源；迁移器将旧 `data/methods/lifecycle` 转为 Vue3 `<script setup lang="ts">`、规整旧模板/LESS 边界，并通过干净输出目录编译 127/127 个 Vue 文件；覆盖 `tests/e2e/touchwx-migration-acceptance.test.ts`。
+- [x] 根级静态资源输出：项目级输出刷新会同步复制输入根目录下的 `images/` 与 `static/` 到小程序输出根目录，避免 `app.json` 的 `tabBar.iconPath` / `selectedIconPath` 或地图 SDK 等静态资源在微信开发者工具中报未找到；覆盖 `tests/compiler/compiler-project-output-utils.test.ts` 与 `tests/e2e/touchwx-migration-acceptance.test.ts`。
 - [x] `withDefaults(defineProps())` 默认值原生映射：静态默认值和数组/对象 factory 静态返回值写入 `Component.properties.value`；覆盖 `tests/e2e/with-defaults-props.test.ts`。
 - [x] Vue 3.5 响应式 props 解构映射：解构默认值写入 `Component.properties`，模板、computed getter、生命周期回调与 setup 方法中的局部别名还原为原始 prop 名且不误伤成员表达式；覆盖 `tests/e2e/reactive-props-destructure.test.ts`。
 - [x] `defineExpose` 原生目标降级：微信原生目标无 Vue template ref public instance 等价语义，产物输出降级注释和 exposed keys，不生成 runtime 桥接；覆盖 `tests/e2e/define-expose-degrade.test.ts`。
