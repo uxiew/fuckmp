@@ -9,6 +9,7 @@ import {
   getTemplateSlotProps,
   getUniqueTemplateDirectiveNames,
   getUniqueTemplateEventNames,
+  isMiniprogramNativeComponentTag,
   isTemplateComponentTag
 } from '@/parser/template-parser-utils.js'
 
@@ -16,7 +17,11 @@ describe('template parser utils', () => {
   it('识别组件标签并保持旧命名规则', () => {
     expect(isTemplateComponentTag('UserCard')).toBe(true)
     expect(isTemplateComponentTag('user-card')).toBe(true)
+    expect(isMiniprogramNativeComponentTag('scroll-view')).toBe(true)
+    expect(isMiniprogramNativeComponentTag('user-card')).toBe(false)
     expect(isTemplateComponentTag('view')).toBe(false)
+    expect(isTemplateComponentTag('scroll-view')).toBe(false)
+    expect(isTemplateComponentTag('swiper-item')).toBe(false)
   })
 
   it('格式化 AST 节点位置信息并保留 unknown fallback', () => {

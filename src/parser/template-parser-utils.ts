@@ -3,9 +3,83 @@
  */
 
 /**
- * 判断模板标签是否按旧规则视为组件。
+ * 微信小程序原生组件标签。
+ *
+ * Vue 编译器会把带连字符的标签标记为组件；但微信原生组件中也存在
+ * `scroll-view` / `swiper-item` 等连字符标签。这里显式排除原生标签，
+ * 避免生成不存在的 `usingComponents` 引用。
+ */
+const MINIPROGRAM_NATIVE_COMPONENT_TAGS = new Set([
+  'ad',
+  'ad-custom',
+  'audio',
+  'button',
+  'camera',
+  'canvas',
+  'channel-live',
+  'channel-video',
+  'checkbox',
+  'checkbox-group',
+  'cover-image',
+  'cover-view',
+  'custom-wrapper',
+  'editor',
+  'form',
+  'functional-page-navigator',
+  'icon',
+  'image',
+  'input',
+  'keyboard-accessory',
+  'label',
+  'live-player',
+  'live-pusher',
+  'map',
+  'match-media',
+  'movable-area',
+  'movable-view',
+  'navigation-bar',
+  'navigator',
+  'official-account',
+  'open-data',
+  'page-container',
+  'page-meta',
+  'picker',
+  'picker-view',
+  'picker-view-column',
+  'progress',
+  'radio',
+  'radio-group',
+  'rich-text',
+  'root-portal',
+  'scroll-view',
+  'share-element',
+  'slider',
+  'switch',
+  'swiper',
+  'swiper-item',
+  'textarea',
+  'text',
+  'video',
+  'view',
+  'voip-room',
+  'web-view'
+])
+
+/**
+ * 判断模板标签是否为微信小程序原生组件。
+ */
+export function isMiniprogramNativeComponentTag(tag: string): boolean {
+  return MINIPROGRAM_NATIVE_COMPONENT_TAGS.has(tag)
+}
+
+/**
+ * 判断模板标签是否应视为自定义组件。
  */
 export function isTemplateComponentTag(tag: string): boolean {
+  if (isMiniprogramNativeComponentTag(tag)) {
+    return false
+  }
+
   return /^[A-Z]/.test(tag) || tag.includes('-')
 }
 

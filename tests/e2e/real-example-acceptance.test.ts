@@ -219,9 +219,27 @@ describe('真实示例工程验收', () => {
     expect(slotPanelWxss).toContain('.slot-panel')
 
     const profileSource = await fs.readFile(join(exampleRoot, 'pages/profile.vue'), 'utf8')
+    const profileJson = JSON.parse(await readOutputFile('pages/profile.json'))
     const profileJs = await readOutputFile('pages/profile.js')
     const profileWxml = await readOutputFile('pages/profile.wxml')
     const profileWxss = await readOutputFile('pages/profile.wxss')
+    expect(Object.keys(profileJson.usingComponents ?? {})).not.toEqual(expect.arrayContaining([
+      'scroll-view',
+      'swiper-item',
+      'movable-area',
+      'movable-view',
+      'cover-view',
+      'cover-image',
+      'live-player',
+      'live-pusher',
+      'web-view',
+      'page-container',
+      'picker-view',
+      'picker-view-column',
+      'rich-text',
+      'radio-group',
+      'checkbox-group'
+    ]))
     expect(profileSource).toContain('computed(')
     expect(profileSource).toContain('v-if="profileReady"')
     expect(profileSource).toContain('<input')
