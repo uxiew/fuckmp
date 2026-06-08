@@ -1,0 +1,120 @@
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const wxSafe = typeof wx !== 'undefined'
+  ? wx
+  : {
+      STATUS_BAR_HEIGHT: 20,
+      DEFAULT_HEADER_HEIGHT: 46,
+      DEFAULT_CONTENT_HEIGHT: 667,
+      WIN_WIDTH: 375,
+      navigateBack() {},
+      navigateTo() {},
+      showToast() {},
+      setStorageSync() {},
+      createMapContext() {
+        return { moveToLocation() {} }
+      },
+      openSysMap() {}
+    }
+
+const NAV_HEIGHT = ref(0)
+const valueStyle = ref({
+  color: '#F6620F',
+  fontSize: '28px',
+  top: '-54px',
+  borderBottom: '1px dashed #E0E0E0',
+  padding: '0 10px',
+  left: '50%',
+  transform: 'translate(-50%, 0%)'
+})
+
+function setData(patch: Record<string, any>) {
+  if (Object.prototype.hasOwnProperty.call(patch, 'NAV_HEIGHT')) NAV_HEIGHT.value = patch['NAV_HEIGHT']
+  if (Object.prototype.hasOwnProperty.call(patch, 'valueStyle')) valueStyle.value = patch['valueStyle']
+}
+
+const navigateBack = () => {
+  wxSafe.navigateBack();
+}
+
+</script>
+
+<template>
+<view>
+    <!-- 自定义导航 -->
+    <ui-nav-bar slot="nav-bar" custom-style="{{ {borderBottom:'1px solid rgba(231, 231, 231, 0.6)',backgroundColor:'#fff'} }}">
+      <ui-row height="46">
+        <ui-col vertical-align="middle" align="center" width="60" bindtap="navigateBack">
+            <ui-icon type="arrow-left" size="16" color="#333"></ui-icon>
+        </ui-col>
+        <ui-col vertical-align="middle" align="center">
+          <view>标尺</view>
+        </ui-col>
+        <ui-col vertical-align="middle" align="center" width="60">
+        </ui-col>
+      </ui-row>
+    </ui-nav-bar>
+    <!-- 设置内容距离nav-bar高度占位 -->
+    <view style="height:{{NAV_HEIGHT}}"></view>
+    <view class="ruler_wrap">
+      <view class="title1">金额</view>
+      <view class="title2">我要转入(元)</view>
+      <ui-ruler
+        height="35"
+        key-line-height="10"
+        line-height="5"
+        min="0"
+        max="10000"
+        key-step="1000"
+        number-size="12"
+        line-width="1"
+        step-width='5'
+        pointer-width="1"
+        value-style="{{valueStyle}}"
+      ></ui-ruler>
+    </view>
+
+    <view class="ruler_wrap">
+      <view class="title1">身高</view>
+      <view class="title2">选择我的身高(CM)</view>
+      <ui-ruler
+        height="35"
+        key-line-height="10"
+        line-height="5"
+        min="150"
+        max="190"
+        step="1"
+        value="170"
+        key-step="5"
+        number-size="12"
+        line-width="1"
+        step-width='10'
+        pointer-width="1"
+        mode="top"
+        value-style="{{valueStyle}}"
+      ></ui-ruler>
+    </view>
+  </view>
+</template>
+
+<style lang="scss" scoped>
+// ruler.less
+.ruler_wrap{
+  padding-top: 50px;
+  text-align: center;
+  position: relative;
+  .title1{
+    text-align: center;
+    font-size: 24px;
+    color: #969696;
+    margin-bottom: 20px;
+  }
+  .title2{
+    text-align: center;
+    font-size: 14px;
+    color: #969696;
+    margin-bottom: 50px;
+  }
+}
+</style>

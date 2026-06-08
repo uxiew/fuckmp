@@ -1,0 +1,109 @@
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const wxSafe = typeof wx !== 'undefined'
+  ? wx
+  : {
+      STATUS_BAR_HEIGHT: 20,
+      DEFAULT_HEADER_HEIGHT: 46,
+      DEFAULT_CONTENT_HEIGHT: 667,
+      WIN_WIDTH: 375,
+      navigateBack() {},
+      navigateTo() {},
+      showToast() {},
+      setStorageSync() {},
+      createMapContext() {
+        return { moveToLocation() {} }
+      },
+      openSysMap() {}
+    }
+
+const NAV_HEIGHT = ref(0)
+const groups = ref([{
+  title: '图形与交互',
+  items: [{
+    title: '角标 badge',
+    link: '/pages/componentDemo/badge'
+  }, {
+    title: '分隔符 divider',
+    link: '/pages/componentDemo/divider'
+  }, {
+    title: '星级评价 star',
+    link: '/pages/componentDemo/star'
+  }, {
+    title: '星级展示 mini-star',
+    link: '/pages/componentDemo/miniStar'
+  }]
+}])
+
+function setData(patch: Record<string, any>) {
+  if (Object.prototype.hasOwnProperty.call(patch, 'NAV_HEIGHT')) NAV_HEIGHT.value = patch['NAV_HEIGHT']
+  if (Object.prototype.hasOwnProperty.call(patch, 'groups')) groups.value = patch['groups']
+}
+
+const navigator = (e) => {
+  console.log(e);
+  var link = e.currentTarget.dataset.link;
+  wxSafe.navigateTo({
+    url: link
+  });
+}
+
+const navigateBack = () => {
+  wxSafe.navigateBack();
+}
+
+</script>
+
+<template>
+<view>
+    <ui-nav-bar slot="nav-bar" custom-style="{{ {borderBottom:'1px solid rgba(231, 231, 231, 0.6)',backgroundColor:'#fff'} }}">
+      <ui-row height="46">
+        <ui-col vertical-align="middle" align="center" width="60" bindtap="navigateBack">
+            <ui-icon type="arrow-left" size="16" color="#333"></ui-icon>
+        </ui-col>
+        <ui-col vertical-align="middle" align="center">
+          <view>图形与交互</view>
+        </ui-col>
+        <ui-col vertical-align="middle" align="center" width="60">
+        </ui-col>
+      </ui-row>
+    </ui-nav-bar>
+      <view style="height:{{NAV_HEIGHT}}"></view>
+    <view wx:for="{{ groups }}" wx:for-item="group" wx:for-index="groupIndex" class="sample_list">
+      <view class="group-title">
+        <ui-row >
+          <ui-col width="5" align="center" vertical-align="middle">
+            <view class="sign"></view>
+          </ui-col>
+          <ui-col align="left" vertical-align="middle" space-left="10">
+            <view >{{ group.title }}</view>
+          </ui-col>
+        </ui-row>
+      </view>
+
+      <ui-row-list border-left-indent bordered>
+          <ui-row height="50"  bindtap="navigator" data-link="{{ item.link  }}" wx:for="{{ group.items }}" tap-effect>
+            <ui-col>{{ item.title }}</ui-col>
+            <ui-col align="right" width="30">
+                <ui-icon type="arrow-right" size="18" color="#C5C5C5"></ui-icon>
+            </ui-col>
+          </ui-row>
+      </ui-row-list>
+    </view>
+  </view>
+</template>
+
+<style lang="css" scoped>
+.title{
+  background-color: #f5f5f5;
+  font-size: 14px;
+  font-weight: bold;
+  line-height: 50px;
+  padding-left: 20px;
+}
+
+.text {
+  line-height: 50px;
+}
+</style>

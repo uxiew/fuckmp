@@ -23,6 +23,16 @@ describe('style-parser utils', () => {
     expect(result.css).toContain('.btn{position:relative}')
   })
 
+  it('转换 deep 选择器时保留 nth-child 等合法括号选择器', async () => {
+    const result = await postcss([createMiniprogramStylePlugin()]).process(
+      '.list :deep(.item){color:red}.list .item:nth-child(2n){color:blue}',
+      { from: undefined }
+    )
+
+    expect(result.css).toContain('.list .item{color:red}')
+    expect(result.css).toContain('.list .item:nth-child(2n){color:blue}')
+  })
+
   it('转换 px/vh/vw 为 rpx 单位', async () => {
     const result = await postcss([createStyleUnitPlugin()]).process(
       '.box{width:10px;min-height:50vh;max-width:80vw}',

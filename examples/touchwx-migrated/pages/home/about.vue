@@ -1,0 +1,74 @@
+<script setup lang="ts">
+import { ref } from 'vue'
+
+const wxSafe = typeof wx !== 'undefined'
+  ? wx
+  : {
+      STATUS_BAR_HEIGHT: 20,
+      DEFAULT_HEADER_HEIGHT: 46,
+      DEFAULT_CONTENT_HEIGHT: 667,
+      WIN_WIDTH: 375,
+      navigateBack() {},
+      navigateTo() {},
+      showToast() {},
+      setStorageSync() {},
+      createMapContext() {
+        return { moveToLocation() {} }
+      },
+      openSysMap() {}
+    }
+
+const NAV_HEIGHT = ref(0)
+const imgHeight = ref(0)
+
+function setData(patch: Record<string, any>) {
+  if (Object.prototype.hasOwnProperty.call(patch, 'NAV_HEIGHT')) NAV_HEIGHT.value = patch['NAV_HEIGHT']
+  if (Object.prototype.hasOwnProperty.call(patch, 'imgHeight')) imgHeight.value = patch['imgHeight']
+}
+
+</script>
+
+<template>
+<view>
+    <!-- 自定义导航 -->
+    <ui-nav-bar slot="nav-bar" custom-style="{{ {boxShadow: '0 0px 16px 0 #ccc',backgroundColor:'#fff'} }}">
+      <ui-row height="46" >
+        <ui-col vertical-align="middle" align="center">
+          <view>
+            关于
+          </view>
+        </ui-col>
+      </ui-row>
+    </ui-nav-bar>
+    <!-- 设置内容距离nav-bar高度占位 -->
+    <view style="height:{{NAV_HEIGHT}}"></view>
+    <image 
+    src="http://images.uileader.com/20180409/4bfa3378-e3b4-41d4-a89c-23132a9721ac.jpg" 
+    mode="simple" 
+    style="width:100%;height:{{imgHeight}}px;"
+    ></image>
+    <view class="text">
+      WeTouch移动云平台致力于让开发者用一套技术就可以开发APP、微信小程序和H5等移动应用，通过WeTouch平台，企业可以大大节约开发和维护成本，缩短项目上线周期。
+    </view>
+    <view class="text">
+      Touch WX属于WeTouch移动云平台的一部分，是一套完全免费的微信小程序开发框架，包含了丰富的UI控件用于官方组件的补充。当你用WeTouch平台开发了App或H5应用，可以很容易的移植为Touch WX工程，稍作调整就能生成小程序。反之也同样，当你Touch WX开发了微信小程序，可以很方便的移植为App或H5应用。
+    </view>
+    <view class="text">
+      更多产品请访问我们官网
+    </view>
+    <view class="text">
+      http://www.wetouch.net
+    </view>
+
+  </view>
+</template>
+
+<style lang="scss" scoped>
+.text{
+    margin:5px 10px;
+    color:#333;
+    line-height:35px;
+    font-size:14px;
+    text-indent:28px;
+  }
+</style>

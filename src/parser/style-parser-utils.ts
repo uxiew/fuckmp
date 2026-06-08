@@ -61,8 +61,7 @@ export function createMiniprogramStylePlugin(): Plugin {
       // 处理深度选择器
       rule.selector = rule.selector
         .replace(/::v-deep\s+/g, ' ')
-        .replace(/:deep\(/g, ' ')
-        .replace(/\)/g, '')
+        .replace(/:deep\(([^()]*)\)/g, '$1')
     },
     Declaration(decl: Declaration) {
       if (UNSUPPORTED_MINIPROGRAM_STYLE_PROPS.includes(
