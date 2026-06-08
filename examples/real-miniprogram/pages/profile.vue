@@ -343,6 +343,23 @@
       <text class="hover-view-status">状态：{{ hoverViewStatus }}</text>
     </view>
 
+    <view class="button-card">
+      <text class="preference-label">Button 属性验收</text>
+      <button
+        class="primary-action-button"
+        type="primary"
+        size="mini"
+        plain="true"
+        loading="true"
+        :disabled="actionButtonDisabled"
+        hover-class="primary-action-hover"
+        @click="handlePrimaryActionTap"
+      >
+        原生按钮
+      </button>
+      <text class="primary-action-status">状态：{{ actionButtonStatus }}</text>
+    </view>
+
     <view class="preference-row">
       <text class="preference-label">接收验收提醒</text>
       <switch :checked="emailOptIn" @change="handleEmailOptInChange" />
@@ -653,6 +670,8 @@ const profileIconSize = ref(32)
 const profileIconStatus = ref('success-ready')
 const nativeTextStatus = ref('selectable-ready')
 const hoverViewStatus = ref('hover-ready')
+const actionButtonDisabled = ref(false)
+const actionButtonStatus = ref('idle')
 const profileSummary = computed(() => `${profileName.value} · ${profileRole.value}`)
 const selectedTheme = computed(() => themeOptions.value[themeIndex.value])
 const completionText = computed(() => `${completionLevel.value}%`)
@@ -946,6 +965,11 @@ const handleProfileProgressActiveEnd = () => {
 const handlePickerViewChange = (event: MiniPickerViewChangeEvent) => {
   pickerViewValue.value = event.detail.value
   pickerViewStatus.value = `selected:${event.detail.value.join('-')}`
+}
+
+/** 验收 button 展示属性和 click 到微信原生 tap 事件映射。 */
+const handlePrimaryActionTap = () => {
+  actionButtonStatus.value = 'tapped'
 }
 
 const handleBioInput = (event: MiniTextareaInputEvent) => {
@@ -1572,6 +1596,31 @@ const handleProfileReset = () => {
 }
 
 .hover-view-status {
+  color: $primary-color;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.button-card {
+  background: rgba($primary-color, 0.06);
+  border-radius: 12rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  padding: 20rpx;
+}
+
+.primary-action-button {
+  border-color: $primary-color;
+  color: $primary-color;
+  font-size: 24rpx;
+}
+
+.primary-action-hover {
+  background: rgba($primary-color, 0.12);
+}
+
+.primary-action-status {
   color: $primary-color;
   font-size: 24rpx;
   font-weight: 600;
