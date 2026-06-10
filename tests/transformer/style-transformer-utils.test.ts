@@ -32,6 +32,21 @@ describe('style-transformer utils', () => {
     )
   })
 
+  it('为带尾随伪类和伪元素的选择器添加 scoped 属性时不破坏伪类参数', () => {
+    const css = [
+      '.item:nth-child(2n) { color: red; }',
+      '.btn::after { content: ""; }',
+      '.card > a:before { height: 0; }'
+    ].join('\n')
+
+    const result = addScopedStyles(css, 'abc123')
+
+    expect(result).toContain('.item[data-v-abc123]:nth-child(2n)')
+    expect(result).toContain('.btn[data-v-abc123]::after')
+    expect(result).toContain('.card > a[data-v-abc123]:before')
+    expect(result).not.toContain('nth-child(2n[data-v-abc123]')
+  })
+
   it('压缩 CSS 并移除注释和多余空白', () => {
     const css = `
       /* comment */

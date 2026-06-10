@@ -78,7 +78,9 @@
     <view class="video-card">
       <text class="preference-label">视频验收</text>
       <text class="video-status">状态：{{ videoStatus }} · {{ videoCurrentTime }}s</text>
+      <button class="native-preview-button" @tap="showNativePreview">加载网络/权限组件</button>
       <video
+        v-if="nativePreviewVisible"
         class="profile-video"
         :src="profileVideoSrc"
         controls="true"
@@ -151,6 +153,7 @@
       <text class="preference-label">相机验收</text>
       <text class="camera-status">状态：{{ cameraStatus }}</text>
       <camera
+        v-if="nativePreviewVisible"
         class="profile-camera"
         mode="scanCode"
         resolution="medium"
@@ -167,6 +170,7 @@
       <text class="preference-label">直播播放验收</text>
       <text class="live-player-status">状态：{{ livePlayerStatus }}</text>
       <live-player
+        v-if="nativePreviewVisible"
         class="profile-live-player"
         :src="livePlayerSrc"
         mode="live"
@@ -185,6 +189,7 @@
       <text class="preference-label">直播推流验收</text>
       <text class="live-pusher-status">状态：{{ livePusherStatus }}</text>
       <live-pusher
+        v-if="nativePreviewVisible"
         class="profile-live-pusher"
         :url="livePusherUrl"
         mode="RTC"
@@ -220,7 +225,9 @@
     <view class="web-view-card">
       <text class="preference-label">网页容器验收</text>
       <text class="web-view-status">状态：{{ webViewStatus }}</text>
+      <button class="web-view-button" @tap="showWebView">加载 web-view</button>
       <web-view
+        v-if="webViewVisible"
         class="profile-web-view"
         :src="webViewSrc"
         @message="handleWebViewMessage"
@@ -615,6 +622,7 @@ const scrollStatus = ref('idle')
 const scrollTop = ref(0)
 const swiperIndex = ref(0)
 const profileVideoSrc = ref('https://media.w3.org/2010/05/sintel/trailer.mp4')
+const nativePreviewVisible = ref(false)
 const videoStatus = ref('idle')
 const videoCurrentTime = ref(0)
 const movableX = ref(0)
@@ -631,6 +639,8 @@ const mapMarkers = ref([
     id: 1,
     latitude: 39.909,
     longitude: 116.39742,
+    width: 48,
+    height: 48,
     title: '真实示例标记'
   }
 ])
@@ -644,6 +654,7 @@ const editorReadOnly = ref(false)
 const editorStatus = ref('idle')
 const editorHtml = ref('')
 const webViewSrc = ref('https://example.com/profile')
+const webViewVisible = ref(false)
 const webViewStatus = ref('idle')
 const pageContainerVisible = ref(false)
 const pageContainerStatus = ref('idle')
@@ -752,6 +763,11 @@ const handleProfileScroll = (event: MiniScrollEvent) => {
 /** 验收 swiper change 事件读取微信原生 event.detail.current。 */
 const handleSwiperChange = (event: MiniSwiperChangeEvent) => {
   swiperIndex.value = event.detail.current
+}
+
+/** 验收 video play 事件会映射为微信原生 bind:play。 */
+const showNativePreview = () => {
+  nativePreviewVisible.value = true
 }
 
 /** 验收 video play 事件会映射为微信原生 bind:play。 */
@@ -898,6 +914,12 @@ const handleEditorStatusChange = (event: MiniEditorStatusChangeEvent) => {
 /** 验收 web-view message 事件读取微信原生 event.detail.data。 */
 const handleWebViewMessage = (event: MiniWebViewMessageEvent) => {
   webViewStatus.value = `message:${event.detail.data.length}`
+}
+
+/** 默认不挂载 web-view，避免 DevTools 游客模式打开示例时主动触发业务域名/安全信息请求。 */
+const showWebView = () => {
+  webViewVisible.value = true
+  webViewStatus.value = 'loading'
 }
 
 /** 验收 web-view load 事件会映射为微信原生 bind:load。 */
@@ -1185,6 +1207,12 @@ const handleProfileReset = () => {
   font-weight: 600;
 }
 
+.native-preview-button {
+  background: $primary-color;
+  color: #ffffff;
+  font-size: 24rpx;
+}
+
 .profile-video {
   border-radius: 12rpx;
   height: 220rpx;
@@ -1406,6 +1434,12 @@ const handleProfileReset = () => {
   color: $primary-color;
   font-size: 24rpx;
   font-weight: 600;
+}
+
+.web-view-button {
+  background: $primary-color;
+  color: #ffffff;
+  font-size: 24rpx;
 }
 
 .profile-web-view {

@@ -173,11 +173,15 @@ export function transformVueTemplateElementProps(
   const attrs: string[] = []
   let staticClass = ''
   let dynamicClass = ''
+  let staticStyle = ''
+  let dynamicStyle = ''
 
   props.forEach(prop => {
     if (prop.type === 6) {
       if (prop.name === 'class') {
         staticClass = prop.value?.content || ''
+      } else if (prop.name === 'style') {
+        staticStyle = prop.value?.content || ''
       } else {
         const attrName = mapVueTemplateAttributeName(tagName, prop.name)
         attrs.push(`${attrName}="${prop.value?.content || ''}"`)
@@ -186,6 +190,16 @@ export function transformVueTemplateElementProps(
     }
 
     if (prop.type === 7) {
+      if (prop.name === 'bind' && prop.arg?.content === 'style') {
+        const legacyStaticStyle = restoreLegacyStaticStyleBinding(prop)
+        if (legacyStaticStyle !== null) {
+          staticStyle = legacyStaticStyle
+        } else {
+          dynamicStyle = extractVueTemplateExpression(prop.exp, context)
+        }
+        return
+      }
+
       if (prop.name === 'bind' && prop.arg?.content === 'class') {
         dynamicClass = extractVueTemplateExpression(prop.exp, context)
         return
@@ -205,6 +219,10 @@ export function transformVueTemplateElementProps(
     if (classAttr) {
       attrs.push(classAttr)
     }
+  }
+
+  if (staticStyle || dynamicStyle) {
+    attrs.push(transformVueTemplateStyleBinding(staticStyle, dynamicStyle))
   }
 
   return attrs.length > 0 ? ` ${attrs.join(' ')}` : ''
@@ -264,6 +282,202 @@ export function transformVueTemplateDirective(
       logger.warn(`未处理的指令: v-${name}`)
       return null
   }
+}
+
+/** Vue compiler 会把静态 style 解析成 bind 指令，这里按原始属性文本恢复。 */
+function restoreLegacyStaticStyleBinding(directive: any): string | null {
+  if (directive.name !== 'bind') return null
+
+  const arg = directive.arg?.content
+  if (arg !== 'style' || directive.rawName) return null
+
+  const rawSource = directive.loc?.source
+  if (typeof rawSource !== 'string') return null
+
+  return restoreLegacyWxAttribute(rawSource, arg)
+}
+
+function restoreLegacyWxAttribute(rawSource: string, attrName: string): string | null {
+  if (!rawSource.trimStart().startsWith(attrName)) return null
+
+  const equalIndex = rawSource.indexOf('=')
+  if (equalIndex === -1) return null
+
+  const valueSource = rawSource.slice(equalIndex + 1).trim()
+  const quote = valueSource[0]
+  if ((quote !== '"' && quote !== "'") || valueSource[valueSource.length - 1] !== quote) {
+    return null
+  }
+
+  return valueSource.slice(1, -1)
+}
+
+/**
+ * 合并静态 style 与 Vue `:style` 对象字面量，避免输出 `style="{{{...}}}"`。
+ */
+function transformVueTemplateStyleBinding(staticStyle: string, dynamicStyle: string): string {
+  const segments = [
+    staticStyle.trim(),
+    formatDynamicStyleExpression(dynamicStyle)
+  ].filter(Boolean)
+
+  return `style="${joinStyleSegments(segments)}"`
+}
+
+function formatDynamicStyleExpression(expression: string): string {
+  const trimmed = expression.trim()
+  if (!trimmed) return ''
+
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    const declarations = splitTopLevel(trimmed.slice(1, -1), ',')
+      .map(propertySource => formatObjectStyleProperty(propertySource))
+      .filter((declaration): declaration is string => Boolean(declaration))
+
+    if (declarations.length > 0) {
+      return declarations.join(' ')
+    }
+  }
+
+  return `{{${trimmed}}}`
+}
+
+function formatObjectStyleProperty(propertySource: string): string | null {
+  const separatorIndex = findTopLevelSeparator(propertySource, ':')
+  if (separatorIndex === -1) return null
+
+  const propertyName = normalizeCssPropertyName(propertySource.slice(0, separatorIndex))
+  const propertyValue = propertySource.slice(separatorIndex + 1).trim()
+  if (!propertyName || !propertyValue) return null
+
+  return `${propertyName}: ${formatStyleValue(propertyValue)};`
+}
+
+function joinStyleSegments(segments: string[]): string {
+  return segments
+    .map((segment, index) => {
+      const trimmed = segment.trim()
+      if (index < segments.length - 1 && trimmed && !trimmed.endsWith(';')) {
+        return `${trimmed};`
+      }
+      return trimmed
+    })
+    .join(' ')
+}
+
+function normalizeCssPropertyName(propertyName: string): string {
+  const unquoted = stripQuotes(propertyName.trim())
+  return unquoted.replace(/[A-Z]/g, char => `-${char.toLowerCase()}`)
+}
+
+function formatStyleValue(value: string): string {
+  const trimmed = value.trim()
+  if (isQuotedStringLiteral(trimmed)) {
+    return stripQuotes(trimmed)
+  }
+
+  if (/^-?\d+(?:\.\d+)?$/.test(trimmed)) {
+    return trimmed
+  }
+
+  return `{{${trimmed}}}`
+}
+
+function splitTopLevel(source: string, separator: string): string[] {
+  const parts: string[] = []
+  let current = ''
+  let quote = ''
+  let depth = 0
+
+  for (let i = 0; i < source.length; i++) {
+    const char = source.charAt(i)
+
+    if (quote) {
+      current += char
+      if (char === quote && source.charAt(i - 1) !== '\\') {
+        quote = ''
+      }
+      continue
+    }
+
+    if (char === '\'' || char === '"') {
+      quote = char
+      current += char
+      continue
+    }
+
+    if (char === '(' || char === '[' || char === '{') {
+      depth += 1
+      current += char
+      continue
+    }
+
+    if (char === ')' || char === ']' || char === '}') {
+      depth -= 1
+      current += char
+      continue
+    }
+
+    if (char === separator && depth === 0) {
+      parts.push(current.trim())
+      current = ''
+      continue
+    }
+
+    current += char
+  }
+
+  if (current.trim()) {
+    parts.push(current.trim())
+  }
+
+  return parts
+}
+
+function findTopLevelSeparator(source: string, separator: string): number {
+  let quote = ''
+  let depth = 0
+
+  for (let i = 0; i < source.length; i++) {
+    const char = source.charAt(i)
+
+    if (quote) {
+      if (char === quote && source.charAt(i - 1) !== '\\') {
+        quote = ''
+      }
+      continue
+    }
+
+    if (char === '\'' || char === '"') {
+      quote = char
+      continue
+    }
+
+    if (char === '(' || char === '[' || char === '{') {
+      depth += 1
+      continue
+    }
+
+    if (char === ')' || char === ']' || char === '}') {
+      depth -= 1
+      continue
+    }
+
+    if (char === separator && depth === 0) {
+      return i
+    }
+  }
+
+  return -1
+}
+
+function isQuotedStringLiteral(value: string): boolean {
+  if (value.length < 2) return false
+  const quote = value.charAt(0)
+  return (quote === '\'' || quote === '"') && value.charAt(value.length - 1) === quote
+}
+
+function stripQuotes(value: string): string {
+  return isQuotedStringLiteral(value) ? value.slice(1, -1) : value
 }
 
 /** 将 Vue/HTML 源属性名收敛为微信原生属性名。 */

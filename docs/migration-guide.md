@@ -19,6 +19,14 @@
 
 ## 迁移步骤
 
+### TouchWX 专项顺序
+
+TouchWX 旧工程必须先迁移 `_original`，再迁移真实应用：
+
+1. 运行 `pnpm exec tsx scripts/migrate-touchwx-original.ts`，生成 `examples/touchwx-original-migrated`。
+2. 运行 `pnpm vitest run tests/e2e/touchwx-original-migration-acceptance.test.ts`，确认 `_original` 的 4 个 scaffold 页面、41 个原始组件和缺失引用补位组件可完整编译。
+3. `_original` 通过后，才继续运行 `scripts/migrate-touchwx.ts` 迁移 `/Users/bing/Workspace/touchwx/touchwx`。
+
 1. **建立迁移分支和基线**
    - 保留原项目可运行分支。
    - 记录当前页面列表、组件依赖、全局样式、接口 mock 与运行截图。

@@ -109,6 +109,7 @@ describe('TouchWX 迁移示例验收', () => {
     expect(uiRowJson.options).toEqual({ multipleSlots: true })
 
     await expectUsingComponentTargetsToExist()
+    await expectGeneratedFilesToBeDevToolsParsable()
   })
 
   async function readOutputFile(relativePath: string): Promise<string> {
@@ -153,6 +154,34 @@ describe('TouchWX 迁移示例验收', () => {
       const target = join(outputRoot, relativePath)
       await expect(fs.access(target), `static asset: ${target}`).resolves.toBeUndefined()
     }
+  }
+
+  async function expectGeneratedFilesToBeDevToolsParsable(): Promise<void> {
+    const wxmlFiles = await walkFiles(outputRoot, file => file.endsWith('.wxml'))
+    for (const file of wxmlFiles) {
+      const wxml = await fs.readFile(file, 'utf8')
+      expect(wxml, file).not.toContain('{{{')
+      expect(wxml, file).not.toContain('}}}')
+      expect(wxml, file).not.toContain('style="{{{')
+    }
+
+    const accordionWxml = await readOutputFile('pages/componentDemo/accordion.wxml')
+    expect(accordionWxml).toContain('style="height:{{NAV_HEIGHT}}"')
+
+    const wxssFiles = await walkFiles(outputRoot, file => file.endsWith('.wxss'))
+    for (const file of wxssFiles) {
+      const wxss = await fs.readFile(file, 'utf8')
+      expect(wxss, file).not.toMatch(/^\s*\.[\w-]*-\s*$/m)
+      expect(wxss, file).not.toMatch(/nth-child\([^)]*\[data-v-/)
+    }
+
+    const uiMaskWxss = await readOutputFile('components/ui-mask.wxss')
+    expect(uiMaskWxss).toMatch(/\.ui-mask\.scale-out(?:\[data-v-[a-z0-9]+\])?\s*\{[^}]*transform:\s*scale\(0\);/)
+    expect(uiMaskWxss).toMatch(/\.ui-mask\.show(?:\[data-v-[a-z0-9]+\])?\s*\{[^}]*visibility:\s*visible;/)
+    expect(uiMaskWxss).toMatch(/\.ui-mask\.blur-dark-android(?:\[data-v-[a-z0-9]+\])?\s*\{[^}]*background:\s*rgba\(0,\s*0,\s*0,\s*0\.85\);/)
+
+    const stickyWxss = await readOutputFile('pages/componentDemo/sticky3.wxss')
+    expect(stickyWxss).toMatch(/\.ui-cascader-item\[data-v-[a-z0-9]+\]:nth-child\(2n\)/)
   }
 })
 

@@ -13,8 +13,7 @@ export function transformStyleSelectors(css: string): string {
   // 移除深度选择器
   transformedCSS = transformedCSS
     .replace(/::v-deep\s+/g, ' ')
-    .replace(/:deep\(/g, ' ')
-    .replace(/\)\s*{/g, ' {')
+    .replace(/:deep\(([^()]*)\)/g, '$1')
 
   // 移除不支持的伪类并记录警告
   const unsupportedPseudoClasses = [':hover', ':focus', ':active', ':visited', ':link']
@@ -58,19 +57,19 @@ export function transformStyleSelectors(css: string): string {
  * 转换或移除小程序不支持的 CSS 属性。
  */
 export function transformStyleProperties(css: string): string {
-  return css
-    // 移除不支持的属性
-    .replace(/\s*box-shadow\s*:[^;]+;?/g, '')
-    .replace(/\s*text-shadow\s*:[^;]+;?/g, '')
-    .replace(/\s*filter\s*:[^;]+;?/g, '')
-    .replace(/\s*backdrop-filter\s*:[^;]+;?/g, '')
-    .replace(/\s*clip-path\s*:[^;]+;?/g, '')
-    .replace(/\s*mask\s*:[^;]+;?/g, '')
-    .replace(/\s*outline\s*:[^;]+;?/g, '')
+  return removeUnsupportedDeclarations(css, [
+    'box-shadow',
+    'text-shadow',
+    'filter',
+    'backdrop-filter',
+    'clip-path',
+    'mask',
+    'outline'
+  ]).css
     // 转换 position: sticky
     .replace(/position\s*:\s*sticky/g, 'position: relative')
     // 转换 cursor
-    .replace(/cursor\s*:[^;]+;?/g, '')
+    .replace(/([;{])\s*cursor\s*:[^;{}]+;?/g, '$1')
 }
 
 /**
@@ -96,20 +95,14 @@ export function removeUnsupportedStyleRules(css: string): { css: string; removed
 
   let cleanedCSS = css
 
-  // 移除不支持的属性
-  unsupportedProperties.forEach(prop => {
-    const regex = new RegExp(`\\s*${prop}\\s*:[^;]+;?`, 'g')
-    const matches = cleanedCSS.match(regex)
-    if (matches) {
-      removedCount += matches.length
-      cleanedCSS = cleanedCSS.replace(regex, '')
-      // 编译时警告：移除不支持的样式属性
-      logger.warn(`移除不支持的样式属性: ${prop} (${matches.length} 处)`)
-      matches.forEach(match => {
-        logger.warn(`  - ${match.trim()}`)
-      })
-    }
+  const unsupportedDeclarationResult = removeUnsupportedDeclarations(cleanedCSS, unsupportedProperties, (prop, matches) => {
+    logger.warn(`移除不支持的样式属性: ${prop} (${matches.length} 处)`)
+    matches.forEach(match => {
+      logger.warn(`  - ${match.trim()}`)
+    })
   })
+  cleanedCSS = unsupportedDeclarationResult.css
+  removedCount += unsupportedDeclarationResult.removedCount
 
   // 移除 @media 查询（小程序不支持）
   const mediaRegex = /@media[^{]*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g
@@ -143,4 +136,42 @@ export function removeUnsupportedStyleRules(css: string): { css: string; removed
   cleanedCSS = cleanedCSS.replace(/[^{}]+{\s*}/g, '')
 
   return { css: cleanedCSS, removedCount }
+}
+
+interface RemoveUnsupportedDeclarationsResult {
+  css: string
+  removedCount: number
+}
+
+/**
+ * 只移除 CSS 声明块内的不支持属性，避免误删 `.ui-mask:empty` 等选择器片段。
+ */
+function removeUnsupportedDeclarations(
+  css: string,
+  properties: readonly string[],
+  onRemove?: (property: string, matches: string[]) => void
+): RemoveUnsupportedDeclarationsResult {
+  let cleanedCSS = css
+  let removedCount = 0
+
+  for (const property of properties) {
+    const regex = new RegExp(`([;{])\\s*${escapeRegExp(property)}\\s*:[^;{}]+;?`, 'g')
+    const matches: string[] = []
+
+    cleanedCSS = cleanedCSS.replace(regex, (match, boundary: string) => {
+      matches.push(match.slice(boundary.length).trim())
+      return boundary
+    })
+
+    if (matches.length > 0) {
+      removedCount += matches.length
+      onRemove?.(property, matches)
+    }
+  }
+
+  return { css: cleanedCSS, removedCount }
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }

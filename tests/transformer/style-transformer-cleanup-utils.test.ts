@@ -25,7 +25,7 @@ describe('style-transformer cleanup utils', () => {
     expect(result).toContain('.button { color: red; }')
     expect(result).toContain('.input { color: blue; }')
     expect(result).toContain('.deep  .child { color: green; }')
-    expect(result).toContain('.wrap  .inner { color: black; }')
+    expect(result).toContain('.wrap .inner { color: black; }')
   })
 
   it('转换或移除小程序不支持的样式属性', () => {
@@ -45,6 +45,29 @@ describe('style-transformer cleanup utils', () => {
     expect(result).not.toContain('filter')
     expect(result).not.toContain('cursor')
     expect(result).toContain('position: relative')
+    expect(result).toContain('color: red;')
+  })
+
+  it('只移除声明块内的 mask 属性，不破坏包含 mask 的选择器', () => {
+    const css = [
+      '.ui-mask:empty::after {',
+      '  color: #9aa4b2;',
+      "  content: 'mask';",
+      '  font-size: 24rpx;',
+      '}',
+      '.masked {',
+      '  mask: linear-gradient(#000, transparent);',
+      '  color: red;',
+      '}'
+    ].join('\n')
+
+    const result = transformStyleProperties(css)
+
+    expect(result).toContain('.ui-mask:empty::after')
+    expect(result).toContain("content: 'mask';")
+    expect(result).toContain('font-size: 24rpx;')
+    expect(result).toContain('.masked {')
+    expect(result).not.toContain('mask: linear-gradient')
     expect(result).toContain('color: red;')
   })
 
@@ -71,5 +94,28 @@ describe('style-transformer cleanup utils', () => {
     expect(result.css).toContain('color: blue;')
     expect(result.css).not.toContain('.empty')
     expect(result.removedCount).toBe(5)
+  })
+
+  it('清理 unsupported 属性时保留包含属性名的合法选择器和内容值', () => {
+    const css = [
+      '.ui-mask:empty::after {',
+      '  color: #9aa4b2;',
+      "  content: 'mask';",
+      '  font-size: 24rpx;',
+      '}',
+      '.card {',
+      '  mask: linear-gradient(#000, transparent);',
+      '  color: blue;',
+      '}'
+    ].join('\n')
+
+    const result = removeUnsupportedStyleRules(css)
+
+    expect(result.css).toContain('.ui-mask:empty::after')
+    expect(result.css).toContain("content: 'mask';")
+    expect(result.css).toContain('font-size: 24rpx;')
+    expect(result.css).not.toContain('mask: linear-gradient')
+    expect(result.css).toContain('color: blue;')
+    expect(result.removedCount).toBe(1)
   })
 })

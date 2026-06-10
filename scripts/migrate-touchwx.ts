@@ -12,9 +12,12 @@ import generateModule from '@babel/generator'
 import * as t from '@babel/types'
 import fs from 'fs-extra'
 import { dirname, join, relative } from 'node:path'
+import { migrateTouchWxOriginalProject } from './migrate-touchwx-original.js'
 
 const DEFAULT_SOURCE_ROOT = '/Users/bing/Workspace/touchwx/touchwx'
 const DEFAULT_OUTPUT_ROOT = 'examples/touchwx-migrated'
+const DEFAULT_ORIGINAL_ROOT = '/Users/bing/Workspace/touchwx/_original'
+const DEFAULT_ORIGINAL_OUTPUT_ROOT = 'examples/touchwx-original-migrated'
 
 const generate = (generateModule as unknown as { default?: typeof generateModule }).default || generateModule
 
@@ -82,6 +85,8 @@ interface MigrationSummary {
   outputRoot: string
   pages: PageMigrationResult[]
   uiTags: string[]
+  reusedOriginalComponents: string[]
+  stubComponents: string[]
   copiedAssets: string[]
 }
 
@@ -90,7 +95,9 @@ async function main(): Promise<void> {
   const outputRoot = process.env.TOUCHWX_OUTPUT_ROOT || join(process.cwd(), DEFAULT_OUTPUT_ROOT)
 
   const summary = await migrateTouchWxProject(sourceRoot, outputRoot)
-  console.log(`✅ TouchWX 迁移完成：${summary.pages.length} 个页面，${summary.uiTags.length} 个 UI stub 组件`)
+  console.log(`✅ TouchWX 迁移完成：${summary.pages.length} 个页面，${summary.uiTags.length} 个 UI 组件`)
+  console.log(`   - 复用 _original 组件：${summary.reusedOriginalComponents.length} 个`)
+  console.log(`   - 轻量补位组件：${summary.stubComponents.length} 个`)
   console.log(`📁 输出目录：${summary.outputRoot}`)
 }
 
@@ -127,15 +134,17 @@ export async function migrateTouchWxProject(sourceRoot: string, outputRoot: stri
 
   await writeAppVue(absoluteOutputRoot, appParts)
   await writeVue3MpConfig(absoluteOutputRoot, appConfig, pages.map(page => page.route))
-  await writeUiStubComponents(absoluteOutputRoot, Array.from(uiTags).sort())
+  const componentMigration = await writeUiComponentsFromOriginalFirst(absoluteOutputRoot, Array.from(uiTags).sort())
   const copiedAssets = await copyTouchWxAssets(absoluteSourceRoot, absoluteOutputRoot)
-  await writeMigrationReadme(absoluteOutputRoot, absoluteSourceRoot, pages, Array.from(uiTags).sort(), copiedAssets)
+  await writeMigrationReadme(absoluteOutputRoot, absoluteSourceRoot, pages, Array.from(uiTags).sort(), copiedAssets, componentMigration)
 
   return {
     sourceRoot: absoluteSourceRoot,
     outputRoot: absoluteOutputRoot,
     pages,
     uiTags: Array.from(uiTags).sort(),
+    reusedOriginalComponents: componentMigration.reused,
+    stubComponents: componentMigration.stubbed,
     copiedAssets
   }
 }
@@ -629,12 +638,43 @@ async function writeVue3MpConfig(outputRoot: string, config: TouchWxAppConfig, p
   await fs.writeFile(join(outputRoot, 'vue3mp.config.js'), content, 'utf8')
 }
 
-async function writeUiStubComponents(outputRoot: string, tags: string[]): Promise<void> {
+async function writeUiComponentsFromOriginalFirst(outputRoot: string, tags: string[]): Promise<{ reused: string[], stubbed: string[] }> {
+  const originalOutputRoot = await ensureOriginalMigratedOutput()
+  const originalComponentsRoot = join(originalOutputRoot, 'components')
+  const targetComponentsRoot = join(outputRoot, 'components')
+  const reused: string[] = []
+  const stubbed: string[] = []
+
   await fs.ensureDir(join(outputRoot, 'components'))
   for (const tag of tags) {
-    const content = createUiStubComponent(tag)
-    await fs.writeFile(join(outputRoot, 'components', `${tag}.vue`), content, 'utf8')
+    const originalComponent = join(originalComponentsRoot, `${tag}.vue`)
+    if (await fs.pathExists(originalComponent)) {
+      await fs.copy(originalComponent, join(targetComponentsRoot, `${tag}.vue`))
+      reused.push(tag)
+    } else {
+      const content = createUiStubComponent(tag)
+      await fs.writeFile(join(targetComponentsRoot, `${tag}.vue`), content, 'utf8')
+      stubbed.push(tag)
+    }
   }
+
+  const originalImagesRoot = join(originalComponentsRoot, 'images')
+  if (await fs.pathExists(originalImagesRoot)) {
+    await fs.copy(originalImagesRoot, join(targetComponentsRoot, 'images'))
+  }
+
+  return { reused, stubbed }
+}
+
+async function ensureOriginalMigratedOutput(): Promise<string> {
+  const originalRoot = process.env.TOUCHWX_ORIGINAL_ROOT || DEFAULT_ORIGINAL_ROOT
+  const originalOutputRoot = process.env.TOUCHWX_ORIGINAL_OUTPUT_ROOT || join(process.cwd(), DEFAULT_ORIGINAL_OUTPUT_ROOT)
+
+  if (!(await fs.pathExists(join(originalOutputRoot, 'components', 'ui-accordion.vue')))) {
+    await migrateTouchWxOriginalProject(originalRoot, originalOutputRoot)
+  }
+
+  return originalOutputRoot
 }
 
 function createUiStubComponent(tag: string): string {
@@ -682,7 +722,8 @@ async function writeMigrationReadme(
   sourceRoot: string,
   pages: PageMigrationResult[],
   tags: string[],
-  copiedAssets: string[]
+  copiedAssets: string[],
+  componentMigration: { reused: string[], stubbed: string[] }
 ): Promise<void> {
   const content = `# TouchWX 迁移示例
 
@@ -691,14 +732,14 @@ async function writeMigrationReadme(
 ## 迁移范围
 
 - 页面：${pages.length} 个 \`.wx\` 页面迁移为 \`.vue\` 页面。
-- TouchWX UI 标签：${tags.length} 种 \`ui-*\` 标签生成轻量 Vue3 stub 组件，避免微信开发者工具缺组件。
+- TouchWX UI 标签：${tags.length} 种 \`ui-*\` 标签；其中 ${componentMigration.reused.length} 个复用第一阶段 \`_original\` 转换组件，${componentMigration.stubbed.length} 个使用轻量补位组件（${componentMigration.stubbed.join(', ') || '无'}）。
 - 静态资源：${copiedAssets.join(', ') || '无'}。
 - 保留原模板中的微信原生语法，例如 \`wx:for\`、\`bindtap\`、\`map\`、\`swiper\`、\`scroll-view\`、\`button\` 等。
 
 ## 已知边界
 
 - TouchWX 旧脚本按最小可编译策略迁移为 \`<script setup lang="ts">\`，保留核心状态、方法和生命周期；复杂运行时语义后续逐步增强。
-- \`ui-*\` 组件当前是轻量占位，不复刻 TouchUI 完整交互，只用于真实页面编译和 DevTools 打开验证。
+- \`ui-*\` 组件优先来自 \`_original\` 迁移结果；\`_original\` 不存在的页面级兼容标签仍以轻量补位方式保证编译和 DevTools 打开验证。
 - 该示例是迁移夹具，重新运行迁移脚本会覆盖本目录。
 
 ## 重新生成

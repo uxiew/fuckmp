@@ -58,11 +58,57 @@ export function addScopedStyles(css: string, scopeId: string): string {
   return css.replace(/([^{}]+){/g, (match, selector) => {
     const scopedSelector = selector
       .split(',')
-      .map((sel: string) => `${sel.trim()}[data-v-${scopeId}]`)
+      .map((sel: string) => addScopeToSelector(sel.trim(), scopeId))
       .join(', ')
 
     return `${scopedSelector} {`
   })
+}
+
+/**
+ * 将 scoped 标记追加到选择器末端，同时保留 `:nth-child(...)` 这类函数伪类的括号。
+ */
+function addScopeToSelector(selector: string, scopeId: string): string {
+  const pseudoIndex = findTrailingPseudoSelectorIndex(selector)
+  const scopeAttr = `[data-v-${scopeId}]`
+
+  if (pseudoIndex === -1) {
+    return `${selector}${scopeAttr}`
+  }
+
+  return `${selector.slice(0, pseudoIndex)}${scopeAttr}${selector.slice(pseudoIndex)}`
+}
+
+function findTrailingPseudoSelectorIndex(selector: string): number {
+  let depth = 0
+
+  for (let i = selector.length - 1; i >= 0; i--) {
+    const char = selector.charAt(i)
+
+    if (char === ')') {
+      depth += 1
+      continue
+    }
+
+    if (char === '(') {
+      depth -= 1
+      continue
+    }
+
+    if (char === ':' && depth === 0) {
+      let pseudoStart = i
+      while (pseudoStart > 0 && selector.charAt(pseudoStart - 1) === ':') {
+        pseudoStart -= 1
+      }
+      return pseudoStart
+    }
+
+    if (depth === 0 && /\s|>|\+|~/.test(char)) {
+      break
+    }
+  }
+
+  return -1
 }
 
 /**

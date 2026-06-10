@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** TouchWX ui-icon 轻量迁移占位组件。 */
+/** _original 迁移时为缺失引用 ui-icon 生成的轻量组件，保证 usingComponents 可解析。 */
 </script>
 
 <template>
@@ -11,10 +11,5 @@
 <style scoped>
 .ui-icon {
   box-sizing: border-box;
-}
-.ui-icon:empty::after {
-  color: #9aa4b2;
-  content: 'icon';
-  font-size: 24rpx;
 }
 </style>
