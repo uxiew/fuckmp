@@ -4,6 +4,13 @@
  */
 
 import { logger } from '../utils/logger'
+import {
+  createTemplateConfig,
+  renderRegisteredConditionalTemplate,
+  renderRegisteredListTemplate,
+  renderRegisteredSlotTemplate,
+  registerTemplateDefinitions,
+} from './template-utils'
 
 /**
  * 插槽定义
@@ -55,13 +62,7 @@ export class TemplateEngine {
   private initialized = false
 
   constructor(config: TemplateConfig = {}) {
-    this.config = {
-      debug: false,
-      enableSlots: true,
-      enableConditional: true,
-      enableList: true,
-      ...config
-    }
+    this.config = createTemplateConfig(config)
   }
 
   /**
@@ -151,7 +152,7 @@ export class TemplateEngine {
    * 销毁模板引擎
    */
   destroy(): void {
-    for (const [instance, templateInstance] of this.instances) {
+    for (const templateInstance of this.instances.values()) {
       templateInstance.cleanup()
     }
     this.instances.clear()
@@ -199,9 +200,7 @@ class TemplateInstance {
   private setupSlots(): void {
     if (!this.config.slots || !this.templateConfig.enableSlots) return
 
-    for (const [name, slot] of Object.entries(this.config.slots)) {
-      this.slots.set(name, slot as SlotDef)
-    }
+    registerTemplateDefinitions(this.slots, this.config.slots)
 
     // 添加插槽渲染方法到实例
     this.instance._renderSlot = (name: string, props?: Record<string, any>) => {
@@ -215,9 +214,7 @@ class TemplateInstance {
   private setupConditionals(): void {
     if (!this.config.conditionals || !this.templateConfig.enableConditional) return
 
-    for (const [name, conditional] of Object.entries(this.config.conditionals)) {
-      this.conditionals.set(name, conditional as ConditionalConfig)
-    }
+    registerTemplateDefinitions(this.conditionals, this.config.conditionals)
 
     // 添加条件渲染方法到实例
     this.instance._renderConditional = (name: string) => {
@@ -231,9 +228,7 @@ class TemplateInstance {
   private setupLists(): void {
     if (!this.config.lists || !this.templateConfig.enableList) return
 
-    for (const [name, list] of Object.entries(this.config.lists)) {
-      this.lists.set(name, list as ListConfig)
-    }
+    registerTemplateDefinitions(this.lists, this.config.lists)
 
     // 添加列表渲染方法到实例
     this.instance._renderList = (name: string) => {
@@ -245,181 +240,37 @@ class TemplateInstance {
    * 渲染插槽
    */
   renderSlot(name: string, props?: Record<string, any>): any {
-    const slot = this.slots.get(name)
-    if (!slot) {
-      logger.warn(`插槽 ${name} 不存在`)
-      return null
-    }
-
-    try {
-      // 合并props
-      const slotProps = { ...slot.props, ...props }
-
-      // 如果有内容，返回内容
-      if (slot.content) {
-        return this.processTemplate(slot.content, slotProps)
-      }
-
-      // 否则返回fallback
-      if (slot.fallback) {
-        return this.processTemplate(slot.fallback, slotProps)
-      }
-
-      return null
-    } catch (error) {
-      logger.error(`渲染插槽 ${name} 失败:`, error)
-      return slot.fallback || null
-    }
+    return renderRegisteredSlotTemplate(
+      this.slots,
+      name,
+      props,
+      this.instance.data,
+      logger
+    )
   }
 
   /**
    * 渲染条件模板
    */
   renderConditional(name: string): any {
-    const conditional = this.conditionals.get(name)
-    if (!conditional) {
-      logger.warn(`条件渲染 ${name} 不存在`)
-      return null
-    }
-
-    try {
-      const condition = this.evaluateCondition(conditional.condition)
-      
-      if (condition) {
-        return this.processTemplate(conditional.template)
-      } else if (conditional.elseTemplate) {
-        return this.processTemplate(conditional.elseTemplate)
-      }
-
-      return null
-    } catch (error) {
-      logger.error(`渲染条件模板 ${name} 失败:`, error)
-      return null
-    }
+    return renderRegisteredConditionalTemplate(
+      this.conditionals,
+      name,
+      this.instance.data,
+      logger
+    )
   }
 
   /**
    * 渲染列表模板
    */
   renderList(name: string): any {
-    const list = this.lists.get(name)
-    if (!list) {
-      logger.warn(`列表渲染 ${name} 不存在`)
-      return null
-    }
-
-    try {
-      const items = this.evaluateItems(list.items)
-      if (!Array.isArray(items)) {
-        logger.warn(`列表渲染 ${name} 的items不是数组`)
-        return null
-      }
-
-      return items.map((item, index) => {
-        const context = {
-          [list.itemName]: item,
-          [list.indexName || 'index']: index
-        }
-
-        if (list.keyField && item[list.keyField] !== undefined) {
-          context['key'] = item[list.keyField]
-        }
-
-        return this.processTemplate(list.template, context)
-      })
-    } catch (error) {
-      logger.error(`渲染列表模板 ${name} 失败:`, error)
-      return []
-    }
-  }
-
-  /**
-   * 处理模板
-   */
-  private processTemplate(template: any, context?: Record<string, any>): any {
-    if (typeof template === 'string') {
-      // 简单的模板字符串处理
-      return this.interpolateTemplate(template, context)
-    }
-
-    if (typeof template === 'function') {
-      // 函数模板
-      return template(context)
-    }
-
-    // 直接返回
-    return template
-  }
-
-  /**
-   * 模板字符串插值
-   */
-  private interpolateTemplate(template: string, context?: Record<string, any>): string {
-    if (!context) return template
-
-    return template.replace(/\{\{([^}]+)\}\}/g, (match, expression) => {
-      try {
-        const value = this.evaluateExpression(expression.trim(), context)
-        return String(value)
-      } catch (error) {
-        logger.error(`模板插值失败: ${expression}`, error)
-        return match
-      }
-    })
-  }
-
-  /**
-   * 评估条件
-   */
-  private evaluateCondition(condition: string | (() => boolean)): boolean {
-    if (typeof condition === 'function') {
-      return condition()
-    }
-
-    if (typeof condition === 'string') {
-      return this.evaluateExpression(condition) as boolean
-    }
-
-    return Boolean(condition)
-  }
-
-  /**
-   * 评估items
-   */
-  private evaluateItems(items: string | (() => any[])): any[] {
-    if (typeof items === 'function') {
-      return items()
-    }
-
-    if (typeof items === 'string') {
-      return this.evaluateExpression(items) as any[]
-    }
-
-    return []
-  }
-
-  /**
-   * 评估表达式
-   */
-  private evaluateExpression(expression: string, context?: Record<string, any>): any {
-    try {
-      // 简单的表达式评估
-      // 在实际实现中，这里应该使用更安全的表达式解析器
-      const data = { ...this.instance.data, ...context }
-      
-      // 替换表达式中的变量
-      let code = expression
-      for (const [key, value] of Object.entries(data)) {
-        const regex = new RegExp(`\\b${key}\\b`, 'g')
-        code = code.replace(regex, JSON.stringify(value))
-      }
-
-      // 使用Function构造器评估表达式（注意：这在生产环境中需要更安全的实现）
-      return new Function(`return ${code}`)()
-    } catch (error) {
-      logger.error(`表达式评估失败: ${expression}`, error)
-      return null
-    }
+    return renderRegisteredListTemplate(
+      this.lists,
+      name,
+      this.instance.data,
+      logger
+    )
   }
 
   /**

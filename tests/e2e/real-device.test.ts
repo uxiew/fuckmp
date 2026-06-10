@@ -10,28 +10,24 @@ import { fileURLToPath } from 'url'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
+const runRealDeviceTests = process.env.FUCKMP_REAL_DEVICE_TESTS === '1'
+const describeRealDevice = runRealDeviceTests ? describe : describe.skip
 
-describe('真机测试 - 响应式变量', () => {
+describeRealDevice('真机测试 - 响应式变量', () => {
   let miniProgram: any
   let page: any
 
   beforeAll(async () => {
-    try {
-      // 启动小程序
-      miniProgram = await automator.launch({
-        cliPath: '/Applications/wechatwebdevtools.app/Contents/MacOS/cli', // 微信开发者工具 CLI 路径
-        projectPath: path.resolve(__dirname, '../../test-output'), // 编译输出的小程序项目路径
-        qr: false
-      } as any)
+    // 启动小程序
+    miniProgram = await automator.launch({
+      cliPath: process.env.WECHAT_IDE_CLI || '/Applications/wechatwebdevtools.app/Contents/MacOS/cli',
+      projectPath: path.resolve(__dirname, '../../test-output'), // 编译输出的小程序项目路径
+      qr: false
+    } as any)
 
-      // 获取首页
-      page = await miniProgram.reLaunch('/pages/index/index')
-      await page.waitFor(1000) // 等待页面加载
-    } catch (error: any) {
-      console.warn('真机测试环境未配置，跳过测试:', error?.message || error)
-      // 如果无法启动小程序，跳过所有测试
-      return
-    }
+    // 获取首页
+    page = await miniProgram.reLaunch('/pages/index/index')
+    await page.waitFor(1000) // 等待页面加载
   }, 30000) // 30秒超时
 
   afterAll(async () => {
@@ -42,8 +38,7 @@ describe('真机测试 - 响应式变量', () => {
 
   it('应该在真机环境中正确更新响应式变量', async () => {
     if (!page) {
-      console.warn('小程序未启动，跳过测试')
-      return
+      throw new Error('小程序未启动')
     }
 
     try {
@@ -76,8 +71,7 @@ describe('真机测试 - 响应式变量', () => {
 
   it('应该在真机环境中正确处理复杂响应式操作', async () => {
     if (!page) {
-      console.warn('小程序未启动，跳过测试')
-      return
+      throw new Error('小程序未启动')
     }
 
     try {
@@ -110,8 +104,7 @@ describe('真机测试 - 响应式变量', () => {
 
   it('应该在真机环境中正确处理组件响应式变量', async () => {
     if (!page) {
-      console.warn('小程序未启动，跳过测试')
-      return
+      throw new Error('小程序未启动')
     }
 
     try {
@@ -152,8 +145,7 @@ describe('真机测试 - 响应式变量', () => {
 
   it('应该在真机环境中正确处理计算属性', async () => {
     if (!page) {
-      console.warn('小程序未启动，跳过测试')
-      return
+      throw new Error('小程序未启动')
     }
 
     try {
@@ -188,8 +180,7 @@ describe('真机测试 - 响应式变量', () => {
 
   it('应该在真机环境中正确处理性能压力测试', async () => {
     if (!page) {
-      console.warn('小程序未启动，跳过测试')
-      return
+      throw new Error('小程序未启动')
     }
 
     try {

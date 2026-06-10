@@ -6,7 +6,20 @@
 import type { CompilerOptions } from '../types/compiler'
 import { logger } from '@/utils/logger'
 import { RuntimeIntegration } from './runtime-integration'
+import {
+  buildRuntimeInjectionReportLines,
+  getUsedRuntimeFeatureNames
+} from './runtime-injector-report-utils.js'
 import type { RuntimeIntegrationConfig } from './runtime-integration'
+import {
+  analyzeFeatureUsageFromContent,
+  countUsedRuntimeFeatures,
+  createEmptyFeatureUsage
+} from './runtime-injector-usage-utils.js'
+import {
+  createRuntimeInjectionConfig,
+  writeRuntimeGeneratedFiles
+} from './runtime-injector-utils.js'
 
 /**
  * Vue3特性使用情况分析
@@ -96,61 +109,14 @@ export class RuntimeInjector {
    */
   private createDefaultConfig(): RuntimeInjectionConfig {
     const baseConfig = this.runtimeIntegration.getRuntimeConfig()
-    return {
-      ...baseConfig,
-      treeshaking: true,
-      minify: this.compilerOptions.mode === 'production',
-      codeSplitting: true,
-      chunkStrategy: 'feature',
-      runtimeVersion: '1.0.0',
-      customModules: []
-    }
+    return createRuntimeInjectionConfig(baseConfig, this.compilerOptions)
   }
 
   /**
    * 创建空的特性使用情况
    */
   private createEmptyFeatureUsage(): Vue3FeatureUsage {
-    return {
-      reactivity: {
-        ref: false,
-        reactive: false,
-        computed: false,
-        watch: false,
-        watchEffect: false
-      },
-      composition: {
-        setup: false,
-        defineProps: false,
-        defineEmits: false,
-        defineExpose: false,
-        provide: false,
-        inject: false
-      },
-      directives: {
-        vIf: false,
-        vFor: false,
-        vModel: false,
-        vShow: false,
-        vOn: false,
-        vBind: false
-      },
-      lifecycle: {
-        onMounted: false,
-        onUnmounted: false,
-        onUpdated: false,
-        onBeforeMount: false,
-        onBeforeUnmount: false,
-        onBeforeUpdate: false
-      },
-      advanced: {
-        slots: false,
-        teleport: false,
-        suspense: false,
-        keepAlive: false,
-        transition: false
-      }
-    }
+    return createEmptyFeatureUsage()
   }
 
   /**
@@ -183,60 +149,14 @@ export class RuntimeInjector {
    * 分析单个文件的特性使用情况
    */
   private analyzeFileFeatures(content: string, usage: Vue3FeatureUsage): void {
-    // 分析响应式API
-    if (content.includes('ref(')) usage.reactivity.ref = true
-    if (content.includes('reactive(')) usage.reactivity.reactive = true
-    if (content.includes('computed(')) usage.reactivity.computed = true
-    if (content.includes('watch(')) usage.reactivity.watch = true
-    if (content.includes('watchEffect(')) usage.reactivity.watchEffect = true
-
-    // 分析组合式API
-    if (content.includes('<script setup>') || content.includes('<script lang="ts" setup>')) {
-      usage.composition.setup = true
-    }
-    if (content.includes('defineProps')) usage.composition.defineProps = true
-    if (content.includes('defineEmits')) usage.composition.defineEmits = true
-    if (content.includes('defineExpose')) usage.composition.defineExpose = true
-    if (content.includes('provide(')) usage.composition.provide = true
-    if (content.includes('inject(')) usage.composition.inject = true
-
-    // 分析模板指令
-    if (content.includes('v-if') || content.includes('v-else')) usage.directives.vIf = true
-    if (content.includes('v-for')) usage.directives.vFor = true
-    if (content.includes('v-model')) usage.directives.vModel = true
-    if (content.includes('v-show')) usage.directives.vShow = true
-    if (content.includes('@') || content.includes('v-on:')) usage.directives.vOn = true
-    if (content.includes(':') || content.includes('v-bind:')) usage.directives.vBind = true
-
-    // 分析生命周期钩子
-    if (content.includes('onMounted')) usage.lifecycle.onMounted = true
-    if (content.includes('onUnmounted')) usage.lifecycle.onUnmounted = true
-    if (content.includes('onUpdated')) usage.lifecycle.onUpdated = true
-    if (content.includes('onBeforeMount')) usage.lifecycle.onBeforeMount = true
-    if (content.includes('onBeforeUnmount')) usage.lifecycle.onBeforeUnmount = true
-    if (content.includes('onBeforeUpdate')) usage.lifecycle.onBeforeUpdate = true
-
-    // 分析高级特性
-    if (content.includes('<slot') || content.includes('useSlots')) usage.advanced.slots = true
-    if (content.includes('<teleport')) usage.advanced.teleport = true
-    if (content.includes('<suspense')) usage.advanced.suspense = true
-    if (content.includes('<keep-alive')) usage.advanced.keepAlive = true
-    if (content.includes('<transition')) usage.advanced.transition = true
+    analyzeFeatureUsageFromContent(content, usage)
   }
 
   /**
    * 记录特性使用情况
    */
   private logFeatureUsage(usage: Vue3FeatureUsage): void {
-    const usedFeatures: string[] = []
-
-    Object.entries(usage).forEach(([category, features]) => {
-      Object.entries(features).forEach(([feature, used]) => {
-        if (used) {
-          usedFeatures.push(`${category}.${feature}`)
-        }
-      })
-    })
+    const usedFeatures = getUsedRuntimeFeatureNames(usage)
 
     logger.info(`检测到使用的Vue3特性: ${usedFeatures.join(', ')}`)
     logger.info(`特性使用统计: ${usedFeatures.length} 个特性被使用`)
@@ -297,36 +217,19 @@ export class RuntimeInjector {
       )
 
       // 6. 写入文件
-      await this.writeGeneratedFiles(outputDir, generatedFiles)
+      await writeRuntimeGeneratedFiles(
+        outputDir,
+        generatedFiles,
+        message => logger.debug(message)
+      )
 
       // 7. 生成统计报告
       this.generateInjectionReport(featureUsage, bundleResult, generatedFiles)
 
       logger.info('运行时注入流程完成')
     } catch (error) {
-      logger.error('运行时注入失败:', error)
+      logger.error('运行时注入失败:', error instanceof Error ? error : new Error(String(error)))
       throw error
-    }
-  }
-
-  /**
-   * 写入生成的文件
-   */
-  private async writeGeneratedFiles(outputDir: string, files: any[]): Promise<void> {
-    const fs = await import('fs/promises')
-    const path = await import('path')
-
-    for (const file of files) {
-      const filePath = path.join(outputDir, file.path)
-      const fileDir = path.dirname(filePath)
-
-      // 确保目录存在
-      await fs.mkdir(fileDir, { recursive: true })
-
-      // 写入文件
-      await fs.writeFile(filePath, file.content, 'utf-8')
-
-      logger.debug(`生成文件: ${file.path} (${file.content.length} 字节)`)
     }
   }
 
@@ -338,34 +241,19 @@ export class RuntimeInjector {
     bundleResult: any,
     generatedFiles: any[]
   ): void {
-    const usedFeatures = this.countUsedFeatures(featureUsage)
-    const totalSize = generatedFiles.reduce((sum, file) => sum + file.content.length, 0)
-    const runtimeFiles = generatedFiles.filter(file => file.isRuntime)
-
-    logger.info('=== 运行时注入报告 ===')
-    logger.info(`使用的Vue3特性: ${usedFeatures} 个`)
-    logger.info(`包含的运行时模块: ${bundleResult.modules.join(', ')}`)
-    logger.info(`运行时库大小: ${bundleResult.totalSize} 字节`)
-    if (this.config.minify) {
-      logger.info(`压缩后大小: ${bundleResult.minifiedSize} 字节`)
-    }
-    logger.info(`生成的文件: ${generatedFiles.length} 个`)
-    logger.info(`运行时文件: ${runtimeFiles.length} 个`)
-    logger.info(`总代码大小: ${totalSize} 字节`)
-    logger.info('========================')
+    buildRuntimeInjectionReportLines(
+      this.config,
+      featureUsage,
+      bundleResult,
+      generatedFiles
+    ).forEach(line => logger.info(line))
   }
 
   /**
    * 统计使用的特性数量
    */
   private countUsedFeatures(usage: Vue3FeatureUsage): number {
-    let count = 0
-    Object.values(usage).forEach(category => {
-      Object.values(category).forEach(used => {
-        if (used) count++
-      })
-    })
-    return count
+    return countUsedRuntimeFeatures(usage)
   }
 
   /**

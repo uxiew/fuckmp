@@ -2,8 +2,11 @@
  * Vue3 微信小程序编译器主入口文件
  */
 
+import { Vue3MiniprogramCompiler } from './compiler/index.js'
+import type { CompilerOptions } from './types/index.js'
+
 // 导出主编译器类
-export { Vue3MiniprogramCompiler as default } from './compiler/index.js'
+export { Vue3MiniprogramCompiler as default, Vue3MiniprogramCompiler, Vue3MiniprogramCompiler as FuckMPCompiler }
 
 // 导出编译器相关
 export * from './compiler/index.js'
@@ -30,8 +33,7 @@ export {
   Vue3MiniRuntime,
   initVue3Runtime,
   definePage,
-  defineComponent,
-  runtime
+  defineComponent
 } from './runtime/index.js'
 
 // 导出工具函数
@@ -40,8 +42,7 @@ export * from './utils/index.js'
 /**
  * 创建编译器实例的便捷函数
  */
-export function createCompiler(options?: Partial<import('./types/index.js').CompilerOptions>) {
-  const { Vue3MiniprogramCompiler } = require('./compiler/index.js')
+export function createCompiler(options?: Partial<CompilerOptions>) {
   return new Vue3MiniprogramCompiler(options)
 }
 
@@ -50,7 +51,7 @@ export function createCompiler(options?: Partial<import('./types/index.js').Comp
  */
 export async function compileFile(
   filePath: string,
-  options?: Partial<import('./types/index.js').CompilerOptions>
+  options?: Partial<CompilerOptions>
 ) {
   const compiler = createCompiler(options)
   return await compiler.compileFile(filePath)
@@ -59,7 +60,7 @@ export async function compileFile(
 /**
  * 编译整个项目的便捷函数
  */
-export async function compile(options?: Partial<import('./types/index.js').CompilerOptions>) {
+export async function compile(options?: Partial<CompilerOptions>) {
   const compiler = createCompiler(options)
   return await compiler.compile()
 }

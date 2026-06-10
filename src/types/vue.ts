@@ -14,6 +14,8 @@ export const VUE3_MACROS = {
   defineSlots: 'defineSlots',
   defineModel: 'defineModel',
   withDefaults: 'withDefaults',
+  useTemplateRef: 'useTemplateRef',
+  useId: 'useId',
   
   // 运行时 API
   ref: 'ref',
@@ -21,6 +23,7 @@ export const VUE3_MACROS = {
   computed: 'computed',
   watch: 'watch',
   watchEffect: 'watchEffect',
+  onWatcherCleanup: 'onWatcherCleanup',
   onMounted: 'onMounted',
   onUnmounted: 'onUnmounted',
   onUpdated: 'onUpdated',
@@ -50,20 +53,20 @@ export const VUE_DIRECTIVE_MAP = {
   'v-for': 'wx:for',
   'v-show': 'hidden',
   'v-model': 'model:value',
-  '@click': 'bindtap',
-  '@tap': 'bindtap',
-  '@input': 'bindinput',
-  '@change': 'bindchange',
-  '@focus': 'bindfocus',
-  '@blur': 'bindblur',
-  '@submit': 'bindsubmit',
-  '@reset': 'bindreset',
-  '@touchstart': 'bindtouchstart',
-  '@touchmove': 'bindtouchmove',
-  '@touchend': 'bindtouchend',
-  '@touchcancel': 'bindtouchcancel',
-  '@longtap': 'bindlongtap',
-  '@longpress': 'bindlongpress'
+  '@click': 'bind:tap',
+  '@tap': 'bind:tap',
+  '@input': 'bind:input',
+  '@change': 'bind:change',
+  '@focus': 'bind:focus',
+  '@blur': 'bind:blur',
+  '@submit': 'bind:submit',
+  '@reset': 'bind:reset',
+  '@touchstart': 'bind:touchstart',
+  '@touchmove': 'bind:touchmove',
+  '@touchend': 'bind:touchend',
+  '@touchcancel': 'bind:touchcancel',
+  '@longtap': 'bind:longtap',
+  '@longpress': 'bind:longpress'
 } as const
 
 /**

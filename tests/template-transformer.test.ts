@@ -55,6 +55,34 @@ describe('TemplateTransformer', () => {
     return result.wxml
   }
 
+  describe('事件绑定转换', () => {
+    it('应该统一使用 bind:event 形式转换基础和自定义事件', async () => {
+      const input = `<view>
+        <button @click="handleClick">点击</button>
+        <button @tap="handleTap">触摸</button>
+        <UserCard @user-click="handleUserClick" />
+      </view>`
+
+      const wxml = await transformTemplate(input)
+
+      expect(wxml).toContain('bind:tap="handleClick"')
+      expect(wxml).toContain('bind:tap="handleTap"')
+      expect(wxml).toContain('bind:user-click="handleUserClick"')
+      expect(wxml).not.toContain('bindtap=')
+    })
+
+    it('应该把带参数事件拆分为处理器和 data 参数', async () => {
+      const input = `<view>
+        <button @tap="selectItem('settings')">设置</button>
+      </view>`
+
+      const wxml = await transformTemplate(input)
+
+      expect(wxml).toContain('bind:tap="selectItem"')
+      expect(wxml).toContain('data-arg0="settings"')
+    })
+  })
+
   describe('动态类绑定转换', () => {
     it('应该正确处理同时存在静态 class 和动态 :class 的情况', async () => {
       const input = `<view class="status" :class="{ online: isOnline }">
@@ -66,8 +94,8 @@ describe('TemplateTransformer', () => {
       // 验证生成的 WXML 不应该有重复的 class 属性
       expect(wxml).not.toMatch(/class="[^"]*"\s+class="[^"]*"/)
 
-      // 验证动态类绑定被正确转换
-      expect(wxml).toMatch(/class="\{\{'status' \+ ' ' \+ \(\(isOnline \? 'online' : ''\)\.trim\(\)\)\}\}"/)
+      // 验证动态类绑定被正确转换，并保持静态 class + 条件 class 合并
+      expect(wxml).toContain(`class="{{'status' + ' ' + (isOnline ? 'online' : '')}}"`)
 
       // 验证标签结构保持完整
       expect(wxml).toMatch(/<view[^>]*>[\s\S]*<text[^>]*>内容<\/text>[\s\S]*<\/view>/)
@@ -81,7 +109,7 @@ describe('TemplateTransformer', () => {
       const wxml = await transformTemplate(input)
 
       // 验证动态类绑定被正确转换
-      expect(wxml).toMatch(/class="\{\{\(isActive \? 'active' : ''\)\.trim\(\)\}\}"/)
+      expect(wxml).toContain(`class="{{isActive ? 'active' : ''}}"`)
 
       // 验证标签结构保持完整
       expect(wxml).toMatch(/<view[^>]*>[\s\S]*<text[^>]*>内容<\/text>[\s\S]*<\/view>/)
@@ -163,7 +191,7 @@ describe('TemplateTransformer', () => {
       const wxml = await transformTemplate(input, 'UserCard.vue')
 
       // 验证动态类绑定正确转换
-      expect(wxml).toMatch(/class="\{\{'status' \+ ' ' \+ \(\(isOnline \? 'online' : ''\)\.trim\(\)\)\}\}"/)
+      expect(wxml).toContain(`class="{{'status' + ' ' + (isOnline ? 'online' : '')}}"`)
 
       // 验证 status view 标签包含 text 子元素
       expect(wxml).toMatch(/<view[^>]*class="\{\{'status'[^>]*>[\s\S]*<text[^>]*class="status-text"[^>]*>[\s\S]*<\/text>[\s\S]*<\/view>/)

@@ -2,9 +2,10 @@
  * 真实项目编译测试 - 使用实际的测试项目
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { Vue3MiniprogramCompiler } from '@/compiler/compiler.js'
 import { PerformanceTest } from '../setup.js'
+import { parse } from '@babel/parser'
 import { join } from 'path'
 
 describe('真实项目编译测试', () => {
@@ -68,14 +69,13 @@ describe('真实项目编译测试', () => {
       expect(await exists(join(outputDir, 'app.json'))).toBe(true)
       expect(await exists(join(outputDir, 'app.wxss'))).toBe(true)
 
-      // 验证页面文件
-      const pages = ['index', 'profile', 'settings']
+      // 验证页面文件（以 test-project 当前真实页面结构为准）
+      const pages = ['pages/index/index', 'pages/profile']
       for (const page of pages) {
-        const pageDir = join(outputDir, 'pages', page)
-        expect(await exists(join(pageDir, `${page}.js`))).toBe(true)
-        expect(await exists(join(pageDir, `${page}.json`))).toBe(true)
-        expect(await exists(join(pageDir, `${page}.wxml`))).toBe(true)
-        expect(await exists(join(pageDir, `${page}.wxss`))).toBe(true)
+        expect(await exists(join(outputDir, `${page}.js`))).toBe(true)
+        expect(await exists(join(outputDir, `${page}.json`))).toBe(true)
+        expect(await exists(join(outputDir, `${page}.wxml`))).toBe(true)
+        expect(await exists(join(outputDir, `${page}.wxss`))).toBe(true)
         console.log(`✅ 页面 ${page} 编译成功`)
       }
 
@@ -107,8 +107,7 @@ describe('真实项目编译测试', () => {
       const appConfig = JSON.parse(appConfigContent)
       
       expect(appConfig.pages).toContain('pages/index/index')
-      expect(appConfig.pages).toContain('pages/profile/index')
-      expect(appConfig.pages).toContain('pages/settings/index')
+      expect(appConfig.pages).toContain('pages/profile')
       expect(appConfig.window).toBeDefined()
       expect(appConfig.sitemapLocation).toBe('sitemap.json')
       
@@ -124,24 +123,47 @@ describe('真实项目编译测试', () => {
       // 验证首页 JS 文件
       const indexJsContent = await readFile(join(outputDir, 'pages/index/index.js'))
       expect(indexJsContent).toContain('Page(')
-      expect(indexJsContent).toContain('onLoad')
-      expect(indexJsContent).toContain('onShow')
       expect(indexJsContent).toContain('data:')
+      expect(indexJsContent).toContain('_reactiveVariables')
+      expect(indexJsContent).toContain('createPage(pageOptions)')
       
       // 验证首页 WXML 文件
       const indexWxmlContent = await readFile(join(outputDir, 'pages/index/index.wxml'))
       expect(indexWxmlContent).toContain('{{title}}')
-      expect(indexWxmlContent).toContain('wx:if')
-      expect(indexWxmlContent).toContain('wx:for')
-      expect(indexWxmlContent).toContain('bindtap')
+      expect(indexWxmlContent).toContain('<user-card')
+      expect(indexWxmlContent).toContain('bind:tap')
       
       // 验证组件 JS 文件
       const userCardJsContent = await readFile(join(outputDir, 'components/UserCard.js'))
       expect(userCardJsContent).toContain('Component(')
       expect(userCardJsContent).toContain('properties:')
       expect(userCardJsContent).toContain('methods:')
+
+      // 验证组件模板中的条件渲染和事件转换
+      const userCardWxmlContent = await readFile(join(outputDir, 'components/UserCard.wxml'))
+      expect(userCardWxmlContent).toContain('wx:if')
+      expect(userCardWxmlContent).toContain('bind:tap')
       
       console.log('✅ Vue3 语法转换正确')
+    })
+
+    it('应该生成语法有效的最终 JS 产物', async () => {
+      await compiler.compile()
+
+      const { readFile } = await import('@/utils/index.js')
+      const outputDir = join(process.cwd(), 'test-output')
+      const jsFiles = [
+        'app.js',
+        'runtime-injection.js',
+        'pages/index/index.js',
+        'pages/profile.js',
+        'components/UserCard.js'
+      ]
+
+      for (const file of jsFiles) {
+        const content = await readFile(join(outputDir, file))
+        expect(() => parse(content, { sourceType: 'script' }), file).not.toThrow()
+      }
     })
 
     it('应该正确转换样式', async () => {
@@ -197,7 +219,14 @@ describe('真实项目编译测试', () => {
         appId: 'test-app'
       })
       
-      const result = await errorCompiler.compile()
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const result = await (async () => {
+        try {
+          return await errorCompiler.compile()
+        } finally {
+          consoleError.mockRestore()
+        }
+      })()
       
       // 应该有错误但不会崩溃
       expect(result.stats.failed).toBeGreaterThan(0)

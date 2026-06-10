@@ -5,6 +5,12 @@
 
 import type { Vue3FeatureUsage, RuntimeInjectionConfig } from './runtime-injector'
 import type { BundleResult } from './runtime-bundler'
+import { RuntimeInjectionGenerator } from './codegen/runtime-injection-generator'
+import {
+  generateCodeFileHeader,
+  getRelativeRuntimePath
+} from './codegen/code-generator-utils'
+import { MiniProgramOptionsGenerator } from './codegen/mini-program-options-generator'
 import { logger } from '@/utils/logger'
 
 /**
@@ -41,9 +47,12 @@ export interface GeneratedFile {
 export class CodeGenerator {
   private config: RuntimeInjectionConfig
   private options: CodeGenerationOptions
+  private runtimeInjectionGenerator: RuntimeInjectionGenerator
+  private optionsGenerator = new MiniProgramOptionsGenerator()
 
   constructor(config: RuntimeInjectionConfig, options: Partial<CodeGenerationOptions> = {}) {
     this.config = config
+    this.runtimeInjectionGenerator = new RuntimeInjectionGenerator(config)
     this.options = {
       target: 'wechat',
       sourceMap: false,
@@ -59,7 +68,11 @@ export class CodeGenerator {
   generateRuntimeInjection(bundleResult: BundleResult, featureUsage: Vue3FeatureUsage): GeneratedFile {
     logger.info('生成运行时注入文件...')
 
-    const content = this.generateRuntimeInjectionCode(bundleResult, featureUsage)
+    const content = this.runtimeInjectionGenerator.generateRuntimeInjectionCode(
+      bundleResult,
+      featureUsage,
+      generateCodeFileHeader(this.config, this.options)
+    )
 
     return {
       path: 'runtime-injection.js',
@@ -69,193 +82,6 @@ export class CodeGenerator {
     }
   }
 
-  /**
-   * 生成运行时注入代码
-   */
-  private generateRuntimeInjectionCode(bundleResult: BundleResult, featureUsage: Vue3FeatureUsage): string {
-    const runtimeConfig = JSON.stringify({
-      ...this.config.runtimeConfig,
-      features: featureUsage,
-      modules: bundleResult.modules,
-      version: this.config.runtimeVersion
-    }, null, 2)
-
-    return `${this.generateFileHeader()}
-
-// ===== 打包的运行时库代码 =====
-${bundleResult.code}
-
-// ===== 运行时注入层 =====
-
-// 运行时配置
-const RUNTIME_CONFIG = ${runtimeConfig};
-
-// 运行时实例
-let runtimeInstance = null;
-let isInitialized = false;
-
-/**
- * 初始化运行时库
- */
-async function initVue3Runtime(customConfig = {}) {
-  if (isInitialized) {
-    return runtimeInstance;
-  }
-
-  try {
-    const config = { ...RUNTIME_CONFIG, ...customConfig };
-
-    // 使用打包的运行时库创建实例
-    runtimeInstance = Vue3MiniRuntime.createRuntime(config);
-
-    // 初始化运行时
-    await runtimeInstance.init();
-
-    isInitialized = true;
-
-    if (config.debug) {
-      console.log('[Vue3Runtime] 运行时库初始化成功', {
-        version: config.version,
-        modules: config.modules || [],
-        features: Object.keys(config.features || {}).filter(key =>
-          Object.values(config.features[key] || {}).some(Boolean)
-        )
-      });
-    }
-
-    return runtimeInstance;
-  } catch (error) {
-    console.error('[Vue3Runtime] 运行时库初始化失败:', error);
-    throw error;
-  }
-}
-
-/**
- * 获取运行时实例
- */
-function getRuntime() {
-  if (!isInitialized) {
-    throw new Error('运行时库尚未初始化，请先调用 initVue3Runtime()');
-  }
-  return runtimeInstance;
-}
-
-/**
- * 创建页面
- */
-function createPage(pageConfig) {
-  // 如果运行时未初始化，使用延迟初始化策略
-  if (!isInitialized) {
-    return {
-      ...pageConfig,
-      onLoad() {
-        // 在页面加载时初始化运行时（如果尚未初始化）
-        if (!isInitialized) {
-          initVue3Runtime().then(() => {
-            const runtime = getRuntime();
-            const runtimePage = runtime.createPage(pageConfig);
-            // 将运行时页面的方法绑定到当前页面实例
-            Object.assign(this, runtimePage);
-            // 调用运行时页面的 onLoad
-            if (runtimePage.onLoad) {
-              runtimePage.onLoad.apply(this, arguments);
-            }
-          }).catch(error => {
-            console.error('[Vue3Runtime] 页面运行时初始化失败:', error);
-          });
-        } else {
-          const runtime = getRuntime();
-          const runtimePage = runtime.createPage(pageConfig);
-          // 调用运行时页面的 onLoad
-          if (runtimePage.onLoad) {
-            runtimePage.onLoad.apply(this, arguments);
-          }
-        }
-
-        // 调用原始的 onLoad
-        if (pageConfig.onLoad) {
-          pageConfig.onLoad.apply(this, arguments);
-        }
-      }
-    };
-  }
-
-  const runtime = getRuntime();
-  return runtime.createPage(pageConfig);
-}
-
-/**
- * 创建组件
- */
-function createComponent(componentConfig) {
-  // 如果运行时未初始化，使用延迟初始化策略
-  if (!isInitialized) {
-    return {
-      ...componentConfig,
-      attached() {
-        // 在组件附加时初始化运行时（如果尚未初始化）
-        if (!isInitialized) {
-          initVue3Runtime().then(() => {
-            const runtime = getRuntime();
-            const runtimeComponent = runtime.createComponent(componentConfig);
-            // 将运行时组件的方法绑定到当前组件实例
-            Object.assign(this, runtimeComponent);
-            // 调用运行时组件的 attached
-            if (runtimeComponent.attached) {
-              runtimeComponent.attached.apply(this, arguments);
-            }
-          }).catch(error => {
-            console.error('[Vue3Runtime] 组件运行时初始化失败:', error);
-          });
-        } else {
-          const runtime = getRuntime();
-          const runtimeComponent = runtime.createComponent(componentConfig);
-          // 调用运行时组件的 attached
-          if (runtimeComponent.attached) {
-            runtimeComponent.attached.apply(this, arguments);
-          }
-        }
-
-        // 调用原始的 attached
-        if (componentConfig.attached) {
-          componentConfig.attached.apply(this, arguments);
-        }
-      }
-    };
-  }
-
-  const runtime = getRuntime();
-  return runtime.createComponent(componentConfig);
-}
-
-/**
- * 创建应用
- */
-function createApp(appConfig) {
-  const runtime = getRuntime();
-  return runtime.createApp(appConfig);
-}
-
-// 导出API
-module.exports = {
-  initVue3Runtime,
-  getRuntime,
-  createPage,
-  createComponent,
-  createApp,
-
-  // 兼容性API
-  definePage: createPage,
-  defineComponent: createComponent,
-  defineApp: createApp
-};
-
-// 全局注册（可选）
-if (typeof global !== 'undefined') {
-  global.Vue3MiniRuntime = module.exports;
-}
-`
-  }
 
   /**
    * 生成应用入口代码
@@ -263,9 +89,9 @@ if (typeof global !== 'undefined') {
   generateAppCode(appData: any): GeneratedFile {
     // 提取应用上下文（如果存在）
     const context = appData?.context
-    const appOptions = context ? this.generateAppOptions(context) : '{}'
+    const appOptions = context ? this.optionsGenerator.generateAppOptions(context) : '{}'
 
-    const content = `${this.generateFileHeader()}
+    const content = `${generateCodeFileHeader(this.config, this.options)}
 
 // 引入运行时
 const { initVue3Runtime, createApp } = require('./runtime-injection.js');
@@ -322,15 +148,16 @@ App({
   generatePageCode(pageData: any, pagePath: string): GeneratedFile {
     // 提取上下文和小程序配置
     const context = pageData.context
+    const templateResult = pageData.template
     const config = pageData.context ? null : pageData // 如果没有context，说明pageData就是配置
 
     // 生成页面选项对象
-    const pageOptions = this.generatePageOptions(context, config)
+    const pageOptions = this.optionsGenerator.generatePageOptions(context, config, templateResult)
 
-    const content = `${this.generateFileHeader()}
+    const content = `${generateCodeFileHeader(this.config, this.options)}
 
 // 引入运行时
-const { createPage } = require('${this.getRelativeRuntimePath(pagePath)}');
+const { createPage } = require('${getRelativeRuntimePath(pagePath)}');
 
 // 页面选项
 const pageOptions = ${pageOptions};
@@ -353,14 +180,15 @@ Page(createPage(pageOptions));
   generateComponentCode(componentData: any, componentPath: string): GeneratedFile {
     // 只提取上下文，不使用小程序配置
     const context = componentData.context
+    const templateResult = componentData.template
 
     // 生成组件选项对象（不传递配置）
-    const componentOptions = this.generateComponentOptions(context, null)
+    const componentOptions = this.optionsGenerator.generateComponentOptions(context, null, templateResult)
 
-    const content = `${this.generateFileHeader()}
+    const content = `${generateCodeFileHeader(this.config, this.options)}
 
 // 引入运行时
-const { createComponent } = require('${this.getRelativeRuntimePath(componentPath)}');
+const { createComponent } = require('${getRelativeRuntimePath(componentPath)}');
 
 // 组件选项
 const componentOptions = ${componentOptions};
@@ -375,635 +203,6 @@ Component(createComponent(componentOptions));
       type: 'js',
       isRuntime: false
     }
-  }
-
-  /**
-   * 生成应用选项对象
-   */
-  private generateAppOptions(context: any): string {
-    if (!context) {
-      return '{}'
-    }
-
-    const options: any = {
-      // Vue 组件数据
-      data: this.generateDataFunction(context.data),
-
-      // Vue 组件方法
-      ...this.generateMethods(context.methods),
-
-      // Vue 计算属性
-      ...this.generateComputed(context.computed),
-
-      // Vue 监听器
-      ...this.generateWatchers(context.watch),
-
-      // Vue 生命周期
-      ...this.generateLifecycle(context.lifecycle)
-    }
-
-    // 过滤掉无效的属性
-    return this.stringifyWithFunctions(this.filterInvalidOptions(options))
-  }
-
-  /**
-   * 生成页面选项对象
-   */
-  private generatePageOptions(context: any, config: any): string {
-    const options: any = {}
-
-    // 如果有上下文，添加 Vue 相关选项
-    if (context) {
-      Object.assign(options, {
-        // Vue 组件数据
-        data: this.generateDataFunction(context.data),
-
-        // Vue 组件方法（页面方法直接放在根级别）
-        ...this.generateMethods(context.methods),
-
-        // Vue 计算属性
-        ...this.generateComputed(context.computed),
-
-        // Vue 监听器
-        ...this.generateWatchers(context.watch),
-
-        // Vue 生命周期
-        ...this.generateLifecycle(context.lifecycle)
-      })
-
-      // 添加响应式变量信息（供运行时使用）
-      if (context.reactiveVariables && context.reactiveVariables.size > 0) {
-        const reactiveVarsArray = Array.from(context.reactiveVariables.values())
-        options._reactiveVariables = reactiveVarsArray
-      }
-    }
-
-    // 如果有配置，添加小程序配置选项
-    if (config) {
-      Object.assign(options, config)
-    }
-
-    // 如果既没有上下文也没有配置，返回空对象
-    if (!context && !config) {
-      return '{}'
-    }
-
-    // 过滤掉无效的属性
-    return this.stringifyWithFunctions(this.filterInvalidOptions(options))
-  }
-
-  /**
-   * 生成组件选项对象
-   */
-  private generateComponentOptions(context: any, config: any): string {
-    if (!context) {
-      // 如果没有上下文，返回空对象
-      return '{}'
-    }
-
-    const options: any = {
-      // Vue 组件数据
-      data: this.generateDataFunction(context.data),
-
-      // Vue 组件属性
-      properties: this.generateProperties(context.props),
-
-      // Vue 组件方法
-      methods: this.generateMethods(context.methods),
-
-      // Vue 计算属性（在小程序中作为方法实现）
-      ...this.generateComputed(context.computed),
-
-      // Vue 监听器
-      ...this.generateWatchers(context.watch),
-
-      // Vue 生命周期
-      ...this.generateLifecycle(context.lifecycle)
-    }
-
-    // 添加响应式变量信息（供运行时使用）
-    if (context.reactiveVariables && context.reactiveVariables.size > 0) {
-      const reactiveVarsArray = Array.from(context.reactiveVariables.values())
-      options._reactiveVariables = reactiveVarsArray
-    }
-
-    return this.stringifyWithFunctions(options)
-  }
-
-  /**
-   * 生成数据函数
-   */
-  private generateDataFunction(data: any): any {
-    if (!data || Object.keys(data).length === 0) {
-      return function () { return {} }
-    }
-
-    // 过滤掉不应该在数据中的内容
-    const filteredData: any = {}
-    Object.entries(data).forEach(([key, value]) => {
-      // 跳过 Vue 宏调用和其他不应该在数据中的内容
-      const valueStr = String(value)
-      if (valueStr.includes('defineProps') ||
-        valueStr.includes('defineEmits') ||
-        valueStr.includes('withDefaults') ||
-        key === 'props' ||
-        key === 'emit') {
-        return
-      }
-
-      // 过滤掉无效的生命周期方法
-      if (['attached', 'onReady', 'onShow', 'onHide', 'onUnload'].includes(key) &&
-        typeof value === 'string' && value.includes('无效的回调函数')) {
-        return
-      }
-
-      // 过滤掉包含this.的表达式，因为在data初始化时this还不存在
-      if (typeof value === 'string' && value.includes('this.')) {
-        return
-      }
-
-      // 过滤掉计算属性内部的临时变量（如now, lastActive等）
-      if (['now', 'lastActive'].includes(key)) {
-        return
-      }
-
-      filteredData[key] = value
-    })
-
-    // 创建一个包含实际数据的函数字符串，使用 stringifyObjectLiteral 生成正确的小程序格式
-    const dataStr = this.stringifyObjectLiteral(filteredData, 2)
-    return `${dataStr}`
-  }
-
-  /**
-   * 生成方法
-   */
-  private generateMethods(methods: any): any {
-    if (!methods || Object.keys(methods).length === 0) {
-      return {}
-    }
-
-    const result: any = {}
-    Object.entries(methods).forEach(([name, method]: [string, any]) => {
-      if (method && typeof method.body === 'string') {
-        // 检测并转换事件处理函数
-        const convertedBody = this.convertEventHandlerFunction(name, method.body)
-        result[name] = convertedBody
-      }
-    })
-    return result
-  }
-
-  /**
-   * 生成计算属性
-   */
-  private generateComputed(computed: any): any {
-    if (!computed || Object.keys(computed).length === 0) {
-      return {}
-    }
-
-    const result: any = {}
-    Object.entries(computed).forEach(([name, comp]: [string, any]) => {
-      if (comp && comp.getter) {
-        // 在小程序中，计算属性作为方法实现
-        result[`get${name.charAt(0).toUpperCase() + name.slice(1)}`] = comp.getter
-      }
-    })
-    return result
-  }
-
-  /**
-   * 生成监听器
-   */
-  private generateWatchers(watchers: any): any {
-    if (!watchers || Object.keys(watchers).length === 0) {
-      return {}
-    }
-
-    // 小程序中的监听器需要特殊处理
-    return {
-      observers: watchers
-    }
-  }
-
-  /**
-   * 生成生命周期
-   */
-  private generateLifecycle(lifecycle: any): any {
-    if (!lifecycle || Object.keys(lifecycle).length === 0) {
-      return {}
-    }
-
-    const result: any = {}
-
-    // 直接使用已经映射好的生命周期钩子
-    // 在 ScriptTransformer 中已经完成了 Vue 到小程序的映射
-    Object.entries(lifecycle).forEach(([hookName, handler]: [string, any]) => {
-      if (handler && typeof handler === 'string' && handler.trim()) {
-        // 生成函数代码
-        if (hookName === 'onLoad') {
-          result[hookName] = `function(options) {\n    ${handler.trim()}\n  }`
-        } else if (hookName.startsWith('pageLifetimes.')) {
-          // 处理组件的页面生命周期
-          const pageLiftimeName = hookName.replace('pageLifetimes.', '')
-          if (!result.pageLifetimes) {
-            result.pageLifetimes = {}
-          }
-          result.pageLifetimes[pageLiftimeName] = `function() {\n    ${handler.trim()}\n  }`
-        } else if (['created', 'attached', 'detached', 'moved'].includes(hookName)) {
-          // 组件生命周期
-          if (!result.lifetimes) {
-            result.lifetimes = {}
-          }
-          result.lifetimes[hookName] = `function() {\n    ${handler.trim()}\n  }`
-        } else {
-          // 页面生命周期
-          result[hookName] = `function() {\n    ${handler.trim()}\n  }`
-        }
-      }
-    })
-
-    return result
-  }
-
-  /**
-   * 生成属性定义
-   */
-  private generateProperties(props: any): any {
-    if (!props || Object.keys(props).length === 0) {
-      return {}
-    }
-
-    const result: any = {}
-    Object.entries(props).forEach(([name, prop]: [string, any]) => {
-      result[name] = {
-        type: this.mapVueTypeToMiniProgram(prop.type),
-        value: prop.default
-      }
-    })
-    return result
-  }
-
-  /**
-   * 映射 Vue 类型到小程序类型（返回构造函数而不是字符串）
-   */
-  private mapVueTypeToMiniProgram(vueType: any): string {
-    if (!vueType) return 'Object'  // 默认为 Object 而不是 null
-
-    if (typeof vueType === 'string') {
-      switch (vueType.toLowerCase()) {
-        case 'string': return 'String'
-        case 'number': return 'Number'
-        case 'boolean': return 'Boolean'
-        case 'array': return 'Array'
-        case 'object': return 'Object'
-        default: return 'Object'  // 未知类型默认为 Object
-      }
-    }
-
-    // 如果是构造函数，尝试推断类型
-    if (typeof vueType === 'function') {
-      switch (vueType.name) {
-        case 'String': return 'String'
-        case 'Number': return 'Number'
-        case 'Boolean': return 'Boolean'
-        case 'Array': return 'Array'
-        case 'Object': return 'Object'
-        default: return 'Object'
-      }
-    }
-
-    return 'Object'
-  }
-
-  /**
-   * 过滤掉无效的选项属性
-   */
-  private filterInvalidOptions(options: any): any {
-    const filtered: any = {}
-
-    Object.entries(options).forEach(([key, value]) => {
-
-
-      // 过滤掉无效的生命周期方法
-      if (['attached', 'onReady', 'onShow', 'onHide', 'onUnload'].includes(key) &&
-        typeof value === 'string' && value.includes('无效的回调函数')) {
-        return
-      }
-
-      // 过滤掉空值或无效值，但保留数组（即使是空数组）
-      if (value !== null && value !== undefined && value !== '' || Array.isArray(value)) {
-        filtered[key] = value
-      }
-    })
-
-    return filtered
-  }
-
-  /**
-   * 将对象序列化为字符串，保留函数
-   */
-  private stringifyWithFunctions(obj: any): string {
-    const functionPlaceholders = new Map<string, string>()
-    let placeholderIndex = 0
-
-    // 第一步：将函数和函数字符串替换为占位符
-    const processedObj = JSON.parse(JSON.stringify(obj, (key, value) => {
-      if (typeof value === 'function') {
-        const placeholder = `__FUNCTION_PLACEHOLDER_${placeholderIndex++}__`
-        functionPlaceholders.set(placeholder, value.toString())
-        return placeholder
-      } else if (typeof value === 'string' && this.isFunctionString(value)) {
-        // 检查是否为函数字符串，并转换箭头函数为普通函数
-        const placeholder = `__FUNCTION_PLACEHOLDER_${placeholderIndex++}__`
-        const convertedFunction = this.convertArrowFunctionToRegular(value)
-        functionPlaceholders.set(placeholder, convertedFunction)
-        return placeholder
-      } else if (typeof value === 'string' && this.isExpressionString(value)) {
-        // 检查是否为表达式字符串（如 new Date(), 对象字面量等）
-        const placeholder = `__EXPRESSION_PLACEHOLDER_${placeholderIndex++}__`
-        functionPlaceholders.set(placeholder, value)
-        return placeholder
-      } else if (typeof value === 'string' && ['String', 'Number', 'Boolean', 'Object', 'Array'].includes(value)) {
-        // 特殊处理小程序类型构造函数，避免被JSON.stringify包装成字符串
-        const placeholder = `__TYPE_PLACEHOLDER_${placeholderIndex++}__`
-        functionPlaceholders.set(placeholder, value)
-        return placeholder
-      }
-      return value
-    }))
-
-    // 第二步：序列化对象，使用自定义格式
-    let result = this.stringifyObjectLiteral(processedObj, 2)
-
-    // 第三步：恢复函数
-    for (const [placeholder, functionCode] of functionPlaceholders) {
-      result = result.replace(`"${placeholder}"`, functionCode)
-    }
-
-    // 第四步：转换所有剩余的箭头函数为普通函数
-    result = this.convertAllArrowFunctions(result)
-
-    return result
-  }
-
-  /**
-   * 检查字符串是否为函数代码
-   */
-  private isFunctionString(str: string): boolean {
-    if (!str || typeof str !== 'string') return false
-
-    // 检查是否为箭头函数
-    if (str.includes('=>')) return true
-
-    // 检查是否为普通函数
-    if (str.startsWith('function')) return true
-
-    // 检查是否为函数体（包含大括号和return等关键字）
-    if (str.includes('{') && str.includes('}')) {
-      return str.includes('return') || str.includes('if') || str.includes('for') || str.includes('while')
-    }
-
-    return false
-  }
-
-  /**
-   * 将对象序列化为 JavaScript 对象字面量格式（不给属性名加引号）
-   */
-  private stringifyObjectLiteral(obj: any, indent: number = 0): string {
-    if (obj === null) return 'null'
-    if (obj === undefined) return 'undefined'
-    if (typeof obj === 'boolean') return obj.toString()
-    if (typeof obj === 'number') return obj.toString()
-    if (typeof obj === 'string') {
-      // 检查是否为表达式字符串，如果是则不添加引号
-      if (this.isExpressionString(obj)) {
-        return obj
-      }
-      return JSON.stringify(obj)
-    }
-
-    if (Array.isArray(obj)) {
-      const items = obj.map(item => this.stringifyObjectLiteral(item, indent + 2))
-      return `[${items.join(', ')}]`
-    }
-
-    if (typeof obj === 'object') {
-      const spaces = ' '.repeat(indent)
-      const nextSpaces = ' '.repeat(indent + 2)
-      const entries = Object.entries(obj).map(([key, value]) => {
-        const valueStr = this.stringifyObjectLiteral(value, indent + 2)
-        return `${nextSpaces}${key}: ${valueStr}`
-      })
-
-      if (entries.length === 0) {
-        return '{}'
-      }
-
-      return `{\n${entries.join(',\n')}\n${spaces}}`
-    }
-
-    return String(obj)
-  }
-
-  /**
-   * 检查字符串是否为表达式代码
-   */
-  private isExpressionString(str: string): boolean {
-    if (!str || typeof str !== 'string') return false
-
-    // 检查是否为布尔值
-    if (str === 'true' || str === 'false') return true
-
-    // 检查是否为数字
-    if (/^\d+(\.\d+)?$/.test(str)) return true
-
-    // 检查是否为小程序类型构造函数（不加引号）
-    if (['String', 'Number', 'Boolean', 'Object', 'Array'].includes(str)) return true
-
-    // 检查是否为 new 表达式（但不包含this的表达式，因为在data中不能使用this）
-    if (str.startsWith('new ') && !str.includes('this.')) return true
-
-    // 检查是否为对象字面量
-    if (str.startsWith('{') && str.endsWith('}') && !str.includes('this.')) return true
-
-    // 检查是否为数组字面量
-    if (str.startsWith('[') && str.endsWith(']') && !str.includes('this.')) return true
-
-    // 检查是否为计算表达式（但不包含this）
-    if (str.includes('(') && str.includes(')') && !str.includes('=>') && !str.startsWith('function') && !str.includes('this.')) {
-      return true
-    }
-
-    // 不允许this.开头的表达式在data中使用
-    if (str.startsWith('this.')) return false
-
-    // 检查是否为函数调用（但不包含this）
-    if (/^\w+\(.*\)$/.test(str) && !str.includes('this.')) return true
-
-    return false
-  }
-
-  /**
-   * 将箭头函数转换为普通函数
-   */
-  private convertArrowFunctionToRegular(functionStr: string): string {
-    if (!functionStr || typeof functionStr !== 'string') {
-      return functionStr
-    }
-
-    // 检查是否为箭头函数
-    if (!functionStr.includes('=>')) {
-      return functionStr
-    }
-
-    // 简单的箭头函数转换
-    // 匹配 (参数) => { 函数体 } 或 参数 => { 函数体 }
-    const arrowFunctionRegex = /^(\([^)]*\)|[^=]+)\s*=>\s*(.+)$/s
-    const match = functionStr.match(arrowFunctionRegex)
-
-    if (match && match[1] && match[2]) {
-      let params = match[1].trim()
-      const body = match[2].trim()
-
-      // 移除参数周围的括号（如果只有一个参数且没有括号）
-      if (params.startsWith('(') && params.endsWith(')')) {
-        params = params.slice(1, -1)
-      }
-
-      // 如果函数体不是以 { 开始，说明是表达式，需要添加 return
-      if (!body.startsWith('{')) {
-        return `function(${params}) { return ${body} }`
-      } else {
-        return `function(${params}) ${body}`
-      }
-    }
-
-    return functionStr
-  }
-
-  /**
-   * 检测并转换事件处理函数，使其能够从dataset中获取参数
-   */
-  private convertEventHandlerFunction(functionName: string, functionStr: string): string {
-    if (!functionStr || typeof functionStr !== 'string') {
-      return functionStr
-    }
-
-    // 检测是否为事件处理器
-    if (!this.isEventHandlerName(functionName)) {
-      return functionStr
-    }
-
-    // 检测普通函数格式: function(params) { body }
-    const functionRegex = /^function\s*\(\s*([^)]+)\s*\)\s*\{([\s\S]*)\}$/
-    const functionMatch = functionStr.match(functionRegex)
-
-    if (functionMatch && functionMatch[1] && functionMatch[2]) {
-      const params = functionMatch[1].trim()
-      const body = functionMatch[2].trim()
-
-      // 如果函数只有一个参数，则转换它
-      if (params && !params.includes(',')) {
-        const paramName = params.trim()
-
-        // 在函数体开头添加从dataset获取参数的代码
-        const newBody = `
-    // 从事件对象的dataset中获取参数
-    const ${paramName} = event.currentTarget.dataset.arg0;
-    ${body}`
-
-        return `function(event) {${newBody}
-  }`
-      }
-    }
-
-    // 检测箭头函数格式: (params) => { body } 或 params => { body }
-    const arrowRegex = /^(\([^)]*\)|[^=]+)\s*=>\s*\{([\s\S]*)\}$/
-    const arrowMatch = functionStr.match(arrowRegex)
-
-    if (arrowMatch && arrowMatch[1] && arrowMatch[2]) {
-      let params = arrowMatch[1].trim()
-      const body = arrowMatch[2].trim()
-
-      // 移除参数周围的括号（如果存在）
-      if (params.startsWith('(') && params.endsWith(')')) {
-        params = params.slice(1, -1)
-      }
-
-      // 如果函数只有一个参数，则转换它
-      if (params && !params.includes(',')) {
-        const paramName = params.trim()
-
-        // 在函数体开头添加从dataset获取参数的代码
-        const newBody = `
-    // 从事件对象的dataset中获取参数
-    const ${paramName} = event.currentTarget.dataset.arg0;
-    ${body}`
-
-        return `function(event) {${newBody}
-  }`
-      }
-    }
-
-    return functionStr
-  }
-
-  /**
-   * 判断函数名是否看起来像事件处理器
-   */
-  private isEventHandlerName(functionName: string): boolean {
-    const eventHandlerPatterns = [
-      /^handle/i,      // handleClick, handleMenuClick
-      /^on[A-Z]/,      // onClick, onSubmit
-      /Click$/,        // menuClick, buttonClick
-      /Tap$/,          // menuTap, itemTap
-      /Press$/,        // longPress
-      /Touch$/,        // touchStart, touchEnd
-    ]
-
-    return eventHandlerPatterns.some(pattern => pattern.test(functionName))
-  }
-
-  /**
-   * 转换字符串中的所有箭头函数为普通函数
-   */
-  private convertAllArrowFunctions(str: string): string {
-    // 匹配对象方法中的箭头函数：  "methodName": (params) => { body }
-    // 更精确的正则表达式，处理多行函数体
-    const methodArrowRegex = /("[\w]+"):\s*(\([^)]*\)|\w*)\s*=>\s*\{([\s\S]*?)\}/g
-
-    return str.replace(methodArrowRegex, (match, methodName, params, body) => {
-      // 移除参数周围的括号（如果存在）
-      let cleanParams = params.trim()
-      if (cleanParams.startsWith('(') && cleanParams.endsWith(')')) {
-        cleanParams = cleanParams.slice(1, -1)
-      }
-
-      return `${methodName}: function(${cleanParams}) {${body}}`
-    })
-  }
-
-  /**
-   * 生成文件头部注释
-   */
-  private generateFileHeader(): string {
-    const timestamp = new Date().toISOString()
-    return `// 由 Vue3 微信小程序编译器自动生成
-// 编译时间: ${timestamp}
-// 运行时版本: ${this.config.runtimeVersion}
-// 目标平台: ${this.options.target}
-${this.options.strict ? "'use strict';" : ''}
-`
-  }
-
-  /**
-   * 获取相对运行时路径
-   */
-  private getRelativeRuntimePath(filePath: string): string {
-    const depth = filePath.split('/').length - 1
-    const prefix = depth > 0 ? '../'.repeat(depth) : './'
-    return `${prefix}runtime-injection.js`
   }
 
   /**

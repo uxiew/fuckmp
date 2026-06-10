@@ -3,9 +3,14 @@
  */
 
 import { Command } from 'commander'
+import { resolve } from 'node:path'
 import { Vue3MiniprogramCompiler } from '@/compiler/index.js'
 import type { CompilerOptions } from '@/types/index.js'
 import { logger } from '@/utils/index.js'
+import { createBuildFailureDiagnostics } from './build-diagnostics.js'
+import { formatTime } from './build-progress-utils.js'
+
+export { BuildProgress, BuildStats } from './build-progress-utils.js'
 
 /**
  * 构建命令选项
@@ -32,13 +37,15 @@ export function createBuildCommand(): Command {
     .option('-o, --output <dir>', '输出目录', 'dist')
     .option('--app-id <id>', '小程序 AppID')
     .option('-c, --config <file>', '配置文件路径')
+    .option('--minify', '启用代码压缩 (默认启用)')
     .option('--no-minify', '禁用代码压缩 (默认启用)')
     .option('--sourcemap', '启用 source map (默认禁用)')
+    .option('--no-sourcemap', '禁用 source map (默认禁用)')
     .option('--clean', '构建前清理输出目录')
     .option('-w, --watch', '监听模式')
     .option('-v, --verbose', '详细输出')
-    .action(async (options: BuildOptions) => {
-      await handleBuildCommand(options)
+    .action(async (options: BuildOptions, command: Command) => {
+      await handleBuildCommand(options, command)
     })
 
   return command
@@ -47,17 +54,30 @@ export function createBuildCommand(): Command {
 /**
  * 处理构建命令
  */
-async function handleBuildCommand(options: BuildOptions): Promise<void> {
+async function handleBuildCommand(options: BuildOptions, command: Command): Promise<void> {
   try {
     // 设置日志级别
     if (options.verbose) {
       logger.setLevel('debug')
     }
 
+    const validation = validateBuildOptions(options)
+    if (!validation.valid) {
+      logger.error('构建参数无效')
+      validation.errors.forEach(error => logger.error(error))
+      process.exit(1)
+    }
+
     logger.info('开始构建项目...')
 
     // 构建编译器选项
-    const compilerOptions = await buildCompilerOptions(options)
+    const compilerOptions = await buildCompilerOptions(options, command)
+    const mergedValidation = validateBuildOptions(compilerOptions)
+    if (!mergedValidation.valid) {
+      logger.error('构建参数无效')
+      mergedValidation.errors.forEach(error => logger.error(error))
+      process.exit(1)
+    }
 
     // 创建编译器实例
     const compiler = new Vue3MiniprogramCompiler(compilerOptions)
@@ -91,8 +111,9 @@ async function handleBuildCommand(options: BuildOptions): Promise<void> {
 /**
  * 构建编译器选项
  */
-async function buildCompilerOptions(options: BuildOptions): Promise<Partial<CompilerOptions>> {
+async function buildCompilerOptions(options: BuildOptions, command: Command): Promise<Partial<CompilerOptions>> {
   let compilerOptions: Partial<CompilerOptions> = {}
+  const hasConfig = Boolean(options.config)
 
   // 从配置文件加载选项
   if (options.config) {
@@ -102,31 +123,48 @@ async function buildCompilerOptions(options: BuildOptions): Promise<Partial<Comp
       compilerOptions = configManager.getOptions()
       logger.info(`已加载配置文件: ${options.config}`)
     } catch (error) {
-      logger.warn(`配置文件加载失败: ${options.config}`, error as Error)
+      logger.error(`配置文件加载失败: ${options.config}`, error as Error)
+      process.exit(1)
     }
   }
 
   // 命令行选项覆盖配置文件
-  if (options.input) {
+  if (options.input && shouldApplyBuildOptionOverride(command, 'input', hasConfig)) {
     compilerOptions.input = options.input
   }
 
-  if (options.output) {
+  if (options.output && shouldApplyBuildOptionOverride(command, 'output', hasConfig)) {
     compilerOptions.output = options.output
   }
 
-  if (options.appId) {
+  if (options.appId && shouldApplyBuildOptionOverride(command, 'appId', hasConfig)) {
     compilerOptions.appId = options.appId
   }
 
   // 优化选项 - build 模式默认启用压缩并禁用 sourcemap
+  const currentOptimization = compilerOptions.optimization
+  const shouldOverrideMinify = shouldApplyBuildOptionOverride(command, 'minify', hasConfig)
+  const shouldOverrideSourcemap = shouldApplyBuildOptionOverride(command, 'sourcemap', hasConfig)
   compilerOptions.optimization = {
-    ...compilerOptions.optimization,
-    minify: options.minify !== false,  // 默认启用压缩，除非明确设置 --no-minify
-    sourcemap: options.sourcemap === true  // 默认禁用 sourcemap，除非明确设置 --sourcemap
+    minify: shouldOverrideMinify ? options.minify !== false : currentOptimization?.minify ?? true,
+    treeshaking: currentOptimization?.treeshaking ?? true,
+    sourcemap: shouldOverrideSourcemap ? options.sourcemap === true : currentOptimization?.sourcemap ?? false,
+    incremental: currentOptimization?.incremental ?? true
   }
 
   return compilerOptions
+}
+
+/**
+ * 判断 build CLI 选项是否应覆盖配置文件。
+ */
+function shouldApplyBuildOptionOverride(command: Command, optionName: string, hasConfig: boolean): boolean {
+  if (!hasConfig) {
+    return true
+  }
+
+  const source = command.getOptionValueSource(optionName)
+  return source !== undefined && source !== 'default'
 }
 
 /**
@@ -151,6 +189,14 @@ function printBuildResult(result: any): void {
       logger.error(`${index + 1}. ${error.file}`)
       logger.error(`   ${error.message}`)
     })
+
+    const diagnostics = createBuildFailureDiagnostics(result.errors)
+    if (diagnostics.length > 0) {
+      logger.error('\n诊断建议:')
+      diagnostics.forEach((diagnostic, index) => {
+        logger.error(`${index + 1}. ${diagnostic}`)
+      })
+    }
   }
 
   // 输出成功文件列表（在详细模式下）
@@ -159,21 +205,6 @@ function printBuildResult(result: any): void {
     result.success.forEach((file: string) => {
       logger.debug(`✓ ${file}`)
     })
-  }
-}
-
-/**
- * 格式化时间
- */
-function formatTime(ms: number): string {
-  if (ms < 1000) {
-    return `${ms}ms`
-  } else if (ms < 60000) {
-    return `${(ms / 1000).toFixed(1)}s`
-  } else {
-    const minutes = Math.floor(ms / 60000)
-    const seconds = ((ms % 60000) / 1000).toFixed(1)
-    return `${minutes}m ${seconds}s`
   }
 }
 
@@ -193,7 +224,7 @@ function validateBuildOptions(options: BuildOptions): { valid: boolean; errors: 
   }
 
   // 验证路径格式
-  if (options.input && options.input === options.output) {
+  if (options.input && options.output && resolve(options.input) === resolve(options.output)) {
     errors.push('输入目录和输出目录不能相同')
   }
 
@@ -201,129 +232,4 @@ function validateBuildOptions(options: BuildOptions): { valid: boolean; errors: 
     valid: errors.length === 0,
     errors
   }
-}
-
-/**
- * 显示构建进度
- */
-export class BuildProgress {
-  private total: number = 0
-  private current: number = 0
-  private startTime: number = 0
-
-  start(total: number): void {
-    this.total = total
-    this.current = 0
-    this.startTime = Date.now()
-    this.update()
-  }
-
-  increment(): void {
-    this.current++
-    this.update()
-  }
-
-  private update(): void {
-    const percentage = Math.round((this.current / this.total) * 100)
-    const elapsed = Date.now() - this.startTime
-    const eta = this.current > 0 ? (elapsed / this.current) * (this.total - this.current) : 0
-
-    const progressBar = this.createProgressBar(percentage)
-
-    process.stdout.write(`\r${progressBar} ${percentage}% (${this.current}/${this.total}) ETA: ${formatTime(eta)}`)
-
-    if (this.current === this.total) {
-      process.stdout.write('\n')
-    }
-  }
-
-  private createProgressBar(percentage: number): string {
-    const width = 20
-    const filled = Math.round((percentage / 100) * width)
-    const empty = width - filled
-
-    return `[${'█'.repeat(filled)}${' '.repeat(empty)}]`
-  }
-}
-
-/**
- * 构建统计信息
- */
-export class BuildStats {
-  private files: Map<string, { size: number; time: number }> = new Map()
-  private startTime: number = 0
-
-  start(): void {
-    this.startTime = Date.now()
-  }
-
-  addFile(path: string, size: number, time: number): void {
-    this.files.set(path, { size, time })
-  }
-
-  getStats(): {
-    totalFiles: number
-    totalSize: number
-    totalTime: number
-    averageTime: number
-    largestFile: { path: string; size: number } | null
-    slowestFile: { path: string; time: number } | null
-  } {
-    const totalTime = Date.now() - this.startTime
-    const files = Array.from(this.files.entries())
-
-    const totalSize = files.reduce((sum, [, stat]) => sum + stat.size, 0)
-    const averageTime = files.length > 0 ? totalTime / files.length : 0
-
-    const largestFile = files.reduce((largest, [path, stat]) => {
-      return !largest || stat.size > largest.size ? { path, size: stat.size } : largest
-    }, null as { path: string; size: number } | null)
-
-    const slowestFile = files.reduce((slowest, [path, stat]) => {
-      return !slowest || stat.time > slowest.time ? { path, time: stat.time } : slowest
-    }, null as { path: string; time: number } | null)
-
-    return {
-      totalFiles: files.length,
-      totalSize,
-      totalTime,
-      averageTime,
-      largestFile,
-      slowestFile
-    }
-  }
-
-  printSummary(): void {
-    const stats = this.getStats()
-
-    logger.info('\n构建统计:')
-    logger.info(`📁 文件数量: ${stats.totalFiles}`)
-    logger.info(`📦 总大小: ${formatFileSize(stats.totalSize)}`)
-    logger.info(`⏱️  总耗时: ${formatTime(stats.totalTime)}`)
-    logger.info(`⚡ 平均耗时: ${formatTime(stats.averageTime)}`)
-
-    if (stats.largestFile) {
-      logger.info(`📈 最大文件: ${stats.largestFile.path} (${formatFileSize(stats.largestFile.size)})`)
-    }
-
-    if (stats.slowestFile) {
-      logger.info(`🐌 最慢文件: ${stats.slowestFile.path} (${formatTime(stats.slowestFile.time)})`)
-    }
-  }
-}
-
-/**
- * 格式化文件大小
- */
-function formatFileSize(bytes: number): string {
-  const units = ['B', 'KB', 'MB', 'GB']
-  let size = bytes
-  let unitIndex = 0
-
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024
-    unitIndex++
-  }
-
-  return `${size.toFixed(1)} ${units[unitIndex]}`
 }

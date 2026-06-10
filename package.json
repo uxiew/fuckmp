@@ -22,7 +22,6 @@
   },
   "files": [
     "dist",
-    "templates",
     "README.md"
   ],
   "engines": {
@@ -37,6 +36,8 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
     "test:e2e": "vitest tests/e2e",
+    "test:package-smoke": "tsx scripts/package-smoke.ts",
+    "test:real-devtools": "tsx scripts/real-miniprogram-devtools-smoke.ts",
     "test:watch": "vitest --watch",
     "test:run": "vitest run",
     "type-check": "tsc --noEmit",
@@ -55,8 +56,8 @@
     "@babel/parser": "^7.23.6",
     "@babel/traverse": "^7.23.7",
     "@babel/types": "^7.23.6",
-    "@vue/compiler-sfc": "^3.4.15",
-    "@vue/reactivity": "^3.5.16",
+    "@vue/compiler-sfc": "^3.5.35",
+    "@vue/reactivity": "^3.5.35",
     "autoprefixer": "^10.4.16",
     "chokidar": "^3.5.3",
     "commander": "^11.1.0",
@@ -91,7 +92,7 @@
     "vitest": "^1.2.1"
   },
   "peerDependencies": {
-    "vue": "^3.4.0"
+    "vue": "^3.5.35"
   },
   "repository": {
     "type": "git",

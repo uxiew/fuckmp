@@ -7,6 +7,9 @@ import { logger } from '@/utils/index.js'
 import { promises as fs } from 'fs'
 import { join } from 'path'
 
+// 测试环境不依赖最新浏览器兼容数据；避免 Browserslist 在 CI/本地测试中输出过期数据提示。
+process.env.BROWSERSLIST_IGNORE_OLD_DATA ??= '1'
+
 // 测试环境配置
 beforeAll(async () => {
   // 设置测试日志级别

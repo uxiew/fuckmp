@@ -2,52 +2,15 @@
  * 编译器选项定义
  */
 
-import type { CompilerOptions, LogLevel } from '@/types/index.js'
+import type { CompilerOptions } from '@/types/index.js'
+import {
+  createCompilerOptionsSummary,
+  mergeCompilerOptions,
+  normalizeCompilerOptions,
+  validateCompilerOptions
+} from './compiler-options-utils.js'
 
-/**
- * 默认编译器选项
- */
-export const DEFAULT_COMPILER_OPTIONS: CompilerOptions = {
-  input: 'src',
-  output: 'dist',
-  appId: 'your-app-id',
-  framework: 'vue3',
-  features: {
-    scriptSetup: true,
-    scss: true,
-    typescript: true,
-    compositionApi: true,
-    emits: true,
-    slots: true,
-    provide: true
-  },
-  optimization: {
-    minify: false,
-    treeshaking: true,
-    sourcemap: true,
-    incremental: true
-  },
-  injection: {
-    // 默认启用纯净模式，不自动注入任何代码
-    pureMode: true,
-    page: {
-      shareAppMessage: false,
-      shareTimeline: false,
-      loadingState: false,
-      pullDownRefresh: false,
-      reachBottom: false,
-      baseStyles: false,
-      eventHandlers: false
-    },
-    component: {
-      inputHandlers: false,
-      eventHandlers: false
-    },
-    reactivity: {
-      extraHelpers: false  // 额外的响应式辅助方法（核心方法始终生成）
-    }
-  }
-}
+export { DEFAULT_COMPILER_OPTIONS } from './compiler-options-utils.js'
 
 /**
  * 编译器选项验证器
@@ -57,73 +20,14 @@ export class OptionsValidator {
    * 验证编译器选项
    */
   static validate(options: Partial<CompilerOptions>): { valid: boolean; errors: string[] } {
-    const errors: string[] = []
-
-    // 验证必需字段
-    if (!options.input) {
-      errors.push('input 选项是必需的')
-    }
-
-    if (!options.output) {
-      errors.push('output 选项是必需的')
-    }
-
-    if (!options.appId) {
-      errors.push('appId 选项是必需的')
-    }
-
-    // 验证框架
-    if (options.framework && options.framework !== 'vue3') {
-      errors.push('目前只支持 vue3 框架')
-    }
-
-    // 验证特性配置
-    if (options.features) {
-      const { features } = options
-
-      if (features.typescript && !features.scriptSetup) {
-        errors.push('使用 TypeScript 时建议启用 scriptSetup')
-      }
-    }
-
-    return {
-      valid: errors.length === 0,
-      errors
-    }
+    return validateCompilerOptions(options)
   }
 
   /**
    * 规范化选项
    */
   static normalize(options: Partial<CompilerOptions>): CompilerOptions {
-    return {
-      ...DEFAULT_COMPILER_OPTIONS,
-      ...options,
-      features: {
-        ...DEFAULT_COMPILER_OPTIONS.features,
-        ...options.features
-      },
-      optimization: {
-        ...DEFAULT_COMPILER_OPTIONS.optimization,
-        ...options.optimization
-      },
-      injection: {
-        ...DEFAULT_COMPILER_OPTIONS.injection,
-        ...options.injection,
-        page: {
-          ...DEFAULT_COMPILER_OPTIONS.injection.page,
-          ...options.injection?.page
-        },
-        component: {
-          ...DEFAULT_COMPILER_OPTIONS.injection.component,
-          ...options.injection?.component
-        },
-        reactivity: {
-          ...DEFAULT_COMPILER_OPTIONS.injection.reactivity,
-          ...options.injection?.reactivity
-        }
-      }
-    }
+    return normalizeCompilerOptions(options)
   }
 }
 
@@ -155,34 +59,7 @@ export class ConfigManager {
    * 更新选项
    */
   updateOptions(updates: Partial<CompilerOptions>): void {
-    const newOptions = {
-      ...this.options,
-      ...updates,
-      features: {
-        ...this.options.features,
-        ...updates.features
-      },
-      optimization: {
-        ...this.options.optimization,
-        ...updates.optimization
-      },
-      injection: {
-        ...this.options.injection,
-        ...updates.injection,
-        page: {
-          ...this.options.injection.page,
-          ...updates.injection?.page
-        },
-        component: {
-          ...this.options.injection.component,
-          ...updates.injection?.component
-        },
-        reactivity: {
-          ...this.options.injection.reactivity,
-          ...updates.injection?.reactivity
-        }
-      }
-    }
+    const newOptions = mergeCompilerOptions(this.options, updates)
 
     // 验证新选项
     const validation = OptionsValidator.validate(newOptions)
@@ -357,43 +234,13 @@ export default config`
    * 合并配置
    */
   merge(other: ConfigManager): ConfigManager {
-    const mergedOptions = {
-      ...this.options,
-      ...other.options,
-      features: {
-        ...this.options.features,
-        ...other.options.features
-      },
-      optimization: {
-        ...this.options.optimization,
-        ...other.options.optimization
-      }
-    }
-
-    return new ConfigManager(mergedOptions)
+    return new ConfigManager(mergeCompilerOptions(this.options, other.options))
   }
 
   /**
    * 获取配置摘要
    */
   getSummary(): string {
-    const { input, output, framework, features, optimization } = this.options
-
-    const enabledFeatures = Object.entries(features)
-      .filter(([, enabled]) => enabled)
-      .map(([feature]) => feature)
-      .join(', ')
-
-    const enabledOptimizations = Object.entries(optimization)
-      .filter(([, enabled]) => enabled)
-      .map(([opt]) => opt)
-      .join(', ')
-
-    return `编译器配置摘要:
-- 输入目录: ${input}
-- 输出目录: ${output}
-- 框架: ${framework}
-- 启用特性: ${enabledFeatures}
-- 启用优化: ${enabledOptimizations}`
+    return createCompilerOptionsSummary(this.options)
   }
 }

@@ -9,3 +9,17 @@ node_modules
 *.log
 .env.local
 .env.*.local
+.tmp
+debug-*.js
+analyze-wxml.js
+test-debug.html
+test-config*.json
+test-report.md
+
+# 规划与分析临时产物（不纳入版本库）
+goal-*/
+findings.md
+task_plan.md
+progress.md
+.codelf/specs/
+.codelf/steering/

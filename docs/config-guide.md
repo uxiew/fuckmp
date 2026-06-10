@@ -2,20 +2,20 @@
 
 ## 配置文件概述
 
-Vue3 微信小程序编译器支持通过配置文件自定义编译行为和生成的小程序配置。配置文件采用 JSON 格式，提供了丰富的配置选项。
+Vue3 微信小程序编译器支持通过配置文件自定义编译行为和生成的小程序配置。配置文件支持 JSON 与 JavaScript 格式，提供了丰富的配置选项。
 
 ## 配置文件查找顺序
 
 编译器会按以下顺序查找配置文件（优先级从高到低）：
 
-1. `vue3mp.config.js` - JavaScript 配置文件（暂不支持）
+1. `vue3mp.config.js` - JavaScript 配置文件 ✅
 2. `vue3mp.config.ts` - TypeScript 配置文件（暂不支持）
 3. `vue3mp.config.json` - JSON 配置文件 ✅
-4. `.vue3mprc.js` - JavaScript RC 文件（暂不支持）
+4. `.vue3mprc.js` - JavaScript RC 文件 ✅
 5. `.vue3mprc.ts` - TypeScript RC 文件（暂不支持）
 6. `.vue3mprc.json` - JSON RC 文件 ✅
 
-> **注意**: 目前只支持 JSON 格式的配置文件，JavaScript/TypeScript 配置文件将在后续版本中支持。
+> **注意**: JavaScript 配置支持 `module.exports = {}`、`export default {}` 和 `export default defineConfig({})` 这类同步对象配置；TypeScript 配置文件暂不支持，编译器会跳过并继续查找后续 JSON 配置。
 
 ## 配置文件结构
 
@@ -329,7 +329,7 @@ Vue3 微信小程序编译器支持通过配置文件自定义编译行为和生
 ## 注意事项
 
 1. **路径格式**: 所有路径都使用相对路径，以项目根目录为基准
-2. **JSON 格式**: 配置文件必须是有效的 JSON 格式
+2. **配置格式**: JSON 配置文件必须是有效 JSON；JavaScript 配置文件必须导出同步对象
 3. **编码格式**: 配置文件必须使用 UTF-8 编码
 4. **大小写敏感**: 所有配置项名称都是大小写敏感的
 
@@ -339,7 +339,7 @@ Vue3 微信小程序编译器支持通过配置文件自定义编译行为和生
 
 A: 请检查：
 1. 配置文件是否在项目根目录
-2. JSON 格式是否正确
+2. 配置格式是否正确（JSON 语法或 JavaScript 导出对象）
 3. 配置项名称是否正确
 4. 重新编译项目
 
@@ -353,4 +353,4 @@ npx vue3mp build --verbose
 
 ### Q: 支持哪些配置文件格式？
 
-A: 目前只支持 JSON 格式，JavaScript/TypeScript 配置文件将在后续版本中支持。
+A: 当前支持 JSON 配置和 JavaScript 同步对象配置；TypeScript 配置文件暂不支持，会被跳过并继续查找后续 JSON 配置。

@@ -1,0 +1,25 @@
+$primary-color: #1f7aec;
+$text-color: #1f2a44;
+$muted-color: #8a93a6;
+$radius: 16rpx;
+$space: 24rpx;
+
+.shared-card {
+  background: #ffffff;
+  border-radius: $radius;
+  box-shadow: 0 8rpx 24rpx rgba(31, 42, 68, 0.08);
+  padding: $space;
+}
+
+.primary-button {
+  background: $primary-color;
+  border-radius: 999rpx;
+  color: #ffffff;
+  font-size: 28rpx;
+  padding: 18rpx 32rpx;
+}
+
+.muted-text {
+  color: $muted-color;
+  font-size: 24rpx;
+}

@@ -7,6 +7,14 @@ import type { CompilerOptions } from '../types/compiler'
 import { logger } from '@/utils/logger'
 import { createDefaultPluginRegistry } from '@/plugins/registry'
 import { EnhancedScriptTransformer } from '@/transformer/enhanced-script-transformer'
+import {
+  createDefaultRuntimeIntegrationConfig,
+  generateAppRuntimeCode as generateRuntimeAppCode,
+  generateComponentRuntimeCode as generateRuntimeComponentCode,
+  generatePageRuntimeCode as generateRuntimePageCode,
+  generateRuntimeInjectionCode,
+  transpileRuntimeTypeScript
+} from './runtime-integration-utils.js'
 
 /**
  * 运行时集成配置
@@ -47,20 +55,7 @@ export class RuntimeIntegration {
    * 创建默认配置
    */
   private createDefaultConfig(): RuntimeIntegrationConfig {
-    return {
-      enableRuntime: true,
-      runtimePath: './runtime/index.js',
-      autoInject: true,
-      runtimeConfig: {
-        debug: this.compilerOptions.mode === 'development',
-        performance: false
-      },
-      plugins: {
-        enableAll: true,
-        include: [],
-        exclude: []
-      }
-    }
+    return createDefaultRuntimeIntegrationConfig(this.compilerOptions)
   }
 
   /**
@@ -74,123 +69,28 @@ export class RuntimeIntegration {
    * 生成运行时注入代码
    */
   generateRuntimeInjection(): string {
-    if (!this.config.enableRuntime) {
-      return ''
-    }
-
-    const runtimeConfig = JSON.stringify(this.config.runtimeConfig, null, 2)
-
-    return `
-// Vue3 小程序运行时库自动注入
-const { initVue3Runtime, definePage, defineComponent } = require('${this.config.runtimePath}')
-
-// 初始化运行时
-const runtimeConfig = ${runtimeConfig}
-let runtimeInstance = null
-
-// 运行时初始化函数
-async function initRuntime() {
-  if (!runtimeInstance) {
-    try {
-      runtimeInstance = await initVue3Runtime(runtimeConfig)
-      console.log('Vue3 小程序运行时初始化成功')
-    } catch (error) {
-      console.error('Vue3 小程序运行时初始化失败:', error)
-    }
-  }
-  return runtimeInstance
-}
-
-// 页面创建包装器
-function createPage(config) {
-  return definePage(config)
-}
-
-// 组件创建包装器
-function createComponent(config) {
-  return defineComponent(config)
-}
-
-// 导出运行时API
-module.exports = {
-  initRuntime,
-  createPage,
-  createComponent,
-  runtime: runtimeInstance
-}
-`
+    return generateRuntimeInjectionCode(this.config)
   }
 
   /**
    * 生成页面运行时代码
    */
   generatePageRuntimeCode(pageConfig: any): string {
-    if (!this.config.enableRuntime) {
-      return this.generateLegacyPageCode(pageConfig)
-    }
-
-    return `
-// 引入运行时
-const { createPage } = require('./runtime-injection.js')
-
-// 页面配置
-const pageConfig = ${JSON.stringify(pageConfig, null, 2)}
-
-// 创建页面
-Page(createPage(pageConfig))
-`
+    return generateRuntimePageCode(this.config, pageConfig)
   }
 
   /**
    * 生成组件运行时代码
    */
   generateComponentRuntimeCode(componentConfig: any): string {
-    if (!this.config.enableRuntime) {
-      return this.generateLegacyComponentCode(componentConfig)
-    }
-
-    return `
-// 引入运行时
-const { createComponent } = require('./runtime-injection.js')
-
-// 组件配置
-const componentConfig = ${JSON.stringify(componentConfig, null, 2)}
-
-// 创建组件
-Component(createComponent(componentConfig))
-`
+    return generateRuntimeComponentCode(this.config, componentConfig)
   }
 
   /**
    * 生成应用入口代码
    */
   generateAppRuntimeCode(appConfig: any): string {
-    if (!this.config.enableRuntime) {
-      return this.generateLegacyAppCode(appConfig)
-    }
-
-    return `
-// 引入运行时
-const { initRuntime } = require('./runtime-injection.js')
-
-// 应用配置
-const appConfig = ${JSON.stringify(appConfig, null, 2)}
-
-// 应用入口
-App({
-  ...appConfig,
-  
-  async onLaunch(options) {
-    // 初始化运行时
-    await initRuntime()
-    
-    // 调用原始的onLaunch
-    if (appConfig.onLaunch) {
-      appConfig.onLaunch.call(this, options)
-    }
-  }
-})
-`
+    return generateRuntimeAppCode(this.config, appConfig)
   }
 
   /**
@@ -215,7 +115,7 @@ App({
 
       logger.info('运行时库注入完成')
     } catch (error) {
-      logger.error('运行时库注入失败:', error)
+      logger.error('运行时库注入失败:', error instanceof Error ? error : new Error(String(error)))
       throw error
     }
   }
@@ -260,7 +160,7 @@ App({
 
         // 如果是TS文件，需要转换为JS
         if (entry.name.endsWith('.ts')) {
-          content = this.transpileTypeScript(content)
+          content = transpileRuntimeTypeScript(content)
           const jsName = entry.name.replace('.ts', '.js')
           await fs.writeFile(path.join(dest, jsName), content, 'utf-8')
         } else {
@@ -268,43 +168,6 @@ App({
         }
       }
     }
-  }
-
-  /**
-   * 简单的TypeScript转换
-   */
-  private transpileTypeScript(content: string): string {
-    // 简单的TS到JS转换
-    // 在实际实现中，应该使用TypeScript编译器API
-    return content
-      .replace(/import\s+.*?\s+from\s+['"](.+?)['"];?/g, "const $1 = require('$1');")
-      .replace(/export\s+\{([^}]+)\}/g, 'module.exports = { $1 }')
-      .replace(/export\s+default\s+/g, 'module.exports = ')
-      .replace(/export\s+/g, 'module.exports.')
-      .replace(/:\s*[A-Za-z<>[\]|&\s]+(?=\s*[=,)])/g, '') // 移除类型注解
-      .replace(/interface\s+\w+\s*\{[^}]*\}/g, '') // 移除接口定义
-      .replace(/type\s+\w+\s*=\s*[^;]+;/g, '') // 移除类型别名
-  }
-
-  /**
-   * 生成传统页面代码（不使用运行时）
-   */
-  private generateLegacyPageCode(pageConfig: any): string {
-    return `Page(${JSON.stringify(pageConfig, null, 2)})`
-  }
-
-  /**
-   * 生成传统组件代码（不使用运行时）
-   */
-  private generateLegacyComponentCode(componentConfig: any): string {
-    return `Component(${JSON.stringify(componentConfig, null, 2)})`
-  }
-
-  /**
-   * 生成传统应用代码（不使用运行时）
-   */
-  private generateLegacyAppCode(appConfig: any): string {
-    return `App(${JSON.stringify(appConfig, null, 2)})`
   }
 
   /**

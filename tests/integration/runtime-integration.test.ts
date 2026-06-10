@@ -35,6 +35,7 @@ describe('运行时集成测试', () => {
       expect(stats.modules.di).toBe(true)
       expect(stats.modules.event).toBe(true)
       expect(stats.modules.component).toBe(true)
+      expect(stats.performance).toBeDefined()
     })
 
     it('应该提供所有核心API', () => {

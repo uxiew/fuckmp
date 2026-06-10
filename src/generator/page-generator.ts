@@ -4,7 +4,23 @@
 
 import type { TransformContext, GenerateResult, CompilerOptions } from '@/types/index.js'
 import type { ScriptTransformResult, TemplateTransformResult, StyleTransformResult } from '@/transformer/index.js'
-import { logger } from '@/utils/index.js'
+import { generateDefineExposeDegradeComment, generateDefineOptionsDegradeComment, generateDefineSlotsDegradeComment, generateProvideInjectDegradeComment, generateUseIdNativeComment, generateUseTemplateRefDegradeComment, generateUnsupportedTemplateDegradeComment, generateWatcherDegradeComment, logger } from '@/utils/index.js'
+import {
+  addPageHeader,
+  generatePageEventHandlers,
+  generatePageComputedMethods,
+  generatePageComputedUpdate,
+  generatePageLifecycleCode,
+  generatePageMethodsCode,
+  getPagePath,
+  getPageTitle,
+  generatePageReactivitySetup,
+  generatePageTemplateEventHandlers,
+  generatePageWXSS,
+  hasPageLoadingState,
+  hasPageRefreshHandler
+} from './page-generator-utils.js'
+import { addScopeAttributes, generateScopeId, generateUsingComponents, removeCtxPrefixes } from './shared-generator-utils.js'
 
 /**
  * 页面生成器类
@@ -29,10 +45,10 @@ export class PageGenerator {
       logger.debug(`生成页面代码: ${context.filename}`)
 
       const result: GenerateResult = {
-        js: this.generateJS(scriptResult, context),
+        js: this.generateJS(scriptResult, templateResult, context),
         json: this.generateJSON(scriptResult, templateResult, context),
         wxml: this.generateWXML(templateResult, context),
-        wxss: this.generateWXSS(styleResults, context)
+        wxss: this.generateWXSS(styleResults)
       }
 
       logger.debug(`页面代码生成完成: ${context.filename}`)
@@ -47,7 +63,7 @@ export class PageGenerator {
   /**
    * 生成 JavaScript 代码
    */
-  private generateJS(scriptResult: ScriptTransformResult, context: TransformContext): string {
+  private generateJS(scriptResult: ScriptTransformResult, templateResult: TemplateTransformResult, context: TransformContext): string {
     const { data, methods, computed, lifecycle, reactiveVariables } = context
 
     // 生成页面定义的各个部分
@@ -65,21 +81,28 @@ export class PageGenerator {
     }
 
     // 页面生命周期函数
-    const lifecycleCode = this.generateLifecycle(lifecycle)
+    const lifecycleCode = generatePageLifecycleCode(lifecycle)
     if (lifecycleCode) {
       parts.push(`  // 页面生命周期函数
 ${lifecycleCode}`)
     }
 
     // 页面方法
-    const methodsCode = this.generateMethods(methods)
+    const methodsCode = generatePageMethodsCode(methods)
     if (methodsCode) {
       parts.push(`  // 页面方法
 ${methodsCode}`)
     }
 
+    // 模板生成的必要事件处理器
+    const templateEventHandlers = generatePageTemplateEventHandlers(templateResult)
+    if (templateEventHandlers) {
+      parts.push(`  // 模板事件处理器
+${templateEventHandlers}`)
+    }
+
     // 计算属性方法
-    const computedMethods = this.generateComputedMethods(computed)
+    const computedMethods = generatePageComputedMethods(computed)
     if (computedMethods) {
       parts.push(`  // 计算属性方法
 ${computedMethods}`)
@@ -87,23 +110,28 @@ ${computedMethods}`)
 
     // 事件处理器（仅在配置启用时生成）
     if (!this.options.pureMode && this.options.page.eventHandlers) {
-      const eventHandlers = this.generateEventHandlers(context)
+      const eventHandlers = generatePageEventHandlers(context)
       if (eventHandlers) {
         parts.push(`  // 事件处理器
 ${eventHandlers}`)
       }
     }
 
+    const reactivitySetup = generatePageReactivitySetup({
+      hasComputed: Object.keys(computed).length > 0,
+      includeLoadingState: !this.options.pureMode && this.options.page.loadingState
+    })
+
     // 响应式系统设置（始终生成，支撑程序运行）
     parts.push(`  // 响应式系统设置
   _setupReactivity() {
-${this.generateReactivitySetup(context)}
+${reactivitySetup}
   }`)
 
     // 更新计算属性（始终生成，支撑程序运行）
     parts.push(`  // 更新计算属性
   _updateComputed() {
-${this.generateComputedUpdate(computed)}
+${generatePageComputedUpdate(computed)}
   }`)
 
     // 页面分享（仅在配置启用时生成）
@@ -111,8 +139,8 @@ ${this.generateComputedUpdate(computed)}
       parts.push(`  // 页面分享
   onShareAppMessage() {
     return {
-      title: '${this.getPageTitle(context)}',
-      path: '${this.getPagePath(context)}'
+      title: '${getPageTitle(context.filename)}',
+      path: '${getPagePath(context.filename)}'
     }
   }`)
     }
@@ -122,20 +150,17 @@ ${this.generateComputedUpdate(computed)}
       parts.push(`  // 页面分享到朋友圈
   onShareTimeline() {
     return {
-      title: '${this.getPageTitle(context)}'
+      title: '${getPageTitle(context.filename)}'
     }
   }`)
     }
 
     // 生成页面定义
-    const pageCode = `Page({
+    const pageCode = `${generateDefineExposeDegradeComment(context.expose, '页面')}${generateDefineOptionsDegradeComment(context.defineOptions || {}, '页面')}${generateDefineSlotsDegradeComment(context.defineSlots || {}, '页面')}${generateWatcherDegradeComment(context.watcherEffects || {}, '页面')}${generateUseTemplateRefDegradeComment(context.templateRefs || {}, '页面')}${generateUseIdNativeComment(context.useIds || {}, '页面')}${generateProvideInjectDegradeComment(context.provideInject || {}, '页面')}${generateUnsupportedTemplateDegradeComment(context.templateUnsupported || {}, '页面')}Page({
 ${parts.join(',\n\n')}
 })`
 
-    // 添加运行时库注入
-    const runtimeCode = this.generateRuntimeInjection()
-
-    return this.addHeader(runtimeCode + '\n\n' + pageCode, context)
+    return addPageHeader(pageCode, context.filename)
   }
 
   /**
@@ -147,14 +172,17 @@ ${parts.join(',\n\n')}
     context: TransformContext
   ): Record<string, any> {
     const config: any = {
-      usingComponents: this.generateUsingComponents(context.components),
-      navigationBarTitleText: this.getPageTitle(context),
-      enablePullDownRefresh: this.hasRefreshHandler(context),
+      usingComponents: generateUsingComponents(context.components, {
+        debugLabel: '页面组件引用',
+        errorLabel: '处理页面组件路径失败'
+      }),
+      navigationBarTitleText: getPageTitle(context.filename),
+      enablePullDownRefresh: hasPageRefreshHandler(context),
       onReachBottomDistance: 50
     }
 
     // 如果有下拉刷新，添加相关配置
-    if (this.hasRefreshHandler(context)) {
+    if (hasPageRefreshHandler(context)) {
       config.backgroundTextStyle = 'dark'
       config.backgroundColor = '#ffffff'
     }
@@ -169,7 +197,7 @@ ${parts.join(',\n\n')}
     let wxml = templateResult.wxml
 
     // 移除所有的 _ctx. 前缀（后处理步骤）
-    wxml = this.removeCtxPrefixes(wxml)
+    wxml = removeCtxPrefixes(wxml)
 
     // 添加页面容器（仅在配置启用时）
     if (!this.options.pureMode && this.options.page.baseStyles) {
@@ -179,7 +207,7 @@ ${parts.join(',\n\n')}
     }
 
     // 添加加载状态（仅在配置启用且用户定义了loading状态时）
-    if (!this.options.pureMode && this.options.page.loadingState && this.hasLoadingState(context)) {
+    if (!this.options.pureMode && this.options.page.loadingState && hasPageLoadingState(context)) {
       wxml = `<view wx:if="{{loading}}" class="loading-container">
   <view class="loading-spinner"></view>
   <text class="loading-text">加载中...</text>
@@ -191,8 +219,8 @@ ${parts.join(',\n\n')}
 
     // 只有在使用了 scoped 样式时才添加作用域属性
     if (context.hasScoped && context.filename) {
-      const scopeId = this.generateScopeId(context.filename)
-      wxml = this.addScopeAttributes(wxml, scopeId)
+      const scopeId = generateScopeId(context.filename)
+      wxml = addScopeAttributes(wxml, scopeId)
     }
 
     return wxml
@@ -201,588 +229,9 @@ ${parts.join(',\n\n')}
   /**
    * 生成 WXSS 样式
    */
-  private generateWXSS(styleResults: StyleTransformResult | StyleTransformResult[], context: TransformContext): string {
-    let finalStyles = ''
-
-    // 添加页面基础样式（仅在配置启用时）
-    if (!this.options.pureMode && this.options.page.baseStyles) {
-      const baseStyles = `/* 页面基础样式 */
-.page-container {
-  min-height: 100vh;
-  background-color: #f5f5f5;
-}
-
-/* 加载状态样式 */
-.loading-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-}
-
-.loading-spinner {
-  width: 60rpx;
-  height: 60rpx;
-  border: 4rpx solid #e0e0e0;
-  border-top: 4rpx solid #1976d2;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-.loading-text {
-  margin-top: 20rpx;
-  color: #666;
-  font-size: 28rpx;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* 用户自定义样式 */`
-      finalStyles = baseStyles
-    }
-
-    if (!styleResults) {
-      return finalStyles
-    }
-
-    // 如果是单个样式结果，直接返回
-    if (!Array.isArray(styleResults)) {
-      return finalStyles ? finalStyles + '\n' + styleResults.wxss : styleResults.wxss
-    }
-
-    // 如果是多个样式结果，合并它们
-    const allStyles = styleResults
-      .filter(result => result && result.wxss)
-      .map(result => result.wxss)
-      .join('\n\n')
-
-    return finalStyles ? finalStyles + '\n' + allStyles : allStyles
-  }
-
-  /**
-   * 生成运行时库注入代码
-   */
-  private generateRuntimeInjection(): string {
-    const lines = [
-      '// Vue3 微信小程序响应式运行时库',
-      'const { ref, reactive, computed, watch, onMounted, setDataContext } = (() => {',
-      '  // 全局上下文，用于存储当前的小程序实例',
-      '  let currentContext = null',
-      '',
-      '  // 设置当前的小程序上下文',
-      '  function setDataContext(context) {',
-      '    currentContext = context',
-      '  }',
-      '',
-      '  // 调用小程序的 setData 方法更新数据',
-      '  function triggerSetData(key, value) {',
-      '    if (currentContext && typeof currentContext.setData === "function") {',
-      '      currentContext.setData({ [key]: value })',
-      '    }',
-      '  }',
-      '',
-      '  // 创建 ref 响应式引用',
-      '  function ref(value) {',
-      '    let _value = value',
-      '    const dataKey = "ref_" + Math.random().toString(36).substr(2, 9)',
-      '    ',
-      '    const refProxy = {',
-      '      get value() {',
-      '        return _value',
-      '      },',
-      '      set value(newValue) {',
-      '        if (newValue !== _value) {',
-      '          _value = newValue',
-      '          triggerSetData(dataKey, newValue)',
-      '        }',
-      '      }',
-      '    }',
-      '    ',
-      '    if (currentContext) {',
-      '      triggerSetData(dataKey, value)',
-      '    }',
-      '    ',
-      '    return refProxy',
-      '  }',
-      '',
-      '  // 创建 reactive 响应式对象',
-      '  function reactive(target) {',
-      '    const dataKey = "reactive_" + Math.random().toString(36).substr(2, 9)',
-      '    ',
-      '    function createProxy(obj, path = []) {',
-      '      return new Proxy(obj, {',
-      '        get(target, key) {',
-      '          const value = target[key]',
-      '          if (value && typeof value === "object") {',
-      '            return createProxy(value, [...path, key])',
-      '          }',
-      '          return value',
-      '        },',
-      '        set(target, key, newValue) {',
-      '          const oldValue = target[key]',
-      '          if (newValue !== oldValue) {',
-      '            target[key] = newValue',
-      '            const fullPath = path.length > 0',
-      '              ? dataKey + "." + [...path, key].join(".")',
-      '              : dataKey + "." + key',
-      '            triggerSetData(fullPath, newValue)',
-      '          }',
-      '          return true',
-      '        }',
-      '      })',
-      '    }',
-      '    ',
-      '    const proxy = createProxy(target)',
-      '    if (currentContext) {',
-      '      triggerSetData(dataKey, target)',
-      '    }',
-      '    return proxy',
-      '  }',
-      '',
-      '  // 创建计算属性',
-      '  function computed(getter) {',
-      '    let _value',
-      '    let _computed = false',
-      '    const dataKey = "computed_" + Math.random().toString(36).substr(2, 9)',
-      '    ',
-      '    const computeValue = () => {',
-      '      if (!_computed) {',
-      '        _value = getter()',
-      '        _computed = true',
-      '        if (currentContext) {',
-      '          triggerSetData(dataKey, _value)',
-      '        }',
-      '      }',
-      '      return _value',
-      '    }',
-      '    ',
-      '    const computedProxy = {',
-      '      get value() {',
-      '        return computeValue()',
-      '      }',
-      '    }',
-      '    ',
-      '    computeValue()',
-      '    return computedProxy',
-      '  }',
-      '',
-      '  // 监听器函数',
-      '  function watch(source, callback) {',
-      '    let oldValue = source()',
-      '    const checkChanges = () => {',
-      '      const newValue = source()',
-      '      if (newValue !== oldValue) {',
-      '        callback(newValue, oldValue)',
-      '        oldValue = newValue',
-      '      }',
-      '    }',
-      '    setInterval(checkChanges, 100)',
-      '  }',
-      '',
-      '  // 生命周期钩子',
-      '  function onMounted(callback) {',
-      '    if (currentContext && currentContext.onReady) {',
-      '      currentContext.onReady(callback)',
-      '    } else if (callback) {',
-      '      setTimeout(callback, 0)',
-      '    }',
-      '  }',
-      '',
-      '  return { ref, reactive, computed, watch, onMounted, setDataContext }',
-      '})();'
-    ]
-
-    return lines.join('\n')
-  }
-
-  /**
-   * 生成生命周期函数
-   */
-  private generateLifecycle(lifecycle: Record<string, string>): string {
-    const pageLifecycles = ['onLoad', 'onShow', 'onReady', 'onHide', 'onUnload', 'onPullDownRefresh', 'onReachBottom']
-    const entries: string[] = []
-
-    pageLifecycles.forEach(lifecycleName => {
-      const code = lifecycle[lifecycleName]
-      if (code && code.trim()) {
-        const params = lifecycleName === 'onLoad' ? 'options' : ''
-        const setupCall = lifecycleName === 'onLoad' ?
-          'setDataContext(this)\n    this._setupReactivity()' : ''
-        entries.push(`  ${lifecycleName}(${params}) {
-    ${setupCall}
-    ${code.trim()}
-  }`)
-      } else if (lifecycleName === 'onLoad') {
-        // 确保 onLoad 存在，响应式设置是必需的
-        entries.push(`  onLoad(options) {
-    // 初始化运行时上下文
-    setDataContext(this)
-    // 响应式 API 已在运行时库中自动注入
-    this._setupReactivity()
-    // 页面加载完成
-  }`)
-      }
+  private generateWXSS(styleResults: StyleTransformResult | StyleTransformResult[]): string {
+    return generatePageWXSS(styleResults, {
+      includeBaseStyles: !this.options.pureMode && this.options.page.baseStyles
     })
-
-    return entries.join(',\n\n')
-  }
-
-  /**
-   * 生成方法
-   */
-  private generateMethods(methods: Record<string, any>): string {
-    const entries = Object.entries(methods).map(([name, method]) => {
-      if (typeof method === 'function') {
-        const funcStr = method.toString()
-        return `  ${name}${funcStr.substring(funcStr.indexOf('('))}`
-      } else if (method && typeof method === 'object' && method.body) {
-        // 如果是包含函数体的对象
-        const body = method.body.trim()
-
-        // 处理箭头函数
-        if (body.includes('=>')) {
-          // 匹配箭头函数的参数和函数体
-          const arrowMatch = body.match(/^\((.*?)\)\s*=>\s*(.*)$/s)
-          if (arrowMatch) {
-            const params = arrowMatch[1]
-            let functionBody = arrowMatch[2].trim()
-
-            if (functionBody.startsWith('{') && functionBody.endsWith('}')) {
-              // 块语句，移除外层大括号
-              functionBody = functionBody.slice(1, -1).trim()
-              return `  ${name}(${params}) {
-    ${functionBody}
-  }`
-            } else {
-              // 表达式，添加return
-              return `  ${name}(${params}) {
-    return ${functionBody}
-  }`
-            }
-          }
-        }
-
-        // 处理普通函数
-        if (body.includes('function')) {
-          const funcMatch = body.match(/function\s*\((.*?)\)\s*(.+)/)
-          if (funcMatch) {
-            const params = funcMatch[1]
-            const functionBody = funcMatch[2]
-            return `  ${name}(${params}) ${functionBody}`
-          }
-        }
-
-        // 如果解析失败，使用原始body
-        return `  ${name}() {
-    ${body}
-  }`
-      } else if (typeof method === 'string') {
-        // 如果method直接是字符串（函数体）
-        const body = method.trim()
-
-        if (body.includes('=>')) {
-          // 处理字符串形式的箭头函数
-          const arrowMatch = body.match(/^\((.*?)\)\s*=>\s*(.*)$/s)
-          if (arrowMatch) {
-            const params = arrowMatch[1]
-            let functionBody = arrowMatch[2]?.trim() || ''
-
-            if (functionBody.startsWith('{') && functionBody.endsWith('}')) {
-              functionBody = functionBody.slice(1, -1).trim()
-              return `  ${name}(${params}) {
-    ${functionBody}
-  }`
-            } else {
-              return `  ${name}(${params}) {
-    return ${functionBody}
-  }`
-            }
-          }
-        }
-
-        return `  ${name}() {
-    ${body}
-  }`
-      } else {
-        return `  ${name}() {
-    // 方法实现
-  }`
-      }
-    })
-
-    // 如果没有方法，返回空字符串
-    if (entries.length === 0) {
-      return ''
-    }
-
-    return entries.join(',\n\n')
-  }
-
-
-
-  /**
-   * 生成计算属性方法
-   */
-  private generateComputedMethods(computed: Record<string, any>): string {
-    const entries = Object.entries(computed).map(([name, config]) => {
-      return `  _computed_${name}() {
-    ${config.getter || 'return null'}
-  }`
-    })
-
-    // 如果没有计算属性，返回空字符串
-    if (entries.length === 0) {
-      return ''
-    }
-
-    return entries.join(',\n\n')
-  }
-
-  /**
-   * 生成事件处理器
-   */
-  private generateEventHandlers(context: TransformContext): string {
-    const handlers: string[] = []
-
-    // 通用事件处理器
-    handlers.push(`  // 通用点击事件处理
-  handleTap(event) {
-    const { dataset } = event.currentTarget
-    const { action, data } = dataset
-    
-    if (action && this[action]) {
-      this[action](data)
-    }
-  }`)
-
-    // 输入处理器
-    Object.keys(context.data).forEach(key => {
-      handlers.push(`  _handleInput_${key.replace(/\./g, '_')}(event) {
-    const value = event.detail.value
-    this.setData({
-      ${key}: value
-    })
-    this._updateComputed()
-  }`)
-    })
-
-    // 下拉刷新处理器
-    if (this.hasRefreshHandler(context)) {
-      handlers.push(`  onPullDownRefresh() {
-    // 下拉刷新逻辑
-    this.refreshData().then(() => {
-      wx.stopPullDownRefresh()
-    })
-  }`)
-
-      handlers.push(`  refreshData() {
-    return new Promise((resolve) => {
-      // 刷新数据的具体实现
-      setTimeout(resolve, 1000)
-    })
-  }`)
-    }
-
-    // 上拉加载更多处理器
-    handlers.push(`  onReachBottom() {
-    // 上拉加载更多逻辑
-    if (this.data.hasMore && !this.data.loading) {
-      this.loadMoreData()
-    }
-  }`)
-
-    handlers.push(`  loadMoreData() {
-    this.setData({ loading: true })
-    
-    // 加载更多数据的具体实现
-    setTimeout(() => {
-      this.setData({ 
-        loading: false,
-        hasMore: false // 根据实际情况设置
-      })
-    }, 1000)
-  }`)
-
-    return handlers.join(',\n\n')
-  }
-
-  /**
-   * 生成响应式设置
-   */
-  private generateReactivitySetup(context: TransformContext): string {
-    const setup: string[] = []
-
-    // 初始化响应式变量
-    if (context.reactiveVariables) {
-      context.reactiveVariables.forEach((varInfo, name) => {
-        if (varInfo.type === 'ref') {
-          setup.push(`    // 初始化 ref 变量: ${name}
-    this.${name} = ref(${JSON.stringify(varInfo.initialValue)})`)
-        } else if (varInfo.type === 'reactive') {
-          setup.push(`    // 初始化 reactive 变量: ${name}
-    this.${name} = reactive(${JSON.stringify(varInfo.initialValue)})`)
-        } else if (varInfo.type === 'computed') {
-          const computed = context.computed[name]
-          setup.push(`    // 初始化计算属性: ${name}
-    this.${name} = computed(() => {
-      ${computed.getter}
-    })`)
-        }
-      })
-    }
-
-    // 初始化加载状态（仅在配置启用时）
-    if (!this.options.pureMode && this.options.page.loadingState) {
-      setup.push(`    // 初始化页面状态
-    this.setData({
-      loading: false,
-      hasMore: true
-    })`)
-    }
-
-    return setup.join('\n')
-  }
-
-  /**
-   * 生成计算属性更新
-   */
-  private generateComputedUpdate(computed: Record<string, any>): string {
-    const computedKeys = Object.keys(computed)
-
-    if (computedKeys.length === 0) {
-      return '    // 没有计算属性需要更新'
-    }
-
-    const updates = computedKeys.map(key => `      ${key}: this._computed_${key}()`)
-
-    return `    this.setData({
-${updates.join(',\n')}
-    })`
-  }
-
-  /**
-   * 生成使用的组件配置
-   */
-  private generateUsingComponents(components: Map<string, string>, fromFile?: string): Record<string, string> {
-    const usingComponents: Record<string, string> = {}
-
-    components.forEach((importPath, name) => {
-      try {
-        // 简单的路径处理，实际的路径解析在编译器层面处理
-        const componentPath = importPath.replace(/\.vue$/, '').replace(/^\.\//, '')
-        usingComponents[this.kebabCase(name)] = componentPath
-        logger.debug(`页面组件引用: ${name} -> ${componentPath}`)
-      } catch (error) {
-        logger.error(`处理页面组件路径失败: ${name} -> ${importPath}`, error as Error)
-        usingComponents[this.kebabCase(name)] = importPath.replace(/\.vue$/, '')
-      }
-    })
-
-    return usingComponents
-  }
-
-  /**
-   * 获取页面标题
-   */
-  private getPageTitle(context: TransformContext): string {
-    // 从文件名推断页面标题
-    const filename = context.filename.split('/').pop()?.replace(/\.vue$/, '') || 'Page'
-    return filename.charAt(0).toUpperCase() + filename.slice(1)
-  }
-
-  /**
-   * 获取页面路径
-   */
-  private getPagePath(context: TransformContext): string {
-    return context.filename.replace(/\.vue$/, '').replace(/^src\//, '')
-  }
-
-  /**
-   * 检查是否有刷新处理器
-   */
-  private hasRefreshHandler(context: TransformContext): boolean {
-    return 'onPullDownRefresh' in context.lifecycle || 'refreshData' in context.methods
-  }
-
-  /**
-   * 检查是否有加载状态
-   */
-  private hasLoadingState(context: TransformContext): boolean {
-    return 'loading' in context.data
-  }
-
-  /**
-   * 移除所有的 _ctx. 前缀
-   */
-  private removeCtxPrefixes(wxml: string): string {
-    // 移除事件绑定中的 _ctx. 前缀
-    wxml = wxml.replace(/bind:(\w+)="_ctx\.([^"]+)"/g, 'bind:$1="$2"')
-
-    // 移除条件渲染中的 _ctx. 前缀
-    wxml = wxml.replace(/wx:(if|elif)="{{_ctx\.([^}]+)}}"/g, 'wx:$1="{{$2}}"')
-
-    // 移除属性绑定中的 _ctx. 前缀
-    wxml = wxml.replace(/(\w+)="{{_ctx\.([^}]+)}}"/g, '$1="{{$2}}"')
-
-    // 移除其他可能的 _ctx. 前缀
-    wxml = wxml.replace(/_ctx\./g, '')
-
-    return wxml
-  }
-
-  /**
-   * 添加作用域属性
-   */
-  private addScopeAttributes(wxml: string, scopeId: string): string {
-    return wxml.replace(/<(\w+)([^>]*?)(\s*\/?)>/g, (match, tag, attrs, selfClosing) => {
-      if (attrs.includes('data-v-')) {
-        return match
-      }
-
-      // 修复：只有当 selfClosing 包含 '/' 时才是真正的自闭合标签
-      const isSelfClosing = selfClosing.includes('/')
-
-      if (isSelfClosing) {
-        return `<${tag}${attrs} data-v-${scopeId} />`
-      } else {
-        return `<${tag}${attrs} data-v-${scopeId}>`
-      }
-    })
-  }
-
-  /**
-   * 生成作用域 ID
-   */
-  private generateScopeId(filename: string): string {
-    let hash = 0
-    for (let i = 0; i < filename.length; i++) {
-      const char = filename.charCodeAt(i)
-      hash = ((hash << 5) - hash) + char
-      hash = hash & hash
-    }
-    return Math.abs(hash).toString(36).substring(0, 8)
-  }
-
-  /**
-   * 添加文件头部注释
-   */
-  private addHeader(code: string, context: TransformContext): string {
-    return `// 由 Vue3 微信小程序编译器自动生成
-// 源文件: ${context.filename}
-// 页面类型: Page
-// 生成时间: ${new Date().toISOString()}
-
-${code}`
-  }
-
-  /**
-   * 转换为 kebab-case
-   */
-  private kebabCase(str: string): string {
-    return str.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '')
   }
 }

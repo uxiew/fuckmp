@@ -4,6 +4,16 @@
  */
 
 import { logger } from '../utils/logger'
+import {
+  createComponentLifecycleHandlers,
+  createLifecycleConfig,
+  createPageLifecycleHandlers,
+  ensureLifetimes,
+  getHookNameFromPerformanceStartKey,
+  getOptionalPageHookNames,
+  getPerformanceStartKey,
+  isPerformanceStartKey
+} from './lifecycle-utils.js'
 
 /**
  * 生命周期钩子类型
@@ -63,11 +73,7 @@ export class Lifecycle {
   private initialized = false
 
   constructor(config: LifecycleConfig = {}) {
-    this.config = {
-      debug: false,
-      enablePerformanceTracking: false,
-      ...config
-    }
+    this.config = createLifecycleConfig(config)
   }
 
   /**
@@ -113,7 +119,7 @@ export class Lifecycle {
    * 销毁生命周期系统
    */
   destroy(): void {
-    for (const [instance, lifecycleInstance] of this.instances) {
+    for (const lifecycleInstance of this.instances.values()) {
       lifecycleInstance.cleanup()
     }
     this.instances.clear()
@@ -160,61 +166,13 @@ class LifecycleInstance {
    * 设置页面生命周期
    */
   private setupPageLifecycle(): void {
-    // 页面加载
-    if (this.hooks.onLoad) {
-      this.instance.onLoad = this.wrapHook('onLoad', (options: any) => {
-        this.callHook('onBeforeMount')
-        this.hooks.onLoad!(options)
-        this.callHook('onMounted')
-      })
-    } else {
-      this.instance.onLoad = this.wrapHook('onLoad', (options: any) => {
-        this.callHook('onBeforeMount')
-        this.callHook('onMounted')
-      })
-    }
+    const lifecycleMap = createPageLifecycleHandlers(
+      this.hooks,
+      (hookName, ...args) => this.callHook(hookName, ...args)
+    )
 
-    // 页面显示
-    if (this.hooks.onShow) {
-      this.instance.onShow = this.wrapHook('onShow', () => {
-        this.callHook('onActivated')
-        this.hooks.onShow!()
-      })
-    } else {
-      this.instance.onShow = this.wrapHook('onShow', () => {
-        this.callHook('onActivated')
-      })
-    }
-
-    // 页面初次渲染完成
-    if (this.hooks.onReady) {
-      this.instance.onReady = this.wrapHook('onReady', this.hooks.onReady)
-    }
-
-    // 页面隐藏
-    if (this.hooks.onHide) {
-      this.instance.onHide = this.wrapHook('onHide', () => {
-        this.callHook('onDeactivated')
-        this.hooks.onHide!()
-      })
-    } else {
-      this.instance.onHide = this.wrapHook('onHide', () => {
-        this.callHook('onDeactivated')
-      })
-    }
-
-    // 页面卸载
-    if (this.hooks.onUnload) {
-      this.instance.onUnload = this.wrapHook('onUnload', () => {
-        this.callHook('onBeforeUnmount')
-        this.hooks.onUnload!()
-        this.callHook('onUnmounted')
-      })
-    } else {
-      this.instance.onUnload = this.wrapHook('onUnload', () => {
-        this.callHook('onBeforeUnmount')
-        this.callHook('onUnmounted')
-      })
+    for (const [hookName, handler] of Object.entries(lifecycleMap)) {
+      this.instance[hookName] = this.wrapHook(hookName, handler)
     }
 
     // 其他页面生命周期
@@ -225,36 +183,15 @@ class LifecycleInstance {
    * 设置组件生命周期
    */
   private setupComponentLifecycle(): void {
-    // 组件生命周期映射
-    const lifecycleMap = {
-      created: () => {
-        this.callHook('onBeforeMount')
-        this.hooks.created?.()
-      },
-      attached: () => {
-        this.hooks.attached?.()
-      },
-      ready: () => {
-        this.callHook('onMounted')
-        this.hooks.ready?.()
-      },
-      moved: () => {
-        this.hooks.moved?.()
-      },
-      detached: () => {
-        this.callHook('onBeforeUnmount')
-        this.hooks.detached?.()
-        this.callHook('onUnmounted')
-      },
-      error: (error: Error) => {
-        this.hooks.error?.(error)
-      }
-    }
+    const lifecycleMap = createComponentLifecycleHandlers(
+      this.hooks,
+      (hookName, ...args) => this.callHook(hookName, ...args)
+    )
+    const lifetimes = ensureLifetimes(this.instance)
 
     // 设置组件生命周期
     for (const [hookName, handler] of Object.entries(lifecycleMap)) {
-      this.instance.lifetimes = this.instance.lifetimes || {}
-      this.instance.lifetimes[hookName] = this.wrapHook(hookName, handler)
+      lifetimes[hookName] = this.wrapHook(hookName, handler)
     }
   }
 
@@ -262,17 +199,8 @@ class LifecycleInstance {
    * 设置可选的页面钩子
    */
   private setupOptionalPageHooks(): void {
-    const optionalHooks = [
-      'onPullDownRefresh',
-      'onReachBottom',
-      'onShareAppMessage',
-      'onPageScroll',
-      'onResize',
-      'onTabItemTap'
-    ]
-
-    for (const hookName of optionalHooks) {
-      const hook = this.hooks[hookName as keyof LifecycleHooks]
+    for (const hookName of getOptionalPageHookNames()) {
+      const hook = this.hooks[hookName]
       if (hook) {
         this.instance[hookName] = this.wrapHook(hookName, hook)
       }
@@ -348,7 +276,7 @@ class LifecycleInstance {
    */
   private markPerformanceStart(hookName: string): void {
     if (this.config.enablePerformanceTracking) {
-      this.performanceMarks.set(`${hookName}_start`, Date.now())
+      this.performanceMarks.set(getPerformanceStartKey(hookName), Date.now())
     }
   }
 
@@ -357,11 +285,11 @@ class LifecycleInstance {
    */
   private markPerformanceEnd(hookName: string): void {
     if (this.config.enablePerformanceTracking) {
-      const startTime = this.performanceMarks.get(`${hookName}_start`)
+      const startTime = this.performanceMarks.get(getPerformanceStartKey(hookName))
       if (startTime) {
         const duration = Date.now() - startTime
         logger.debug(`生命周期钩子 ${hookName} 执行耗时: ${duration}ms`)
-        this.performanceMarks.delete(`${hookName}_start`)
+        this.performanceMarks.delete(getPerformanceStartKey(hookName))
       }
     }
   }
@@ -372,8 +300,8 @@ class LifecycleInstance {
   getPerformanceStats(): Record<string, number> {
     const stats: Record<string, number> = {}
     for (const [key, value] of this.performanceMarks) {
-      if (key.endsWith('_start')) {
-        const hookName = key.replace('_start', '')
+      if (isPerformanceStartKey(key)) {
+        const hookName = getHookNameFromPerformanceStartKey(key)
         stats[hookName] = Date.now() - value
       }
     }

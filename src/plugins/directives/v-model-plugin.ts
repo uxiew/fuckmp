@@ -7,12 +7,21 @@ import { BaseTransformPlugin } from '../base/transform-plugin'
 import type { TransformResult } from '../base/transform-plugin'
 import type { ASTNode } from '../../types/ast'
 import type { TransformContext } from '../../types/compiler'
+import {
+  createVModelContextUpdates,
+  extractVModelVariableName,
+  generateInputVModelBinding,
+  generatePickerVModelBinding,
+  generateSliderVModelBinding,
+  generateSwitchVModelBinding,
+  generateVModelFallbackBinding
+} from './v-model-plugin-utils.js'
 
 export class VModelPlugin extends BaseTransformPlugin {
   readonly name = 'v-model-plugin'
   readonly version = '1.0.0'
   readonly priority = 80
-  readonly dependencies = ['reactive-plugin'] // 依赖响应式插件
+  override readonly dependencies = ['reactive-plugin'] // 依赖响应式插件
 
   supports(node: ASTNode, context: TransformContext): boolean {
     // 检查是否为 v-model 指令
@@ -45,11 +54,12 @@ export class VModelPlugin extends BaseTransformPlugin {
         default:
           return this.createWarningResult(
             `不支持的 v-model 元素类型: ${elementType}`,
-            this.generateFallbackBinding(modelExpression)
+            generateVModelFallbackBinding(modelExpression)
           )
       }
     } catch (error) {
-      return this.createErrorResult(`v-model 转换失败: ${error.message}`)
+      const message = error instanceof Error ? error.message : String(error)
+      return this.createErrorResult(`v-model 转换失败: ${message}`)
     }
   }
 
@@ -70,71 +80,27 @@ export class VModelPlugin extends BaseTransformPlugin {
     modifiers: string[],
     context: TransformContext
   ): TransformResult {
-    const varName = this.extractVariableName(expression)
+    const varName = extractVModelVariableName(expression)
     if (!varName) {
       return this.createErrorResult('v-model 表达式必须是一个变量')
     }
 
-    const hasLazyModifier = modifiers.includes('lazy')
-    const hasNumberModifier = modifiers.includes('number')
-    const hasTrimModifier = modifiers.includes('trim')
-
-    // 生成小程序的双向绑定代码
-    let bindingCode = `value="{{${varName}}}"`
-    let eventCode = ''
-
-    if (hasLazyModifier) {
-      // lazy 修饰符：在 change 事件时更新
-      eventCode = `bindchange="_handleInput_${varName}"`
-    } else {
-      // 默认：在 input 事件时更新
-      eventCode = `bindinput="_handleInput_${varName}"`
-    }
-
-    // 生成事件处理方法
-    const methodName = `_handleInput_${varName}`
-    let methodBody = 'const value = event.detail.value'
-
-    if (hasTrimModifier) {
-      methodBody += '.trim()'
-    }
-
-    if (hasNumberModifier) {
-      methodBody += `
-const numValue = Number(value)
-const finalValue = isNaN(numValue) ? value : numValue`
-      methodBody += `
-this.setData({ ${varName}: finalValue })`
-    } else {
-      methodBody += `
-this.setData({ ${varName}: value })`
-    }
-
-    // 更新计算属性
-    methodBody += `
-this._updateComputed()`
-
-    const contextUpdates = {
-      methods: {
-        ...context.methods,
-        [methodName]: {
-          name: methodName,
-          params: ['event'],
-          body: methodBody,
-          isGenerated: true
-        }
-      }
-    }
+    const binding = generateInputVModelBinding(varName, modifiers)
+    const contextUpdates = createVModelContextUpdates(
+      context.methods,
+      binding.methodName,
+      binding.methodBody
+    )
 
     this.debug('转换 input v-model', {
       varName,
       modifiers,
-      bindingCode,
-      eventCode
+      bindingCode: binding.code.split(' ')[0],
+      eventCode: binding.code.split(' ')[1]
     })
 
     return this.createSuccessResult(
-      `${bindingCode} ${eventCode}`,
+      binding.code,
       contextUpdates
     )
   }
@@ -159,34 +125,20 @@ this._updateComputed()`
     modifiers: string[],
     context: TransformContext
   ): TransformResult {
-    const varName = this.extractVariableName(expression)
+    const varName = extractVModelVariableName(expression)
     if (!varName) {
       return this.createErrorResult('v-model 表达式必须是一个变量')
     }
 
-    const bindingCode = `value="{{${varName}}}"`
-    const eventCode = `bindchange="_handlePicker_${varName}"`
-
-    const methodName = `_handlePicker_${varName}`
-    const methodBody = `
-const value = event.detail.value
-this.setData({ ${varName}: value })
-this._updateComputed()`
-
-    const contextUpdates = {
-      methods: {
-        ...context.methods,
-        [methodName]: {
-          name: methodName,
-          params: ['event'],
-          body: methodBody,
-          isGenerated: true
-        }
-      }
-    }
+    const binding = generatePickerVModelBinding(varName)
+    const contextUpdates = createVModelContextUpdates(
+      context.methods,
+      binding.methodName,
+      binding.methodBody
+    )
 
     return this.createSuccessResult(
-      `${bindingCode} ${eventCode}`,
+      binding.code,
       contextUpdates
     )
   }
@@ -199,34 +151,20 @@ this._updateComputed()`
     modifiers: string[],
     context: TransformContext
   ): TransformResult {
-    const varName = this.extractVariableName(expression)
+    const varName = extractVModelVariableName(expression)
     if (!varName) {
       return this.createErrorResult('v-model 表达式必须是一个变量')
     }
 
-    const bindingCode = `checked="{{${varName}}}"`
-    const eventCode = `bindchange="_handleSwitch_${varName}"`
-
-    const methodName = `_handleSwitch_${varName}`
-    const methodBody = `
-const checked = event.detail.value
-this.setData({ ${varName}: checked })
-this._updateComputed()`
-
-    const contextUpdates = {
-      methods: {
-        ...context.methods,
-        [methodName]: {
-          name: methodName,
-          params: ['event'],
-          body: methodBody,
-          isGenerated: true
-        }
-      }
-    }
+    const binding = generateSwitchVModelBinding(varName)
+    const contextUpdates = createVModelContextUpdates(
+      context.methods,
+      binding.methodName,
+      binding.methodBody
+    )
 
     return this.createSuccessResult(
-      `${bindingCode} ${eventCode}`,
+      binding.code,
       contextUpdates
     )
   }
@@ -239,63 +177,21 @@ this._updateComputed()`
     modifiers: string[],
     context: TransformContext
   ): TransformResult {
-    const varName = this.extractVariableName(expression)
+    const varName = extractVModelVariableName(expression)
     if (!varName) {
       return this.createErrorResult('v-model 表达式必须是一个变量')
     }
 
-    const bindingCode = `value="{{${varName}}}"`
-    const eventCode = `bindchange="_handleSlider_${varName}"`
-
-    const methodName = `_handleSlider_${varName}`
-    const methodBody = `
-const value = event.detail.value
-this.setData({ ${varName}: value })
-this._updateComputed()`
-
-    const contextUpdates = {
-      methods: {
-        ...context.methods,
-        [methodName]: {
-          name: methodName,
-          params: ['event'],
-          body: methodBody,
-          isGenerated: true
-        }
-      }
-    }
+    const binding = generateSliderVModelBinding(varName)
+    const contextUpdates = createVModelContextUpdates(
+      context.methods,
+      binding.methodName,
+      binding.methodBody
+    )
 
     return this.createSuccessResult(
-      `${bindingCode} ${eventCode}`,
+      binding.code,
       contextUpdates
     )
-  }
-
-  /**
-   * 提取变量名
-   */
-  private extractVariableName(expression: ASTNode): string | null {
-    if (expression.type === 'Identifier') {
-      return expression.name
-    }
-
-    if (expression.type === 'MemberExpression') {
-      // 处理 obj.prop 形式
-      const object = this.extractVariableName(expression.object)
-      const property = expression.computed ?
-        `[${this.extractVariableName(expression.property)}]` :
-        `.${expression.property.name}`
-      return object ? `${object}${property}` : null
-    }
-
-    return null
-  }
-
-  /**
-   * 生成回退绑定
-   */
-  private generateFallbackBinding(expression: ASTNode): string {
-    const varName = this.extractVariableName(expression)
-    return varName ? `value="{{${varName}}}"` : 'value=""'
   }
 }

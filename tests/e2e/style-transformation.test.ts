@@ -67,6 +67,8 @@ const title = '样式测试组件'
 </script>
 
 <style lang="scss" scoped>
+@use 'sass:color';
+
 // SCSS 变量
 $primary-color: #007bff;
 $secondary-color: #6c757d;
@@ -150,7 +152,7 @@ $spacing: 20rpx;
         background: $primary-color;
         
         &:hover {
-          background: darken($primary-color, 10%);
+          background: color.adjust($primary-color, $lightness: -10%);
         }
       }
       
@@ -158,7 +160,7 @@ $spacing: 20rpx;
         background: $secondary-color;
         
         &:hover {
-          background: darken($secondary-color, 10%);
+          background: color.adjust($secondary-color, $lightness: -10%);
         }
       }
     }

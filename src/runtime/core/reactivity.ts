@@ -4,6 +4,20 @@
  */
 
 import { logger } from '../utils/logger'
+import {
+  createComputedProxy,
+  createReactiveProxy,
+  createRefProxy,
+  type RuntimeComputed,
+  type RuntimeRef
+} from './reactivity-proxy-helpers'
+import {
+  applyReactiveDataToInstance,
+  areReactiveValuesEqual,
+  cloneReactiveValue,
+  createReactivityConfig,
+  getReactiveInstanceValue
+} from './reactivity-utils.js'
 
 /**
  * 响应式数据类型
@@ -46,16 +60,10 @@ export interface ReactivityConfig {
 export class Reactivity {
   private config: ReactivityConfig
   private instances: Map<any, ReactiveInstance> = new Map()
-  private globalWatchers: Map<string, WatcherDef[]> = new Map()
   private initialized = false
 
   constructor(config: ReactivityConfig = {}) {
-    this.config = {
-      debug: false,
-      enableComputed: true,
-      enableWatch: true,
-      ...config
-    }
+    this.config = createReactivityConfig(config)
   }
 
   /**
@@ -104,314 +112,32 @@ export class Reactivity {
   /**
    * 创建 ref (基于 Proxy 的实现)
    */
-  ref<T>(value: T, context?: any): { value: T; _isRef: true; _key: string } {
-    const key = `ref_${Math.random().toString(36).substr(2, 9)}`
-    let _value = value
-
-    // 创建一个包含 ref 元数据的目标对象
-    const target = {
-      _isRef: true as const,
-      _key: key,
-      _value: value,
-      _context: context
-    }
-
-    // 使用 Proxy 创建响应式 ref
-    const refProxy = new Proxy(target, {
-      get(target, prop: string | symbol): any {
-        if (prop === 'value') {
-          return target._value
-        }
-        if (prop === '_isRef' || prop === '_key') {
-          return target[prop as keyof typeof target]
-        }
-        // 支持其他属性访问
-        return target[prop as keyof typeof target]
-      },
-
-      set(target, prop: string | symbol, newValue: any): boolean {
-        if (prop === 'value') {
-          const oldValue = target._value
-          if (newValue !== oldValue) {
-            target._value = newValue
-
-            // 如果有上下文，自动调用 setData
-            if (target._context && typeof target._context.setData === 'function') {
-              target._context.setData({ [target._key]: newValue })
-            }
-          }
-          return true
-        }
-
-        // 防止修改元数据
-        if (prop === '_isRef' || prop === '_key') {
-          // 注意：这里不能使用 this.config，因为在 Proxy handler 中 this 指向不同
-          // 如果需要调试信息，可以通过 target._context 访问
-          logger.warn(`尝试修改 ref 的只读属性: ${String(prop)}`)
-          return false
-        }
-
-        // 允许设置其他属性（如 _context）
-        ; (target as any)[prop] = newValue
-        return true
-      },
-
-      has(target, prop: string | symbol): boolean {
-        return prop === 'value' || prop === '_isRef' || prop === '_key' || prop in target
-      },
-
-      ownKeys(target): (string | symbol)[] {
-        return ['value', '_isRef', '_key']
-      },
-
-      getOwnPropertyDescriptor(target, prop: string | symbol) {
-        if (prop === 'value' || prop === '_isRef' || prop === '_key') {
-          return {
-            enumerable: true,
-            configurable: true,
-            ...(prop === 'value' ? { writable: true } : { writable: false })
-          }
-        }
-        return undefined
-      }
-    })
-
-    // 如果有上下文，初始化数据
-    if (context && typeof context.setData === 'function') {
-      context.setData({ [key]: value })
-    }
-
-    return refProxy as { value: T; _isRef: true; _key: string }
+  ref<T>(value: T, context?: any): RuntimeRef<T> {
+    return createRefProxy(value, context)
   }
 
   /**
    * 创建 reactive 对象 (优化的 Proxy 实现)
    */
   reactive<T extends object>(target: T, context?: any): T {
-    const key = `reactive_${Math.random().toString(36).substr(2, 9)}`
-
-    // 用于跟踪已代理的对象，避免重复代理
-    const proxyCache = new WeakMap()
-
-    function createProxy(obj: any, path: string[] = []): any {
-      // 如果已经是代理对象，直接返回
-      if (proxyCache.has(obj)) {
-        return proxyCache.get(obj)
-      }
-
-      // 如果不是对象或者是 null，直接返回
-      if (!obj || typeof obj !== 'object') {
-        return obj
-      }
-
-      const proxy = new Proxy(obj, {
-        get(target, prop: string | symbol): any {
-          const value = target[prop]
-
-          // 如果是对象，递归创建代理
-          if (value && typeof value === 'object' && typeof prop === 'string') {
-            return createProxy(value, [...path, prop])
-          }
-
-          return value
-        },
-
-        set(target, prop: string | symbol, newValue: any): boolean {
-          if (typeof prop === 'string') {
-            const oldValue = target[prop]
-
-            if (newValue !== oldValue) {
-              target[prop] = newValue
-
-              // 如果有上下文，自动调用 setData
-              if (context && typeof context.setData === 'function') {
-                const fullPath = path.length > 0
-                  ? `${key}.${[...path, prop].join('.')}`
-                  : `${key}.${prop}`
-
-                context.setData({ [fullPath]: newValue })
-              }
-            }
-          }
-
-          return true
-        },
-
-        has(target, prop: string | symbol): boolean {
-          return prop in target
-        },
-
-        ownKeys(target): (string | symbol)[] {
-          return Reflect.ownKeys(target)
-        },
-
-        getOwnPropertyDescriptor(target, prop: string | symbol) {
-          return Reflect.getOwnPropertyDescriptor(target, prop)
-        },
-
-        deleteProperty(target, prop: string | symbol): boolean {
-          if (typeof prop === 'string') {
-            const hadProperty = prop in target
-            const result = Reflect.deleteProperty(target, prop)
-
-            if (hadProperty && result && context && typeof context.setData === 'function') {
-              // 删除属性时也需要更新 setData
-              const fullPath = path.length > 0
-                ? `${key}.${[...path, prop].join('.')}`
-                : `${key}.${prop}`
-
-              context.setData({ [fullPath]: undefined })
-            }
-
-            return result
-          }
-          return Reflect.deleteProperty(target, prop)
-        }
-      })
-
-      // 缓存代理对象
-      proxyCache.set(obj, proxy)
-      return proxy
-    }
-
-    const proxy = createProxy(target)
-
-    // 如果有上下文，初始化数据
-    if (context && typeof context.setData === 'function') {
-      context.setData({ [key]: target })
-    }
-
-    return proxy
+    return createReactiveProxy(target, context)
   }
 
   /**
    * 创建 computed (基于 Proxy 的实现)
    */
-  computed<T>(getter: () => T, context?: any): { value: T; _isComputed: true; _key: string } {
-    const key = `computed_${Math.random().toString(36).substr(2, 9)}`
-    let _value: T
-    let _dirty = true
-    let _computing = false // 防止循环计算
-
-    // 创建包含 computed 元数据的目标对象
-    const target = {
-      _isComputed: true as const,
-      _key: key,
-      _getter: getter,
-      _context: context,
-      _dirty: true,
-      _computing: false
-    }
-
-    // 使用 Proxy 创建响应式 computed
-    const computedProxy = new Proxy(target, {
-      get(target, prop: string | symbol): any {
-        if (prop === 'value') {
-          // 防止循环计算
-          if (target._computing) {
-            logger.warn(`检测到计算属性 ${target._key} 的循环依赖`)
-            return undefined
-          }
-
-          if (target._dirty) {
-            target._computing = true
-            try {
-              _value = target._getter()
-              target._dirty = false
-
-              // 如果有上下文，更新数据
-              if (target._context && typeof target._context.setData === 'function') {
-                target._context.setData({ [target._key]: _value })
-              }
-            } catch (error) {
-              logger.error(`计算属性 ${target._key} 计算失败:`, error)
-              _value = undefined as T
-            } finally {
-              target._computing = false
-            }
-          }
-
-          return _value
-        }
-
-        if (prop === '_isComputed' || prop === '_key') {
-          return target[prop as keyof typeof target]
-        }
-
-        // 支持其他属性访问
-        return target[prop as keyof typeof target]
-      },
-
-      set(target, prop: string | symbol, newValue: any): boolean {
-        // computed 的 value 是只读的
-        if (prop === 'value') {
-          logger.warn(`计算属性 ${target._key} 的 value 是只读的`)
-          return false
-        }
-
-        // 防止修改元数据
-        if (prop === '_isComputed' || prop === '_key') {
-          logger.warn(`尝试修改 computed 的只读属性: ${String(prop)}`)
-          return false
-        }
-
-        // 允许设置内部属性
-        if (prop === '_dirty') {
-          target._dirty = newValue
-          return true
-        }
-
-        // 允许设置其他属性
-        ; (target as any)[prop] = newValue
-        return true
-      },
-
-      has(target, prop: string | symbol): boolean {
-        return prop === 'value' || prop === '_isComputed' || prop === '_key' || prop in target
-      },
-
-      ownKeys(target): (string | symbol)[] {
-        return ['value', '_isComputed', '_key']
-      },
-
-      getOwnPropertyDescriptor(target, prop: string | symbol) {
-        if (prop === 'value') {
-          return {
-            enumerable: true,
-            configurable: true,
-            writable: false // computed value 是只读的
-          }
-        }
-        if (prop === '_isComputed' || prop === '_key') {
-          return {
-            enumerable: true,
-            configurable: true,
-            writable: false
-          }
-        }
-        return undefined
-      }
-    })
-
-    // 初始计算
-    try {
-      const initialValue = (computedProxy as any).value
-    } catch (error) {
-      logger.error(`计算属性 ${key} 初始计算失败:`, error)
-    }
-
-    return computedProxy as { value: T; _isComputed: true; _key: string }
+  computed<T>(getter: () => T, context?: any): RuntimeComputed<T> {
+    return createComputedProxy(getter, context)
   }
 
   /**
    * 销毁响应式系统
    */
   destroy(): void {
-    for (const [instance, reactiveInstance] of this.instances) {
+    for (const reactiveInstance of this.instances.values()) {
       reactiveInstance.cleanup()
     }
     this.instances.clear()
-    this.globalWatchers.clear()
     this.initialized = false
   }
 
@@ -460,15 +186,11 @@ class ReactiveInstance {
 
     // 保存旧值用于监听
     for (const key in data) {
-      this.oldValues.set(key, this.deepClone(data[key]))
+      this.oldValues.set(key, cloneReactiveValue(data[key]))
     }
 
     // 设置到实例
-    if (this.instance.setData) {
-      this.instance.setData(data)
-    } else {
-      Object.assign(this.instance.data || {}, data)
-    }
+    applyReactiveDataToInstance(this.instance, data)
   }
 
   /**
@@ -506,8 +228,7 @@ class ReactiveInstance {
       // 如果设置了 immediate，立即执行一次
       if ((watcherDef as WatcherDef).immediate) {
         try {
-          const currentValue = this.getValue(key)
-            ; (watcherDef as WatcherDef).callback(currentValue, undefined)
+          (watcherDef as WatcherDef).callback(getReactiveInstanceValue(this.instance, key), undefined)
         } catch (error) {
           logger.error(`监听器 ${key} 立即执行失败:`, error)
         }
@@ -529,7 +250,7 @@ class ReactiveInstance {
         const newValue = (computedDef as ComputedDef).getter()
         const oldValue = this.computedCache.get(key)
 
-        if (!this.isEqual(newValue, oldValue)) {
+        if (!areReactiveValuesEqual(newValue, oldValue)) {
           computedData[key] = newValue
           this.computedCache.set(key, newValue)
           hasChanges = true
@@ -556,7 +277,7 @@ class ReactiveInstance {
         try {
           const oldValue = this.oldValues.get(key)
           watcher.callback(newValue, oldValue)
-          this.oldValues.set(key, this.deepClone(newValue))
+          this.oldValues.set(key, cloneReactiveValue(newValue))
         } catch (error) {
           logger.error(`监听器 ${key} 执行失败:`, error)
         }
@@ -568,70 +289,10 @@ class ReactiveInstance {
    * 更新数据
    */
   private updateData(data: Record<string, any>): void {
-    if (Object.keys(data).length === 0) return
-
-    if (this.instance.setData) {
-      this.instance.setData(data)
-    } else {
-      Object.assign(this.instance.data || {}, data)
-    }
+    applyReactiveDataToInstance(this.instance, data)
 
     // 触发监听器
     this.triggerWatchers(data)
-  }
-
-  /**
-   * 获取值
-   */
-  private getValue(key: string): any {
-    if (this.instance.data && key in this.instance.data) {
-      return this.instance.data[key]
-    }
-    return undefined
-  }
-
-  /**
-   * 深度克隆
-   */
-  private deepClone(obj: any): any {
-    if (obj === null || typeof obj !== 'object') {
-      return obj
-    }
-
-    if (obj instanceof Date) {
-      return new Date(obj.getTime())
-    }
-
-    if (obj instanceof Array) {
-      return obj.map(item => this.deepClone(item))
-    }
-
-    if (typeof obj === 'object') {
-      const cloned: any = {}
-      for (const key in obj) {
-        if (obj.hasOwnProperty(key)) {
-          cloned[key] = this.deepClone(obj[key])
-        }
-      }
-      return cloned
-    }
-
-    return obj
-  }
-
-  /**
-   * 比较两个值是否相等
-   */
-  private isEqual(a: any, b: any): boolean {
-    if (a === b) return true
-    if (a == null || b == null) return a === b
-    if (typeof a !== typeof b) return false
-
-    if (typeof a === 'object') {
-      return JSON.stringify(a) === JSON.stringify(b)
-    }
-
-    return false
   }
 
   /**
