@@ -2,6 +2,9 @@
  * 编译器选项定义
  */
 
+import { createRequire } from 'node:module'
+import { dirname, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import type { CompilerOptions } from '@/types/index.js'
 import {
   createCompilerOptionsSummary,
@@ -38,14 +41,14 @@ export class ConfigManager {
   private options: CompilerOptions
 
   constructor(options: Partial<CompilerOptions> = {}) {
-    // 验证选项
-    const validation = OptionsValidator.validate(options)
+    // 先用默认值补齐，再验证完整选项
+    const normalizedOptions = OptionsValidator.normalize(options)
+    const validation = OptionsValidator.validate(normalizedOptions)
     if (!validation.valid) {
       throw new Error(`编译器选项验证失败: ${validation.errors.join(', ')}`)
     }
 
-    // 规范化选项
-    this.options = OptionsValidator.normalize(options)
+    this.options = normalizedOptions
   }
 
   /**
@@ -180,14 +183,35 @@ export class ConfigManager {
     try {
       const { readFile } = await import('@/utils/index.js')
       const content = await readFile(filePath)
+      const absolutePath = resolve(filePath)
 
       if (filePath.endsWith('.json')) {
         return ConfigManager.fromJSON(content)
-      } else if (filePath.endsWith('.js') || filePath.endsWith('.ts')) {
-        // 动态导入配置文件
-        const configModule = await import(filePath)
+      } else if (filePath.endsWith('.ts')) {
+        // 动态导入 TS 配置文件
+        const configModule = await import(pathToFileURL(absolutePath).href)
         const options = configModule.default || configModule
         return new ConfigManager(options)
+      } else if (filePath.endsWith('.cjs')) {
+        // CommonJS 配置文件
+        const require = createRequire(import.meta.url)
+        delete require.cache[require.resolve(absolutePath)]
+        const options = require(absolutePath)
+        return new ConfigManager(options)
+      } else if (filePath.endsWith('.js')) {
+        // .js 配置：先尝试 ESM 动态导入，失败则兼容 legacy module.exports
+        try {
+          const configModule = await import(pathToFileURL(absolutePath).href)
+          const options = configModule.default || configModule
+          return new ConfigManager(options)
+        } catch {
+          const module = { exports: {} as Partial<CompilerOptions> }
+          const exports = module.exports
+          const require = createRequire(pathToFileURL(absolutePath).href)
+          const evaluator = new Function('module', 'exports', 'require', '__dirname', '__filename', content)
+          evaluator(module, exports, require, dirname(absolutePath), absolutePath)
+          return new ConfigManager(module.exports)
+        }
       } else {
         throw new Error('不支持的配置文件格式')
       }
