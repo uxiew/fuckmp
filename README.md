@@ -8,12 +8,15 @@
 
 - 🎯 **Vue3 SFC 语法支持**: Composition API 基础能力、`<script setup>`、TypeScript
 - 🔄 **智能转换**: 自动将 Vue3 语法转换为小程序语法
-- 🧩 **组件系统**: 支持组件导入、Props、Emits 基础转换，插槽按小程序能力继续补齐
+- 🧩 **组件系统**: 支持组件导入、Props、Emits 基础转换、`defineModel` 双向绑定
+- 🎰 **插槽支持**: default / named slots 原生映射，自动处理 `multipleSlots` 和 `styleIsolation`
+- ⚡ **响应式运行时**: `ref`、`reactive`、`computed` 自动桥接到小程序 `setData`
+- 🧮 **WXS 辅助模块**: 模板中的 `.includes()`、`.indexOf()` 等方法自动转换为 WXS 函数
 - 🎨 **强大的样式处理**:
   - 支持 SCSS/Sass 预处理器
   - **JavaScript 导入样式**: `import './styles.scss'`
   - **Style 标签导入**: `@import './mixins.scss'`
-  - 作用域样式 (scoped)
+  - 作用域样式 (scoped)，自动排除 slot/block 等控制标签
   - 嵌套样式和变量
 - 🛣️ **智能路径解析**: 相对路径、别名、组件引用
 - 🔧 **优秀的开发体验**: 热重载、错误提示、调试支持
@@ -136,16 +139,16 @@ const handleClick = () => {
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
 
-// ref
+// ref - 自动桥接到小程序 setData
 const message = ref('Hello World')
 
-// reactive
+// reactive - 深层响应式对象
 const state = reactive({
   user: { name: 'Vue3', age: 4 },
   loading: false
 })
 
-// computed
+// computed - 自动计算并同步到视图
 const displayName = computed(() => {
   return `${state.user.name} (${state.user.age}岁)`
 })
@@ -153,6 +156,31 @@ const displayName = computed(() => {
 // watch / watchEffect / onWatcherCleanup 当前按能力矩阵明确降级
 </script>
 ```
+
+> **响应式运行时工作原理**：编译器会自动生成 `runtime-injection.js`，将 `ref()` / `reactive()` / `computed()` 桥接到小程序的 `setData()` 调用。修改响应式变量时，数据会自动同步到 WXML 视图。`computed` 属性在页面加载后自动计算初始值，并在任何依赖的 `ref` / `reactive` 变量修改后自动重新计算。
+
+### 模板中的 JS 方法调用
+
+WXML 模板不支持 JavaScript 方法调用（如 `.includes()`），编译器会自动将它们转换为 WXS 辅助函数：
+
+```vue
+<template>
+  <!-- Vue3 源码中直接使用 JS 方法 -->
+  <checkbox :checked="items.includes('apple')" />
+</template>
+```
+
+编译后自动生成 WXS 辅助模块并注入引用：
+
+```xml
+<!-- 编译器自动注入 -->
+<wxs src="../helpers.wxs" module="wxsH" />
+
+<!-- 方法调用自动转换 -->
+<checkbox checked="{{wxsH.includes(items, 'apple')}}" />
+```
+
+当前支持的自动转换方法：`.includes()`、`.indexOf()`、`.toString()`、`.startsWith()`、`.endsWith()`。
 
 ## 🎨 SCSS 导入功能
 
@@ -443,14 +471,16 @@ await compiler.watch()
 | 特性 | 支持状态 | 说明 |
 |------|---------|------|
 | `<script setup>` | ✅ | 基础解析与编译已覆盖，复杂宏按矩阵继续补齐 |
-| Composition API | 🚧 | 当前运行时桥接白名单为 ref, reactive, computed；useId 已原生映射，watch/watchEffect/onWatcherCleanup/provide/inject 明确降级 |
+| Composition API | ✅ | 运行时桥接 ref, reactive, computed 到 setData；useId 已原生映射；watch/watchEffect 明确降级 |
 | TypeScript | ✅ | 原生支持 |
-| Props/Emits | 🚧 | defineProps 支持内联类型、本地 interface/type alias 与相对 import type 到 `Component.properties`，并将 `props.xxx` 静态映射为原生 property 访问；defineEmits 支持运行时声明、call signature、named tuple、本地类型与相对 import type 事件名提取 |
+| Props/Emits | ✅ | defineProps（内联/本地/import type）→ properties；defineEmits 事件名提取 |
+| defineModel | ✅ | 组件 v-model 双向绑定，支持 tuple 修饰符 |
 | 生命周期 | ✅ | 映射到小程序生命周期，不依赖 lifecycle runtime |
-| 模板语法 | 🚧 | v-if, v-for, v-model, 事件处理按原生 WXML/JS 输出逐步补齐 |
-| 样式 | ✅ | CSS, SCSS, 作用域样式 |
+| 模板语法 | ✅ | v-if/v-for（无多余包裹）、v-show（hidden）、v-model、事件处理 |
+| 样式 | ✅ | CSS, SCSS, 作用域样式（自动排除 slot/block 控制标签） |
 | **SCSS 导入** | ✅ | **JavaScript 导入和 @import 语句** |
-| 插槽 | 🚧 | 基础 slots / named slots 已原生映射；scoped/dynamic slots 已明确降级且不宣称支持 |
+| 插槽 | ✅ | default / named slots 原生映射，自动 `multipleSlots` + `apply-shared` |
+| **WXS 辅助** | ✅ | `.includes()` 等 JS 方法自动转换为 WXS 函数 |
 | Provide/Inject | 明确降级 | 不生成 DI runtime 桥接，`inject()` 不落入 data |
 | Teleport | ❌ | 小程序不支持 |
 | Suspense | ❌ | 小程序不支持 |
