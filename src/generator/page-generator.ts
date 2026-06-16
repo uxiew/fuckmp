@@ -225,8 +225,15 @@ ${parts.join(',\n\n')}
 
     // 如果 WXML 中使用了 WXS 辅助函数，注入引用
     if (needsWxsHelpers(wxml)) {
-      // 页面在 pages/xxx/ 目录下，helpers.wxs 在根目录
-      wxml = injectWxsHelpersImport(wxml, '../../helpers.wxs')
+      // 从 filename 中提取 pages/ 开头的相对路径部分
+      // /abs/path/pages/profile.vue → pages/profile → 1 级目录 → ../helpers.wxs
+      // /abs/path/pages/index/index.vue → pages/index/index → 2 级目录 → ../../helpers.wxs
+      const pagesMatch = context.filename.match(/pages\/.*$/)
+      const relativePath = pagesMatch ? pagesMatch[0].replace(/\.vue$/, '') : context.filename
+      // depth = 目录层数（路径段数减去文件名自身）
+      const depth = relativePath.split('/').length - 1
+      const prefix = '../'.repeat(depth)
+      wxml = injectWxsHelpersImport(wxml, `${prefix}helpers.wxs`)
     }
 
     return wxml
