@@ -1,682 +1,447 @@
-# Vue3 SFC 转微信小程序语法转换指南
+# FuckMP 编译转换指南
 
 ## 📋 概述
 
-本指南详细说明如何将Vue3单文件组件(SFC)语法转换为微信小程序原生语法，包括模板、脚本、样式的转换方法和常见问题解决方案。
+本指南详细说明 FuckMP 编译器如何将 Vue3 单文件组件 (SFC) 自动转换为微信小程序原生代码。与手动迁移不同，以下转换全部由编译器自动完成——你只需用 Vue3 语法编写代码。
 
-## 🔄 基础架构对比
+## 🔄 编译产物结构
 
-### Vue3 SFC 结构
-```vue
-<template>
-  <div class="container">
-    <h1>{{ title }}</h1>
-  </div>
-</template>
+每个 Vue SFC 文件被编译为 4 个小程序原生文件：
 
-<script setup>
-import { ref } from 'vue'
-const title = ref('Hello Vue3')
-</script>
+```
+# Vue3 源文件
+pages/index/index.vue
 
-<style scoped>
-.container {
-  padding: 20px;
-}
-</style>
+# 编译产物
+pages/index/index.js      # 逻辑（Page/Component 配置）
+pages/index/index.wxml    # 模板（WXML）
+pages/index/index.wxss    # 样式（CSS/SCSS → WXSS）
+pages/index/index.json    # 配置（usingComponents 等）
 ```
 
-### 微信小程序结构
+此外，编译器会在输出根目录生成：
+
 ```
-page/
-├── index.js     // 逻辑文件
-├── index.wxml   // 模板文件
-├── index.wxss   // 样式文件
-└── index.json   // 配置文件
+app.js                     # 应用入口
+app.json                   # 应用配置（页面路由）
+app.wxss                   # 全局样式
+runtime-injection.js       # 响应式运行时（ref/reactive/computed 桥接）
+helpers.wxs                # WXS 辅助模块（当模板中使用了 JS 方法时自动生成）
 ```
 
 ## 🏗️ 模板语法转换
 
-### 1. 基础标签转换
+### 标签映射
 
-```vue
-<!-- Vue3 模板 -->
-<template>
-  <div class="container">
-    <span class="text">{{ message }}</span>
-    <button @click="handleClick">点击</button>
-  </div>
-</template>
-```
+编译器自动将 HTML/Vue 标签转换为小程序原生标签：
 
-```xml
-<!-- 微信小程序 WXML -->
-<view class="container">
-  <text class="text">{{ message }}</text>
-  <button bind:tap="handleClick">点击</button>
-</view>
-```
-
-#### 标签映射表
-| Vue3标签 | 小程序标签 | 说明 |
+| Vue3 标签 | 小程序标签 | 说明 |
 |---------|-----------|------|
 | `<div>` | `<view>` | 块级容器 |
 | `<span>` | `<text>` | 行内文本 |
-| `<img>` | `<image>` | 图片 |
-| `<input>` | `<input>` | 输入框 |
+| `<img>` | `<image>` | 图片，`:src` → `src`，`@load`/`@error` 原生映射 |
+| `<a href>` | `<navigator url>` | 页面导航 |
+| `<input>` | `<input>` | 输入框，支持 `:value`、`@input`、`@focus`、`@blur` |
+| `<textarea>` | `<textarea>` | 多行输入 |
 | `<button>` | `<button>` | 按钮 |
-| `<ul>/<li>` | `<view>` | 列表需要自己实现 |
 
-### 2. 事件绑定转换
+### 事件绑定
+
+| Vue3 事件 | 编译结果 | 说明 |
+|---------|---------|------|
+| `@click="handler"` | `bind:tap="handler"` | 点击事件 |
+| `@click.stop="handler"` | `catch:tap="handler"` | 阻止冒泡 |
+| `@click.capture="handler"` | `capture-bind:tap="handler"` | 捕获阶段 |
+| `@click.capture.stop="handler"` | `capture-catch:tap="handler"` | 捕获 + 阻止 |
+| `@input="handler"` | `bind:input="handler"` | 输入事件 |
+| `@touchstart="handler"` | `bind:touchstart="handler"` | 触摸事件 |
+| `@longtap="handler"` | `bind:longtap="handler"` | 长按事件 |
+
+### 条件渲染 (v-if)
+
+编译器会智能处理条件渲染，**不产生多余包裹元素**：
 
 ```vue
-<!-- Vue3 事件绑定 -->
+<!-- Vue3 源码 -->
 <template>
-  <button @click="handleClick">点击</button>
-  <button @click="handleClick($event, 'param')">带参点击</button>
-  <input @input="handleInput" v-model="inputValue">
-  <div @touchstart="handleTouch">触摸</div>
+  <view v-if="isActive" class="active">活跃</view>
+  <view v-else class="inactive">非活跃</view>
 </template>
 ```
 
 ```xml
-<!-- 小程序事件绑定 -->
-<button bind:tap="handleClick">点击</button>
-<button bind:tap="handleClick" data-param="param">带参点击</button>
-<input bind:input="handleInput" value="{{inputValue}}">
-<view bind:touchstart="handleTouch">触摸</view>
+<!-- 编译结果：直接在元素上注入 wx:if，无多余 view 包裹 -->
+<view wx:if="{{isActive}}" class="active">活跃</view>
+<view wx:else class="inactive">非活跃</view>
 ```
 
-#### 事件名称映射
-| Vue3事件 | 小程序事件 | 说明 |
-|---------|-----------|------|
-| `@click` | `bind:tap` | 点击事件 |
-| `@input` | `bind:input` | 输入事件 |
-| `@change` | `bind:change` | 变化事件 |
-| `@touchstart` | `bind:touchstart` | 触摸开始 |
-| `@touchend` | `bind:touchend` | 触摸结束 |
-
-### 3. 条件渲染转换
-
-```vue
-<!-- Vue3 条件渲染 -->
-<template>
-  <div v-if="show">显示内容</div>
-  <div v-else-if="loading">加载中...</div>
-  <div v-else>默认内容</div>
-  <div v-show="visible">控制显示</div>
-</template>
-```
+当条件分支有**多个子节点**时，才使用 `<block>` 包裹：
 
 ```xml
-<!-- 小程序条件渲染 -->
-<view wx:if="{{show}}">显示内容</view>
-<view wx:elif="{{loading}}">加载中...</view>
-<view wx:else>默认内容</view>
-<view hidden="{{!visible}}">控制显示</view>
+<!-- 多子节点时使用 block -->
+<block wx:if="{{showDetail}}">
+  <text>标题</text>
+  <text>内容</text>
+</block>
 ```
 
-**注意事项**：
-- 小程序的条件语句需要双括号 `{{}}`
-- `v-show` 对应 `hidden` 属性
-- 条件表达式在小程序中更加严格
+### 列表渲染 (v-for)
 
-### 4. 列表渲染转换
+同样，`v-for` 直接在子元素上注入指令：
 
 ```vue
-<!-- Vue3 列表渲染 -->
+<!-- Vue3 源码 -->
 <template>
-  <ul>
-    <li v-for="(item, index) in list" :key="item.id">
-      {{ index }}: {{ item.name }}
-    </li>
-  </ul>
-</template>
-```
-
-```xml
-<!-- 小程序列表渲染 -->
-<view>
-  <view wx:for="{{list}}" wx:key="id" wx:for-index="index" wx:for-item="item">
-    {{ index }}: {{ item.name }}
+  <view v-for="(item, index) in items" :key="item.id">
+    {{ item.name }}
   </view>
+</template>
+```
+
+```xml
+<!-- 编译结果 -->
+<view wx:for="{{items}}" wx:for-item="item" wx:for-index="index" wx:key="id">
+  {{item.name}}
 </view>
 ```
 
-**关键差异**：
-- `wx:key` 对应 Vue 的 `:key`
-- `wx:for-index` 和 `wx:for-item` 可以自定义变量名
-- 嵌套循环时需要重命名避免冲突
+### 显示控制 (v-show)
 
-## 📜 脚本逻辑转换
+```vue
+<view v-show="visible">内容</view>
+```
 
-### 1. Composition API 转换
+```xml
+<view hidden="{{!(visible)}}">内容</view>
+```
 
-```javascript
-// Vue3 Composition API
-<script setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+### 双向绑定 (v-model)
 
-// 响应式数据
+```vue
+<input v-model="username" />
+```
+
+```xml
+<input value="{{username}}" bind:input="handleUsernameInput" />
+```
+
+## 🧮 WXS 辅助模块
+
+WXML 模板不支持 JavaScript 方法调用。编译器会自动检测模板中的 JS 方法调用，将其转换为 WXS 辅助函数，并在需要时自动生成 `helpers.wxs` 文件和注入引用。
+
+### 自动转换的方法
+
+| Vue3 模板表达式 | 编译后 WXS 调用 |
+|---------------|----------------|
+| `items.includes('a')` | `wxsH.includes(items, 'a')` |
+| `str.indexOf('x')` | `wxsH.indexOf(str, 'x')` |
+| `val.toString()` | `wxsH.toString(val)` |
+| `str.startsWith('pre')` | `wxsH.startsWith(str, 'pre')` |
+| `str.endsWith('suf')` | `wxsH.endsWith(str, 'suf')` |
+
+### 使用示例
+
+```vue
+<template>
+  <!-- 你可以直接在 Vue3 模板中使用 JS 方法 -->
+  <checkbox :checked="selectedItems.includes('email')" />
+  <view v-if="name.startsWith('admin')">管理员</view>
+</template>
+```
+
+编译后：
+
+```xml
+<wxs src="../helpers.wxs" module="wxsH" />
+<checkbox checked="{{wxsH.includes(selectedItems, 'email')}}" />
+<view wx:if="{{wxsH.startsWith(name, 'admin')}}">管理员</view>
+```
+
+> **注意**：WXS 引用路径会根据页面/组件在输出目录中的实际深度自动计算。
+
+## ⚡ 响应式系统
+
+### ref / reactive / computed
+
+编译器会将 Vue3 响应式 API 自动桥接到小程序的 `setData()` 调用。
+
+```vue
+<script setup lang="ts">
+import { ref, reactive, computed } from 'vue'
+
 const count = ref(0)
-const user = reactive({
-  name: 'John',
-  age: 25
-})
+const user = reactive({ name: '张三', age: 25 })
+const displayName = computed(() => `${user.name} (${user.age}岁)`)
 
-// 计算属性
-const doubleCount = computed(() => count.value * 2)
-
-// 方法
 const increment = () => {
   count.value++
 }
-
-// 生命周期
-onMounted(() => {
-  console.log('组件挂载')
-})
-
-// 监听器
-watch(count, (newVal, oldVal) => {
-  console.log(`count变化: ${oldVal} -> ${newVal}`)
-})
 </script>
 ```
 
-```javascript
-// 微信小程序 Page
-Page({
-  // 页面数据
-  data: {
-    count: 0,
-    user: {
-      name: 'John',
-      age: 25
-    }
-  },
+**编译行为**：
 
-  // 计算属性需要手动实现
-  getDoubleCount() {
-    return this.data.count * 2
-  },
+1. **data 初始值**：`ref(0)` → `data: { count: 0 }`
+2. **运行时 Proxy**：页面 `onLoad` 时，运行时为每个 ref/reactive 创建 Proxy
+3. **自动 setData**：修改 `count.value` 时，自动调用 `this.setData({ count: newValue })`
+4. **computed 同步**：任何 ref/reactive 修改后，自动重新计算所有 computed 属性
 
-  // 方法
-  increment() {
-    this.setData({
-      count: this.data.count + 1
-    })
-    // 手动触发计算属性更新
-    this.setData({
-      doubleCount: this.getDoubleCount()
-    })
-  },
+### 方法中访问响应式变量
 
-  // 生命周期
-  onLoad() {
-    console.log('页面加载')
-  },
-
-  onReady() {
-    console.log('页面渲染完成')
-  },
-
-  // 数据监听需要手动实现
-  watchCount(newVal, oldVal) {
-    console.log(`count变化: ${oldVal} -> ${newVal}`)
-  }
-})
-```
-
-### 2. 组件定义转换
+在方法中修改 ref 变量时使用 `.value`：
 
 ```vue
-<!-- Vue3 子组件 -->
-<template>
-  <div class="child-component">
-    <p>{{ message }}</p>
-    <button @click="sendMessage">发送消息</button>
-  </div>
-</template>
+<script setup lang="ts">
+const count = ref(0)
 
-<script setup>
-import { defineProps, defineEmits } from 'vue'
-
-const props = defineProps({
-  message: {
-    type: String,
-    default: '默认消息'
-  }
-})
-
-const emit = defineEmits(['send-message'])
-
-const sendMessage = () => {
-  emit('send-message', '来自子组件的消息')
+// 编译后方法中 this.count 是 Proxy，.value 赋值触发 setData
+const increment = () => {
+  count.value++
 }
 </script>
 ```
 
+## 🧩 组件系统
+
+### Props (defineProps)
+
+```vue
+<script setup lang="ts">
+interface Props {
+  title: string
+  count?: number
+}
+
+const props = defineProps<Props>()
+</script>
+```
+
+编译为 Component properties：
+
 ```javascript
-// 微信小程序组件 JS
 Component({
-  // 组件属性
   properties: {
-    message: {
-      type: String,
-      value: '默认消息'
-    }
-  },
-
-  // 组件数据
-  data: {
-    // 内部数据
-  },
-
-  // 组件方法
-  methods: {
-    sendMessage() {
-      this.triggerEvent('send-message', '来自子组件的消息')
-    }
-  },
-
-  // 生命周期
-  lifetimes: {
-    created() {
-      console.log('组件创建')
-    },
-    attached() {
-      console.log('组件挂载')
-    },
-    detached() {
-      console.log('组件销毁')
-    }
+    title: { type: String },
+    count: { type: Number, value: undefined }
   }
 })
 ```
 
-```xml
-<!-- 微信小程序组件 WXML -->
-<view class="child-component">
-  <text>{{ message }}</text>
-  <button bind:tap="sendMessage">发送消息</button>
-</view>
-```
-
-## 🎨 样式转换
-
-### 1. 基础样式转换
+### Emits (defineEmits)
 
 ```vue
-<!-- Vue3 样式 -->
-<style scoped>
-.container {
-  width: 100%;
-  height: 100vh;
-  padding: 20px;
-  box-sizing: border-box;
+<script setup lang="ts">
+const emit = defineEmits<{
+  click: [value: number]
+  update: [data: any]
+}>()
+
+const handleClick = () => {
+  emit('click', 42)
 }
-
-.text {
-  font-size: 16px;
-  color: #333;
-}
-
-/* 媒体查询 */
-@media (max-width: 768px) {
-  .container {
-    padding: 10px;
-  }
-}
-</style>
-```
-
-```css
-/* 微信小程序样式 */
-.container {
-  width: 100%;
-  height: 100vh;
-  padding: 40rpx; /* 使用rpx单位 */
-  box-sizing: border-box;
-}
-
-.text {
-  font-size: 32rpx; /* 16px * 2 = 32rpx */
-  color: #333;
-}
-
-/* 小程序不支持媒体查询，需要用其他方式实现响应式 */
-```
-
-### 2. 单位转换规则
-
-| Vue3/CSS单位 | 小程序单位 | 转换规则 |
-|-------------|-----------|---------|
-| `px` | `rpx` | 1px = 2rpx (基于750设计稿) |
-| `rem` | `rpx` | 需要计算转换 |
-| `em` | `rpx` | 相对单位需要手动计算 |
-| `%` | `%` | 百分比单位保持不变 |
-| `vw/vh` | `rpx` | 需要手动计算转换 |
-
-### 3. 样式作用域问题
-
-```vue
-<!-- Vue3 scoped样式 -->
-<style scoped>
-.button {
-  background: blue;
-}
-</style>
-```
-
-```css
-/* 小程序需要手动管理作用域 */
-.page-index .button {
-  background: blue;
-}
-
-/* 或者使用组件选择器 */
-.child-component .button {
-  background: blue;
-}
-```
-
-## 🚨 常见问题和解决方案
-
-### 1. 双向绑定问题
-
-**问题**：Vue3的`v-model`在小程序中没有对应的实现
-
-```vue
-<!-- Vue3 -->
-<input v-model="inputValue" />
-```
-
-**解决方案**：
-```xml
-<!-- 小程序手动实现双向绑定 -->
-<input value="{{inputValue}}" bind:input="handleInput" />
-```
-
-```javascript
-// JS中处理
-handleInput(e) {
-  this.setData({
-    inputValue: e.detail.value
-  })
-}
-```
-
-### 2. 计算属性问题
-
-**问题**：小程序没有计算属性的概念
-
-**解决方案**：
-```javascript
-// 方案1: 使用方法模拟
-Page({
-  data: {
-    firstName: 'John',
-    lastName: 'Doe'
-  },
-  
-  // 在方法中计算
-  getFullName() {
-    return `${this.data.firstName} ${this.data.lastName}`
-  },
-  
-  // 在数据更新时手动更新计算结果
-  updateName() {
-    this.setData({
-      fullName: this.getFullName()
-    })
-  }
-})
-
-// 方案2: 使用mobx-miniprogram实现响应式
-import { computed } from 'mobx-miniprogram'
-
-Page({
-  data: {
-    firstName: 'John',
-    lastName: 'Doe'
-  },
-  
-  computed: {
-    fullName: computed(function() {
-      return `${this.data.firstName} ${this.data.lastName}`
-    })
-  }
-})
-```
-
-### 3. 路由参数传递问题
-
-**问题**：Vue Router的路由参数传递方式不适用
-
-```javascript
-// Vue3 路由
-this.$router.push({
-  name: 'detail',
-  params: { id: 123 }
-})
-```
-
-**解决方案**：
-```javascript
-// 小程序路由参数传递
-wx.navigateTo({
-  url: `/pages/detail/detail?id=123`
-})
-
-// 接收页面
-Page({
-  onLoad(options) {
-    const id = options.id // 获取参数
-  }
-})
-```
-
-### 4. 状态管理问题
-
-**问题**：Vuex/Pinia在小程序中不可用
-
-**解决方案**：
-```javascript
-// 方案1: 使用全局变量
-// app.js
-App({
-  globalData: {
-    userInfo: null,
-    isLogin: false
-  }
-})
-
-// 页面中使用
-const app = getApp()
-console.log(app.globalData.userInfo)
-
-// 方案2: 使用mobx-miniprogram
-import { observable, action } from 'mobx-miniprogram'
-
-export const store = observable({
-  userInfo: null,
-  isLogin: false,
-  
-  setUserInfo: action(function(userInfo) {
-    this.userInfo = userInfo
-    this.isLogin = true
-  })
-})
-```
-
-### 5. 异步数据加载问题
-
-**问题**：Vue3的异步组件和Suspense不适用
-
-**解决方案**：
-```javascript
-// Vue3 异步加载
-<script setup>
-import { ref, onMounted } from 'vue'
-
-const data = ref(null)
-const loading = ref(true)
-
-onMounted(async () => {
-  try {
-    const response = await fetch('/api/data')
-    data.value = await response.json()
-  } finally {
-    loading.value = false
-  }
-})
 </script>
 ```
 
+编译为 `triggerEvent` 调用：
+
 ```javascript
-// 小程序异步加载
-Page({
-  data: {
-    data: null,
-    loading: true
-  },
-
-  onLoad() {
-    this.loadData()
-  },
-
-  async loadData() {
-    try {
-      const res = await wx.request({
-        url: 'https://api.example.com/data'
-      })
-      this.setData({
-        data: res.data
-      })
-    } catch (error) {
-      console.error('加载失败', error)
-    } finally {
-      this.setData({
-        loading: false
-      })
+Component({
+  methods: {
+    handleClick() {
+      this.triggerEvent('click', 42)
     }
   }
 })
 ```
 
-### 6. 组件通信问题
+### 双向绑定 (defineModel)
 
-**问题**：Vue3的provide/inject和插槽不适用
+```vue
+<!-- 子组件 CounterInput.vue -->
+<script setup lang="ts">
+const modelValue = defineModel<string>()
+const count = defineModel<number>('count')
+</script>
 
-**解决方案**：
-```javascript
-// Vue3 provide/inject
-// 父组件
-provide('userInfo', userInfo)
-
-// 子组件
-const userInfo = inject('userInfo')
+<!-- 父页面使用 -->
+<counter-input v-model="displayName" v-model:count="visitCount" />
 ```
 
+编译后父页面自动生成 `_handleUpdate_xxx` 方法处理 `update:modelValue` 事件。
+
+### 插槽 (Slots)
+
+```vue
+<!-- SlotPanel.vue -->
+<template>
+  <view class="panel">
+    <slot name="header" />
+    <slot />  <!-- 默认插槽 -->
+  </view>
+</template>
+```
+
+```vue
+<!-- 使用插槽 -->
+<slot-panel>
+  <template #header>
+    <text>标题</text>
+  </template>
+  <text>默认内容</text>
+</slot-panel>
+```
+
+**编译器自动处理**：
+
+- `Component` 配置中注入 `options: { multipleSlots: true }`（当组件包含具名插槽时）
+- 组件 JSON 中设置 `styleIsolation: "apply-shared"`（确保父页面样式能穿透到 slot 内容）
+- `<slot>` 和 `<block>` 标签不添加 `data-v-` scoped 属性
+
+## 🎨 样式处理
+
+### Scoped 样式
+
+```vue
+<style lang="scss" scoped>
+.container {
+  padding: 20rpx;
+}
+</style>
+```
+
+编译器为每个元素添加 `data-v-xxxxx` 属性，并在样式选择器中添加对应的属性选择器。
+
+**例外**：`<slot>`、`<block>`、`<template>` 等控制标签不添加 scoped 属性。
+
+### SCSS 导入
+
+两种导入方式均受支持：
+
+```vue
+<script setup>
+// JavaScript 中导入
+import '../assets/global.scss'
+</script>
+
+<style lang="scss" scoped>
+// Style 标签中导入
+@import '../assets/variables.scss';
+@import '../assets/mixins.scss';
+
+.component {
+  @include flex-center;
+  color: $primary-color;
+}
+</style>
+```
+
+## 🔄 生命周期映射
+
+### 页面生命周期
+
+| Vue3 | 小程序 Page | 说明 |
+|------|------------|------|
+| `onMounted` | `onLoad` | 页面加载 |
+| `onUnmounted` | `onUnload` | 页面卸载 |
+| — | `onShow` | 直接使用原生钩子 |
+| — | `onHide` | 直接使用原生钩子 |
+| — | `onPullDownRefresh` | 下拉刷新 |
+
+### 组件生命周期
+
+| Vue3 | 小程序 Component | 说明 |
+|------|-----------------|------|
+| `onMounted` | `attached` | 组件挂载 |
+| `onUnmounted` | `detached` | 组件卸载 |
+
+### App 生命周期
+
+| Vue3 (app.vue) | 小程序 App | 说明 |
+|----------------|-----------|------|
+| `onMounted` | `onLaunch` | 应用启动（同步执行） |
+
+## ⚙️ 编译配置
+
+### 配置文件
+
+创建 `vue3mp.config.js`：
+
 ```javascript
-// 小程序解决方案
-// 方案1: 通过props逐层传递
-// 方案2: 使用全局状态管理
-// 方案3: 使用事件总线
-const eventBus = {
-  events: {},
-  
-  on(event, callback) {
-    if (!this.events[event]) {
-      this.events[event] = []
-    }
-    this.events[event].push(callback)
-  },
-  
-  emit(event, data) {
-    if (this.events[event]) {
-      this.events[event].forEach(callback => callback(data))
-    }
+module.exports = {
+  input: 'src',
+  output: 'dist',
+  appId: 'your-app-id',
+  features: {
+    scriptSetup: true,
+    typescript: true,
+    scss: true,
+    compositionApi: true,
+    emits: true,
+    slots: true
   }
 }
 ```
 
-## 🛠️ 迁移工具和辅助
+详细配置选项参见 [配置指南](config-guide.md)。
 
-### 1. 自动化转换工具
-- **uni-app**: Vue语法转小程序的成熟框架
-- **Taro**: React/Vue多端转换框架
-- **mpvue/vant-weapp**: Vue转小程序的解决方案
+### CLI 命令
 
-### 2. 代码片段转换器
-```javascript
-// 创建转换辅助函数
-const vueToMiniProgram = {
-  // 事件名转换
-  convertEvent(vueEvent) {
-    const eventMap = {
-      'click': 'tap',
-      'input': 'input',
-      'change': 'change'
-    }
-    return eventMap[vueEvent] || vueEvent
-  },
-  
-  // 生命周期转换
-  convertLifecycle(vueHook) {
-    const lifecycleMap = {
-      'onMounted': 'onReady',
-      'onUnmounted': 'onUnload',
-      'onUpdated': 'onShow'
-    }
-    return lifecycleMap[vueHook] || vueHook
-  }
-}
+```bash
+# 构建
+fuckmp build --input src --output dist
+
+# 开发模式（监听变化）
+fuckmp dev --input src --output dist
+
+# 简写别名
+fmp build --input src --output dist
 ```
 
-## 📋 迁移检查清单
+## ⚠️ 已知限制
 
-### 开发前检查
-- [ ] 确认目标小程序平台（微信/支付宝/百度等）
-- [ ] 选择开发方式（原生/框架转换）
-- [ ] 准备设计稿和UI规范
+### 明确降级（不支持）
 
-### 模板转换检查
-- [ ] HTML标签转换为小程序组件
-- [ ] 事件绑定语法转换
-- [ ] 条件渲染语法转换
-- [ ] 列表渲染语法转换
-- [ ] 插值表达式语法检查
+| 特性 | 状态 | 替代方案 |
+|------|------|---------|
+| `watch` / `watchEffect` | 降级 | 在方法中手动处理 |
+| `provide` / `inject` | 降级 | 使用全局状态或 props 传递 |
+| `defineExpose` | 降级 | 使用 triggerEvent 通信 |
+| `Teleport` | 不支持 | 小程序无等价能力 |
+| `Suspense` | 不支持 | 使用 loading 状态管理 |
+| `Transition` / `KeepAlive` | 不支持 | 使用 CSS 动画或条件渲染 |
+| Scoped slots | 不支持 | 使用 props + 事件替代 |
+| Dynamic slots | 不支持 | 使用固定具名插槽 |
 
-### 脚本转换检查
-- [ ] Vue实例转换为Page/Component
-- [ ] 响应式数据转换为data
-- [ ] 方法定义转换
-- [ ] 生命周期钩子转换
-- [ ] 组件通信方式调整
+### 模板表达式限制
 
-### 样式转换检查
-- [ ] CSS单位转换（px -> rpx）
-- [ ] 样式作用域调整
-- [ ] 不支持的CSS特性替换
-- [ ] 响应式布局调整
+WXML 模板中的 JavaScript 能力有限，以下情况需要注意：
 
-### 功能验证检查
-- [ ] 页面路由功能
-- [ ] 数据绑定功能
-- [ ] 事件处理功能
-- [ ] 组件通信功能
-- [ ] 网络请求功能
+- ✅ `.includes()` / `.indexOf()` 等方法：**编译器自动转换为 WXS**
+- ❌ 箭头函数表达式：不支持
+- ❌ 可选链 `?.`：不支持
+- ❌ 空值合并 `??`：不支持
+- ❌ 解构赋值：不支持
 
-## 💡 最佳实践建议
+建议将复杂表达式放在 `computed` 中处理。
 
-1. **渐进式迁移**：先迁移简单页面，再处理复杂交互
-2. **保持一致性**：建立代码规范和命名约定
-3. **性能优化**：利用小程序的预加载和分包特性
-4. **测试验证**：真机测试比模拟器更可靠
-5. **文档维护**：记录迁移过程中的经验和坑点
+## 📂 项目结构约定
 
----
+```
+src/
+├── app.vue                 # 应用入口
+├── pages/                  # 页面目录
+│   ├── index/
+│   │   └── index.vue       # 首页（pages/index/index）
+│   └── profile.vue         # 资料页（pages/profile）
+├── components/             # 组件目录
+│   ├── UserCard.vue        # 用户卡片组件
+│   └── _DraftComponent.vue # ❌ 下划线开头，不会编译
+└── assets/                 # 静态资源和样式
+    └── css/
+        └── global.scss
+```
 
-**总结**：从Vue3到小程序的迁移需要重新思考组件化和数据流，但核心的业务逻辑可以得到很好的保留。建议先从简单的页面开始，逐步积累经验，最终形成适合团队的迁移模式。
+- 页面文件放在 `pages/` 目录下
+- 组件文件放在 `components/` 目录下
+- 以 `_` 开头的文件和目录自动跳过编译
+- 支持嵌套页面路由（如 `pages/index/index.vue` 和 `pages/profile.vue`）
