@@ -1,8 +1,8 @@
 # FuckMP
 
-🚀 **FuckMP** - Vue3 微信小程序编译器，按 Native-first 原则逐步支持 Vue3 SFC 与 SCSS 导入功能。
+🚀 **FuckMP** - Vue3 微信小程序编译器，按 **Native-first + Thin Runtime** 为原则逐步支持 Vue3 SFC 与 SCSS 导入功能，目标是把 Vue3 SFC 编译为原生微信小程序工程，而不是在小程序中运行一套完整 Vue runtime。
 
-将 Vue3 单文件组件编译为原生微信小程序代码，让你用熟悉的 Vue3 语法开发小程序。
+将 Vue3 SFC 编译为原生微信小程序代码，让你用熟悉的 Vue3 语法开发小程序。
 
 ## ✨ 特性
 
