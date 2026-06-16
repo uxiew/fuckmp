@@ -64,8 +64,16 @@ export function removeCtxPrefixes(wxml: string): string {
  * 为 WXML 标签添加 scoped 样式属性。
  */
 export function addScopeAttributes(wxml: string, scopeId: string): string {
-  return wxml.replace(/<(\w+)([^>]*?)(\s*\/?)>/g, (match, tag, attrs, selfClosing) => {
+  // slot 和 block 是微信小程序的模板控制标签，不应添加 scoped 属性
+  const excludedTags = new Set(['slot', 'block', 'template', 'wxs', 'import', 'include'])
+
+  return wxml.replace(/<(\w[\w-]*)([^>]*?)(\s*\/?)>/g, (match, tag, attrs, selfClosing) => {
     if (attrs.includes('data-v-')) {
+      return match
+    }
+
+    // 跳过微信小程序模板控制标签
+    if (excludedTags.has(tag)) {
       return match
     }
 
@@ -98,4 +106,95 @@ export function generateScopeId(filename: string): string {
  */
 export function kebabCase(str: string): string {
   return str.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '')
+}
+
+/**
+ * 检查 WXML 中是否使用了 WXS 辅助函数（wxsH.xxx 调用）。
+ */
+export function needsWxsHelpers(wxml: string): boolean {
+  return /\bwxsH\./.test(wxml)
+}
+
+/**
+ * 在 WXML 头部注入 WXS 辅助模块引用。
+ * @param relativeWxsPath 相对于当前 WXML 文件的 helpers.wxs 路径
+ */
+export function injectWxsHelpersImport(wxml: string, relativeWxsPath: string): string {
+  return `<wxs src="${relativeWxsPath}" module="wxsH" />\n${wxml}`
+}
+
+/**
+ * 生成 WXS 辅助模块内容。
+ *
+ * WXS 是微信小程序的脚本语言，语法类似 ES5，不支持 ES6+。
+ * 这个模块提供了 WXML 模板中可能用到的 JS 方法的 WXS 等价实现。
+ */
+export function generateWxsHelpersContent(): string {
+  return `/**
+ * WXS 辅助模块 - 由 Vue3 微信小程序编译器自动生成
+ * 提供 WXML 模板中不支持的 JS 方法的 WXS 等价实现
+ */
+
+/**
+ * Array.prototype.includes / String.prototype.includes 的 WXS 实现
+ */
+function includes(arr, val) {
+  if (!arr) return false
+  if (typeof arr === 'string') {
+    return arr.indexOf(val) !== -1
+  }
+  for (var i = 0; i < arr.length; i++) {
+    if (arr[i] === val) return true
+  }
+  return false
+}
+
+/**
+ * Array.prototype.indexOf / String.prototype.indexOf 的 WXS 实现
+ */
+function indexOf(arr, val) {
+  if (!arr) return -1
+  if (typeof arr === 'string') {
+    return arr.indexOf(val)
+  }
+  for (var i = 0; i < arr.length; i++) {
+    if (arr[i] === val) return i
+  }
+  return -1
+}
+
+/**
+ * Object.prototype.toString 的 WXS 实现
+ */
+function toString(val) {
+  if (val === null || val === undefined) return ''
+  return '' + val
+}
+
+/**
+ * String.prototype.startsWith 的 WXS 实现
+ */
+function startsWith(str, prefix) {
+  if (!str || !prefix) return false
+  return str.indexOf(prefix) === 0
+}
+
+/**
+ * String.prototype.endsWith 的 WXS 实现
+ */
+function endsWith(str, suffix) {
+  if (!str || !suffix) return false
+  var idx = str.length - suffix.length
+  if (idx < 0) return false
+  return str.indexOf(suffix) === idx
+}
+
+module.exports = {
+  includes: includes,
+  indexOf: indexOf,
+  toString: toString,
+  startsWith: startsWith,
+  endsWith: endsWith
+}
+`
 }

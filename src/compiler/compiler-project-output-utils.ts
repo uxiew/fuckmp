@@ -6,7 +6,8 @@ import { generateAppStyles } from './app-styles.js'
 import { buildCompiledFileList, buildPageRoutesFromFiles } from './compiler-output-utils.js'
 import { buildRuntimeInjectionEntries, type CompiledRuntimeRecord } from './compiler-runtime-utils.js'
 import { copyStaticAssetDirectories } from './compiler-static-assets-utils.js'
-import { logger } from '@/utils/index.js'
+import { logger, writeFile } from '@/utils/index.js'
+import { generateWxsHelpersContent } from '@/generator/shared-generator-utils.js'
 
 /**
  * 生成项目级输出所需的最小配置生成器接口。
@@ -65,6 +66,12 @@ export async function refreshProjectOutputFiles(options: {
   if (options.typescript) {
     await options.configGenerator.generateTSConfig(options.outputRoot)
   }
+
+  // 生成 WXS 辅助模块（始终生成，因为无法在此阶段判断哪些页面需要它）
+  await writeFile(
+    `${options.outputRoot}/helpers.wxs`,
+    generateWxsHelpersContent()
+  )
 }
 
 /**

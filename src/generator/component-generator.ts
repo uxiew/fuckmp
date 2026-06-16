@@ -6,7 +6,7 @@ import type { TransformContext, GenerateResult, CompilerOptions } from '@/types/
 import type { ScriptTransformResult, TemplateTransformResult, StyleTransformResult } from '@/transformer/index.js'
 import { generateDefineExposeDegradeComment, generateDefineOptionsDegradeComment, generateDefineSlotsDegradeComment, generateProvideInjectDegradeComment, generateUseIdCounterDeclaration, generateUseIdNativeComment, generateUseTemplateRefDegradeComment, generateUnsupportedTemplateDegradeComment, generateWatcherDegradeComment, logger } from '@/utils/index.js'
 import { generateComponentMethods } from './component-method-generator-utils.js'
-import { addScopeAttributes, generateScopeId, generateUsingComponents, removeCtxPrefixes } from './shared-generator-utils.js'
+import { addScopeAttributes, generateScopeId, generateUsingComponents, removeCtxPrefixes, needsWxsHelpers, injectWxsHelpersImport } from './shared-generator-utils.js'
 
 /**
  * 组件生成器类
@@ -65,7 +65,7 @@ export class ComponentGenerator {
 
     // 生成组件定义
     const componentCode = `${generateDefineExposeDegradeComment(transformContext.expose, '组件')}${generateDefineOptionsDegradeComment(transformContext.defineOptions || {}, '组件')}${generateDefineSlotsDegradeComment(transformContext.defineSlots || {}, '组件')}${generateWatcherDegradeComment(transformContext.watcherEffects || {}, '组件')}${generateUseTemplateRefDegradeComment(transformContext.templateRefs || {}, '组件')}${generateUseIdNativeComment(transformContext.useIds || {}, '组件')}${generateProvideInjectDegradeComment(transformContext.provideInject || {}, '组件')}${generateUnsupportedTemplateDegradeComment(transformContext.templateUnsupported || {}, '组件')}${generateUseIdCounterDeclaration(transformContext.useIds || {})}Component({
-  // 组件属性定义
+${this.hasSlots(templateResult) ? '  // 组件选项\n  options: { multipleSlots: true },\n\n' : ''}  // 组件属性定义
   properties: ${this.generateProperties(props)},
 
   // 组件数据
@@ -98,17 +98,20 @@ ${generateComponentMethods({ methods, computed, emits, context: transformContext
     templateResult: TemplateTransformResult,
     context: TransformContext
   ): Record<string, any> {
+    const hasSlots = this.hasSlots(templateResult)
+
     const config: any = {
       component: true,
       usingComponents: generateUsingComponents(context.components, {
         debugLabel: '组件引用',
         errorLabel: '处理组件路径失败'
       }),
-      styleIsolation: 'isolated'
+      // 有 slot 的组件使用 apply-shared，让父页面样式可以应用到 slot 内容
+      styleIsolation: hasSlots ? 'apply-shared' : 'isolated'
     }
 
     // 如果有插槽，启用多插槽支持
-    if (this.hasSlots(templateResult)) {
+    if (hasSlots) {
       config.options = {
         multipleSlots: true
       }
@@ -130,6 +133,12 @@ ${generateComponentMethods({ methods, computed, emits, context: transformContext
     if (context.hasScoped && context.filename) {
       const scopeId = generateScopeId(context.filename)
       wxml = addScopeAttributes(wxml, scopeId)
+    }
+
+    // 如果 WXML 中使用了 WXS 辅助函数，注入引用
+    if (needsWxsHelpers(wxml)) {
+      // 组件在 components/ 目录下，helpers.wxs 在根目录
+      wxml = injectWxsHelpersImport(wxml, '../helpers.wxs')
     }
 
     return wxml

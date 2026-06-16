@@ -46,6 +46,19 @@ export function transformVueTemplateASTNode(
       return transformVueTemplateTextNode(node)
     case 5: // INTERPOLATION
       return transformVueTemplateInterpolationNode(node, context)
+    case 8: // COMPOUND_EXPRESSION - 复合表达式（混合文本+插值）
+      if (node.children && Array.isArray(node.children)) {
+        return node.children.map((child: any) => {
+          if (typeof child === 'string') return child
+          return transformVueTemplateASTNode(child, result, context)
+        }).join('')
+      }
+      return ''
+    case 12: // TEXT_CALL - compileTemplate 包装的文本节点
+      if (node.content) {
+        return transformVueTemplateASTNode(node.content, result, context)
+      }
+      return ''
     case 9: // IF
       return transformVueTemplateIfNode(
         node,
@@ -81,17 +94,26 @@ export function transformVueTemplateIfNode(
   let output = ''
 
   node.branches?.forEach((branch: any, index: number) => {
+    let directive: string
     if (branch.condition) {
       const condition = extractVueTemplateExpression(branch.condition, context)
-      output += index === 0
-        ? `<view wx:if="{{${condition}}}">`
-        : `<view wx:elif="{{${condition}}}">`
+      directive = index === 0
+        ? `wx:if="{{${condition}}}"`
+        : `wx:elif="{{${condition}}}"`
     } else {
-      output += '<view wx:else>'
+      directive = 'wx:else'
     }
 
-    output += (branch.children || []).map(renderChild).join('')
-    output += '</view>'
+    const children = branch.children || []
+    // 当只有一个元素节点时，直接在该元素上注入指令
+    if (children.length === 1 && children[0].type === 1) {
+      const childWxml = renderChild(children[0])
+      output += injectAttributeToOpenTag(childWxml, directive)
+    } else {
+      output += `<block ${directive}>`
+      output += children.map(renderChild).join('')
+      output += '</block>'
+    }
   })
 
   return output
@@ -109,9 +131,28 @@ export function transformVueTemplateForNode(
   const valueAlias = node.valueAlias?.content || 'item'
   const keyAlias = node.keyAlias?.content || 'index'
   const keyExpression = resolveVueTemplateForKeyExpression(node, valueAlias, context)
-  const children = (node.children || []).map(renderChild).join('')
+  const forAttrs = `wx:for="{{${source}}}" wx:for-item="${valueAlias}" wx:for-index="${keyAlias}" wx:key="${keyExpression}"`
 
-  return `<view wx:for="{{${source}}}" wx:for-item="${valueAlias}" wx:for-index="${keyAlias}" wx:key="${keyExpression}">${children}</view>`
+  const children = node.children || []
+  // 当只有一个元素节点时，直接在该元素上注入 wx:for 属性
+  if (children.length === 1 && children[0].type === 1) {
+    const childWxml = renderChild(children[0])
+    return injectAttributeToOpenTag(childWxml, forAttrs)
+  }
+
+  const childrenWxml = children.map(renderChild).join('')
+  return `<block ${forAttrs}>${childrenWxml}</block>`
+}
+
+/**
+ * 在已渲染的 WXML 字符串的第一个开标签中注入属性。
+ */
+function injectAttributeToOpenTag(wxml: string, attributes: string): string {
+  const match = wxml.match(/^(<[\w-]+)/)
+  if (match) {
+    return wxml.replace(match[0], `${match[0]} ${attributes}`)
+  }
+  return `<block ${attributes}>${wxml}</block>`
 }
 
 /**

@@ -538,7 +538,7 @@ describe('真实示例工程验收', () => {
     expect(profileWxml).toContain('mode="RTC"')
     expect(profileWxml).toContain('autopush="false"')
     expect(profileWxml).toContain(
-      '<live-pusher url="{{livePusherUrl}}" mode="RTC" autopush="false" muted="true" enable-camera="true"'
+      '<live-pusher wx:if="{{nativePreviewVisible}}" url="{{livePusherUrl}}" mode="RTC" autopush="false" muted="true" enable-camera="true"'
     )
     expect(profileWxml).toContain('enable-camera="true"')
     expect(profileWxml).toContain('auto-focus="true"')
@@ -649,7 +649,7 @@ describe('真实示例工程验收', () => {
     expect(profileWxml).toContain('<checkbox-group')
     expect(profileWxml).toContain('bind:change="handleChannelChange"')
     expect(profileWxml).toContain('<checkbox value="email"')
-    expect(profileWxml).toContain('checked="{{selectedChannels.includes(\'email\')}}"')
+    expect(profileWxml).toContain('checked="{{wxsH.includes(selectedChannels, \'email\')}}"')
     expect(profileWxml).toContain('<form')
     expect(profileWxml).toContain('bind:submit="handleProfileSubmit"')
     expect(profileWxml).toContain('bind:reset="handleProfileReset"')

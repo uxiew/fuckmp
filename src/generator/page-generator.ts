@@ -20,7 +20,7 @@ import {
   hasPageLoadingState,
   hasPageRefreshHandler
 } from './page-generator-utils.js'
-import { addScopeAttributes, generateScopeId, generateUsingComponents, removeCtxPrefixes } from './shared-generator-utils.js'
+import { addScopeAttributes, generateScopeId, generateUsingComponents, removeCtxPrefixes, needsWxsHelpers, injectWxsHelpersImport } from './shared-generator-utils.js'
 
 /**
  * 页面生成器类
@@ -221,6 +221,12 @@ ${parts.join(',\n\n')}
     if (context.hasScoped && context.filename) {
       const scopeId = generateScopeId(context.filename)
       wxml = addScopeAttributes(wxml, scopeId)
+    }
+
+    // 如果 WXML 中使用了 WXS 辅助函数，注入引用
+    if (needsWxsHelpers(wxml)) {
+      // 页面在 pages/xxx/ 目录下，helpers.wxs 在根目录
+      wxml = injectWxsHelpersImport(wxml, '../../helpers.wxs')
     }
 
     return wxml

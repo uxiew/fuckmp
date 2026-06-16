@@ -90,7 +90,12 @@ export function extractVueTemplateExpression(exp: any, context?: TransformContex
     expression = expression.substring(5)
   }
 
-  return applyPropAccessMappingsToTemplate(expression, context)
+  expression = applyPropAccessMappingsToTemplate(expression, context)
+
+  // 将 JS 方法调用转换为 WXS 辅助函数（WXML 不支持方法调用）
+  expression = transformJSMethodsToWXS(expression, context)
+
+  return expression
 }
 
 /**
@@ -279,4 +284,44 @@ export function transformVueTemplateFallbackString(source: string): string {
   wxml = wxml.replace(/:(\w+)=/g, '$1=')
 
   return wxml
+}
+
+/**
+ * 将 WXML 不支持的 JS 方法调用转换为 WXS 辅助函数调用。
+ *
+ * 例如：`selectedChannels.includes('email')` → `wxsH.includes(selectedChannels, 'email')`
+ *
+ * 支持的转换：
+ * - `arr.includes(val)` → `wxsH.includes(arr, val)`
+ * - `str.indexOf(val)` → `wxsH.indexOf(str, val)`
+ * - `val.toString()` → `wxsH.toString(val)`
+ * - `str.startsWith(val)` → `wxsH.startsWith(str, val)`
+ * - `str.endsWith(val)` → `wxsH.endsWith(str, val)`
+ */
+export function transformJSMethodsToWXS(expression: string, context?: TransformContext): string {
+  if (!expression) return expression
+
+  // 匹配 obj.method(args) 模式，obj 可以是链式属性访问如 a.b.c
+  const methodPattern = /(\b[\w.]+)\.(?:includes|indexOf|toString|startsWith|endsWith)\s*\(/g
+
+  if (!methodPattern.test(expression)) return expression
+
+  // 标记需要 WXS 辅助模块
+  if (context) {
+    (context as any)._needsWxsHelpers = true
+  }
+
+  // 重置 lastIndex
+  methodPattern.lastIndex = 0
+
+  // 逐个替换方法调用
+  return expression.replace(
+    /([\w.]+)\.(includes|indexOf|toString|startsWith|endsWith)\s*\(([^)]*)\)/g,
+    (match, obj, method, args) => {
+      if (method === 'toString' && !args.trim()) {
+        return `wxsH.toString(${obj})`
+      }
+      return `wxsH.${method}(${obj}, ${args})`
+    }
+  )
 }

@@ -40,7 +40,7 @@ describe('compiler incremental project outputs', () => {
 
       expect(appJson.pages).not.toContain('pages/reactive/index')
       expect(appJson.pages).toContain('pages/static/index')
-      expect(runtimeInjection).not.toContain('function ref(value, context)')
+      expect(runtimeInjection).not.toContain('function ref(value, context, name)')
     } finally {
       await removeTestFile('app.vue')
       await removeTestFile('pages/reactive/index.vue')

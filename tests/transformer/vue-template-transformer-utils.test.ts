@@ -31,9 +31,9 @@ describe('vue-template-transformer-utils', () => {
     }, context, child => child.content)
 
     expect(output).toBe(
-      '<view wx:if="{{ready}}">ready</view>' +
-      '<view wx:elif="{{count > 1}}">many</view>' +
-      '<view wx:else>empty</view>'
+      '<block wx:if="{{ready}}">ready</block>' +
+      '<block wx:elif="{{count > 1}}">many</block>' +
+      '<block wx:else>empty</block>'
     )
   })
 
@@ -55,7 +55,7 @@ describe('vue-template-transformer-utils', () => {
       }]
     }, context, child => child.content)
 
-    expect(output).toBe('<view wx:for="{{users}}" wx:for-item="user" wx:for-index="idx" wx:key="id">row</view>')
+    expect(output).toBe('<block wx:for="{{users}}" wx:for-item="user" wx:for-index="idx" wx:key="id">row</block>')
   })
 
   it('转换元素标签、class 绑定、事件参数并写入 eventHandlers', () => {
