@@ -47,7 +47,7 @@ let isInitialized = false;
 /**
  * 初始化运行时库
  */
-async function initVue3Runtime(customConfig = {}) {
+function initVue3Runtime(customConfig = {}) {
   if (isInitialized) {
     return runtimeInstance;
   }
@@ -58,8 +58,8 @@ async function initVue3Runtime(customConfig = {}) {
     // 使用打包的运行时库创建实例
     runtimeInstance = Vue3MiniRuntime.createRuntime(config);
 
-    // 初始化运行时
-    await runtimeInstance.initialize();
+    // 同步初始化运行时
+    runtimeInstance.initializeSync();
 
     isInitialized = true;
 
@@ -103,17 +103,22 @@ function createPage(pageConfig) {
       if (pageConfig._reactiveVariables) {
         pageConfig._reactiveVariables.forEach(varInfo => {
           if (varInfo.type === 'ref') {
-            this[varInfo.name] = ref(varInfo.initialValue);
+            this[varInfo.name] = ref(varInfo.initialValue, this, varInfo.name);
           } else if (varInfo.type === 'reactive') {
-            this[varInfo.name] = reactive(varInfo.initialValue);
+            this[varInfo.name] = reactive(varInfo.initialValue, this, varInfo.name);
           } else if (varInfo.type === 'computed') {
-            this[varInfo.name] = computed(varInfo.getter);
+            this[varInfo.name] = computed(varInfo.initialValue, this, varInfo.name);
           }
         });
       }
 
       // 调用原始的 onLoad 方法
       originalOnLoad.call(this, ...arguments);
+
+      // 初始化 computed 属性值
+      if (typeof this._updateComputed === 'function') {
+        this._updateComputed();
+      }
     };
   }
 
@@ -133,17 +138,24 @@ function createComponent(componentConfig) {
       if (componentConfig._reactiveVariables) {
         componentConfig._reactiveVariables.forEach(varInfo => {
           if (varInfo.type === 'ref') {
-            this[varInfo.name] = ref(varInfo.initialValue);
+            this[varInfo.name] = ref(varInfo.initialValue, this, varInfo.name);
           } else if (varInfo.type === 'reactive') {
-            this[varInfo.name] = reactive(varInfo.initialValue);
+            this[varInfo.name] = reactive(varInfo.initialValue, this, varInfo.name);
           } else if (varInfo.type === 'computed') {
-            this[varInfo.name] = computed(varInfo.getter);
+            this[varInfo.name] = computed(varInfo.initialValue, this, varInfo.name);
           }
         });
       }
 
       // 调用原始的 attached 方法
       originalAttached.call(this, ...arguments);
+
+      // 初始化 computed 属性值
+      if (this.methods && typeof this.methods._updateComputed === 'function') {
+        this.methods._updateComputed.call(this);
+      } else if (typeof this._updateComputed === 'function') {
+        this._updateComputed();
+      }
     };
   }
 

@@ -23,8 +23,8 @@ ${generateComputedRuntimeCode()}
 export function generateRefRuntimeCode(): string {
   return `
 // 创建 ref (基于 Proxy 的实现)
-function ref(value, context) {
-  const key = \`ref_\${Math.random().toString(36).substr(2, 9)}\`;
+function ref(value, context, name) {
+  const key = name || \`ref_\${Math.random().toString(36).substr(2, 9)}\`;
 
   const target = {
     _isRef: true,
@@ -46,6 +46,10 @@ function ref(value, context) {
           target._value = newValue;
           if (target._context && typeof target._context.setData === 'function') {
             target._context.setData({ [target._key]: newValue });
+            // 自动触发 computed 属性重新计算
+            if (typeof target._context._updateComputed === 'function') {
+              target._context._updateComputed();
+            }
           }
         }
         return true;
@@ -97,9 +101,9 @@ function ref(value, context) {
 export function generateReactiveRuntimeCode(): string {
   return `
 // 创建 reactive (优化的 Proxy 实现)
-function reactive(obj, context) {
+function reactive(obj, context, name) {
   const proxyCache = new WeakMap();
-  const key = \`reactive_\${Math.random().toString(36).substr(2, 9)}\`;
+  const key = name || \`reactive_\${Math.random().toString(36).substr(2, 9)}\`;
 
   function createProxy(target, path = []) {
     if (!target || typeof target !== 'object') return target;
@@ -126,6 +130,10 @@ function reactive(obj, context) {
                 ? \`\${key}.\${[...path, prop].join('.')}\`
                 : \`\${key}.\${prop}\`;
               context.setData({ [fullPath]: newValue });
+              // 自动触发 computed 属性重新计算
+              if (typeof context._updateComputed === 'function') {
+                context._updateComputed();
+              }
             }
           }
         }
@@ -172,8 +180,8 @@ function reactive(obj, context) {
 export function generateComputedRuntimeCode(): string {
   return `
 // 创建 computed (基于 Proxy 的实现)
-function computed(getter, context) {
-  const key = \`computed_\${Math.random().toString(36).substr(2, 9)}\`;
+function computed(getter, context, name) {
+  const key = name || \`computed_\${Math.random().toString(36).substr(2, 9)}\`;
   let _value;
   let _dirty = true;
   let _computing = false; // 防止循环计算

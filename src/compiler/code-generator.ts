@@ -101,10 +101,10 @@ const appOptions = ${appOptions};
 
 // 应用实例
 App({
-  async onLaunch(options) {
+  onLaunch(options) {
     try {
-      // 初始化Vue3运行时
-      await initVue3Runtime({
+      // 初始化Vue3运行时（同步）
+      initVue3Runtime({
         debug: ${this.config.runtimeConfig.debug},
         performance: ${this.config.runtimeConfig.performance}
       });
@@ -114,7 +114,7 @@ App({
 
       // 调用原始的onLaunch
       if (appOptions.onLaunch) {
-        await appOptions.onLaunch.call(this, options);
+        appOptions.onLaunch.call(this, options);
       }
 
       console.log('[Vue3App] 应用启动完成');

@@ -81,6 +81,10 @@ class Vue3MiniRuntime {
   }
 
   async initialize() {
+    this.initializeSync();
+  }
+
+  initializeSync() {
     if (this.initialized) return;
     this.initialized = true;
     logger.info('Vue3 小程序运行时初始化完成');

@@ -96,9 +96,9 @@ describe('runtime-injection utils', () => {
 
   it('生成稳定的 runtime 代码片段', () => {
     expect(generateRuntimeUtilityCode()).toContain('const logger = {')
-    expect(generateReactivityRuntimeCode()).toContain('function ref(value, context)')
-    expect(generateReactivityRuntimeCode()).toContain('function reactive(obj, context)')
-    expect(generateReactivityRuntimeCode()).toContain('function computed(getter, context)')
+    expect(generateReactivityRuntimeCode()).toContain('function ref(value, context, name)')
+    expect(generateReactivityRuntimeCode()).toContain('function reactive(obj, context, name)')
+    expect(generateReactivityRuntimeCode()).toContain('function computed(getter, context, name)')
     expect(generateMainRuntimeClassCode()).toContain('class Vue3MiniRuntime')
     expect(generateMainRuntimeClassCode()).toContain('static createRuntime(config)')
   })

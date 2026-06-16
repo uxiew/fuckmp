@@ -129,6 +129,11 @@ export class MiniProgramOptionsGenerator {
       ...createLifecycleOptions(context.lifecycle)
     }
 
+    // 如果模板中有 slot，启用多插槽支持
+    if (templateResult?.wxml?.includes('<slot')) {
+      options.options = { multipleSlots: true }
+    }
+
     if (context.reactiveVariables && context.reactiveVariables.size > 0) {
       options._reactiveVariables = Array.from(context.reactiveVariables.values())
     }
