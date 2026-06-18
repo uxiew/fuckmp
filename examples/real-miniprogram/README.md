@@ -1,32 +1,77 @@
 # 真实小程序示例
 
-这个示例用于验收 Vue3 到微信小程序编译链路，覆盖页面、组件、props、emits、组件 `v-model`、基础 default / named slots、`v-if` / `v-for` / `v-show` 原生映射、`<img :src>` 图片资源与 load/error 原生事件映射、input / textarea 原生 `value/input/focus/blur` 事件映射、touch / longtap / longpress 原生事件映射、`.capture` 到 `capture-bind`、`.capture.stop` 到 `capture-catch` 的事件修饰符映射、scroll-view 原生 `scrolltoupper/scrolltolower/scroll` 事件映射、swiper 原生 `current/change` 映射、video 原生 `src/play/pause/ended/timeupdate` 映射、movable-view 原生 `x/y/direction/scale/change` 映射、cover-view / cover-image 原生 `tap/src/load/error` 映射、canvas 原生 `canvas-id/type/error` 映射、map 原生 `longitude/latitude/scale/markers/markertap/regionchange` 映射、camera 原生 `mode/resolution/device-position/flash/error/initdone/scancode/stop` 映射、live-player 原生 `src/mode/autoplay/muted/orientation/object-fit/statechange/fullscreenchange/netstatus/error` 映射、live-pusher 原生 `url/mode/autopush/muted/enable-camera/auto-focus/aspect/statechange/netstatus/error` 映射、editor 原生 `placeholder/read-only/show-img-size/show-img-toolbar/show-img-resize/ready/focus/blur/input/statuschange` 映射、web-view 原生 `src/message/load/error` 映射、page-container 原生 `show/position/round/overlay/duration/beforeenter/enter/afterenter/beforeleave/leave/afterleave/clickoverlay` 映射、progress 原生 `percent/show-info/border-radius/font-size/stroke-width/active/active-mode/active-color/background-color/activeend` 映射、picker-view 原生 `value/indicator-style/mask-style/immediate-change/change` 映射、rich-text 原生 `nodes/space/user-select` 映射、icon 原生 `type/size/color` 映射、text 原生 `selectable/space/decode` 映射、view 原生 `hover-class/hover-start-time/hover-stay-time` 映射、button 原生 `type/size/plain/loading/disabled/hover-class/tap` 映射、switch 原生 `checked/change` 映射、picker 原生 `value/range/change` 映射、slider 原生 `value/change` 映射、radio-group / checkbox-group 原生 `change` 映射、form 原生 `submit/reset` 事件映射、JavaScript 配置、SCSS 样式与 runtime 注入。
+这个示例用于验收 Vue3 到微信小程序编译链路的完整性。
 
-当前示例重点组件：
+## 覆盖特性
 
-- `app.vue`：应用级 `onMounted` 归一到微信原生 `App.onLaunch`，避免生成不可调用的组件 `lifetimes`。
-- `components/UserCard.vue`：props、`withDefaults`、emits，Vue/HTML 常见 `<img :src @load @error>` 到微信原生 `<image src bind:load bind:error>` 的图片资源与事件映射，Vue 常用 `@click` / `@click.stop` 到微信原生 `tap` / `catch:tap` 的事件映射，以及组件 `onMounted` / `onUnmounted` 到 `attached` / `detached` 的生命周期映射。
-- `components/CounterInput.vue`：`defineModel`、组件 `v-model` 与输入修饰符。
-- `components/ActivityList.vue`：`v-if` / `v-for`、动态 class、Vue 源侧 `@click="handler(arg)"` 事件参数到微信原生 dataset 的映射，以及子组件 `selectActivity` payload 经微信原生 `event.detail` 回传给父页面。
-- `components/SlotPanel.vue`：微信原生可等价的 default slot 与 named slot 内容投递；不覆盖 scoped slot props 或动态 slot 名。
-- `pages/index/index.vue`：`v-show` 到微信原生 `hidden` 属性的页面级映射，页面按钮 Vue 源侧 `@click` 到微信原生 `bind:tap` 的事件映射，以及 `<a href>` 到微信原生 `<navigator url>` 的页面导航映射。
-- `pages/profile.vue`：第二页面级 `ref` / `computed` / `v-if`、input / textarea 原生 `:value` / `@input` / `@focus` / `@blur` 事件映射、touch / longtap / longpress 原生事件映射、`.capture` 到 `capture-bind`、`.capture.stop` 到 `capture-catch` 的事件修饰符映射、scroll-view 原生 `scroll-y` / `@scrolltoupper` / `@scrolltolower` / `@scroll` 映射、swiper 原生 `:current` / `@change` 映射、video 原生 `:src` / `@play` / `@pause` / `@ended` / `@timeupdate` 映射、movable-area / movable-view 原生 `:x` / `:y` / `direction` / `scale` / `@change` / `@scale` 映射、cover-view / cover-image 原生 `@tap` / `:src` / `@load` / `@error` 映射、canvas 原生 `canvas-id` / `type` / `@error` 映射、map 原生 `:longitude` / `:latitude` / `:scale` / `:markers` / `@markertap` / `@regionchange` 映射、camera 原生 `mode` / `resolution` / `device-position` / `flash` / `@error` / `@initdone` / `@scancode` / `@stop` 映射、live-player 原生 `:src` / `mode` / `autoplay` / `muted` / `orientation` / `object-fit` / `@statechange` / `@fullscreenchange` / `@netstatus` / `@error` 映射、live-pusher 原生 `:url` / `mode` / `autopush` / `muted` / `enable-camera` / `auto-focus` / `aspect` / `@statechange` / `@netstatus` / `@error` 映射、editor 原生 `placeholder` / `:read-only` / `show-img-size` / `show-img-toolbar` / `show-img-resize` / `@ready` / `@focus` / `@blur` / `@input` / `@statuschange` 映射、web-view 原生 `:src` / `@message` / `@load` / `@error` 映射、page-container 原生 `:show` / `position` / `round` / `overlay` / `duration` / `@beforeenter` / `@enter` / `@afterenter` / `@beforeleave` / `@leave` / `@afterleave` / `@clickoverlay` 映射、progress 原生 `:percent` / `show-info` / `border-radius` / `font-size` / `stroke-width` / `active` / `active-mode` / `active-color` / `background-color` / `@activeend` 映射、picker-view / picker-view-column 原生 `:value` / `indicator-style` / `mask-style` / `immediate-change` / `@change` 映射、rich-text 原生 `:nodes` / `space` / `user-select` 映射、icon 原生 `type` / `:size` / `color` 映射、text 原生 `selectable` / `space` / `decode` 映射、view 原生 `hover-class` / `hover-start-time` / `hover-stay-time` 映射、button 原生 `type` / `size` / `plain` / `loading` / `disabled` / `hover-class` / `tap` 映射、switch 原生 `:checked` / `@change` 映射、picker 原生 `:value` / `:range` / `@change` 映射、slider 原生 `:value` / `@change` 映射、radio-group / checkbox-group 原生 `@change` 与动态 `:checked` 映射、form 原生 `@submit` / `@reset` 与 `form-type` 按钮映射，以及 scoped/shared 样式验收。
+### 页面与组件
 
-为减少 `touristappid` / 游客模式下的 DevTools 控制台噪声，`video`、`camera`、`live-player`、`live-pusher` 和 `web-view` 默认不主动挂载；页面保留按钮手动加载这些网络/权限相关原生组件，编译验收仍覆盖对应标签、属性和事件映射。
+- **app.vue**：应用入口，`onMounted` 映射到 `App.onLaunch`（同步执行）
+- **pages/index/index.vue**：首页，`v-show` → `hidden`，`@click` → `bind:tap`，`<a href>` → `<navigator>`
+- **pages/profile.vue**：资料页，ref / computed / v-if、原生组件全覆盖
 
-推荐验证命令：
+### 组件
+
+| 组件 | 覆盖特性 |
+|------|---------|
+| `UserCard.vue` | props、withDefaults、emits、`<img>` → `<image>` 映射 |
+| `CounterInput.vue` | `defineModel`、组件 v-model、输入修饰符 |
+| `ActivityList.vue` | v-if / v-for、动态 class、事件参数 → dataset |
+| `SlotPanel.vue` | default / named slots、multipleSlots、styleIsolation |
+
+### 响应式系统
+
+- `ref()` / `reactive()` / `computed()` → 运行时 Proxy + `setData` 桥接
+- computed 自动计算初始值
+- ref/reactive 修改后自动触发 computed 更新
+
+### 模板编译
+
+- **v-if/v-for**：单子节点直接注入 `wx:if` / `wx:for`，无多余 `<view>` 包裹
+- **WXS 辅助模块**：`.includes()` 等 JS 方法自动转换为 `wxsH.includes()` WXS 调用
+- **原生组件文本**：`<movable-view>` / `<cover-view>` 内的纯文本子节点正确保留
+
+### 事件系统
+
+| 特性 | 映射 |
+|------|------|
+| `@click` | `bind:tap` |
+| `@click.stop` | `catch:tap` |
+| `@click.capture` | `capture-bind:tap` |
+| `@click.capture.stop` | `capture-catch:tap` |
+| touch / longtap / longpress | 原生事件透传 |
+
+### 原生组件覆盖
+
+scroll-view、swiper、video、movable-area / movable-view、cover-view / cover-image、canvas、map、camera、live-player、live-pusher、editor、web-view、page-container、progress、picker-view、rich-text、icon、text、button、switch、picker、slider、radio-group、checkbox-group、form。
+
+> 为减少游客模式下的 DevTools 噪声，video、camera、live-player、live-pusher 和 web-view 默认不主动挂载，保留按钮手动加载。
+
+### 样式
+
+- Scoped 样式（`data-v-` 属性），自动排除 slot/block 控制标签
+- SCSS 预处理
+- 有 slot 的组件自动 `styleIsolation: "apply-shared"`
+
+## 验证命令
 
 ```bash
+# 编译验收测试
 pnpm vitest run tests/e2e/real-example-acceptance.test.ts
+
+# 手动编译
+fuckmp build --input examples/real-miniprogram --output test-output/real-miniprogram --app-id touristappid
 ```
 
-微信开发者工具 CLI 冒烟脚本默认跳过真实 GUI 调用，可安全纳入本地检查：
+### 微信开发者工具
+
+默认安全跳过 GUI 调用：
 
 ```bash
 pnpm test:real-devtools
 ```
 
-如需真实启动微信开发者工具，请显式 opt-in：
+显式 opt-in：
 
 ```bash
 FUCKMP_REAL_DEVTOOLS_SMOKE=1 \
@@ -34,13 +79,15 @@ WECHAT_IDE_CLI=/Applications/wechatwebdevtools.app/Contents/MacOS/cli \
 pnpm test:real-devtools
 ```
 
-可选环境变量：
+### 环境变量
 
-- `FUCKMP_REAL_MINIPROGRAM_APPID`：覆盖默认 `touristappid`。
-- `FUCKMP_REAL_MINIPROGRAM_OUTPUT`：覆盖默认 `test-output/real-miniprogram`。
-- `WECHAT_DEVTOOLS_AUTO_PORT`：覆盖默认自动化端口 `9420`。
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `FUCKMP_REAL_MINIPROGRAM_APPID` | 覆盖 AppID | `touristappid` |
+| `FUCKMP_REAL_MINIPROGRAM_OUTPUT` | 覆盖输出目录 | `test-output/real-miniprogram` |
+| `WECHAT_DEVTOOLS_AUTO_PORT` | 自动化端口 | `9420` |
 
-`wechat-devtools-mcp` 可按其 MCP 配置方式接入：
+### MCP 集成
 
 ```json
 {
@@ -50,7 +97,7 @@ pnpm test:real-devtools
       "args": [
         "-y",
         "wechat-devtools-mcp",
-        "--projectPath=/Users/bing/Projects/vue3-wx/test-output/real-miniprogram",
+        "--projectPath=./test-output/real-miniprogram",
         "--cliPath=/Applications/wechatwebdevtools.app/Contents/MacOS/cli"
       ]
     }
@@ -58,4 +105,4 @@ pnpm test:real-devtools
 }
 ```
 
-默认使用 `touristappid`。如需上传、预览或真机级验收，请替换为合法 AppID 并确认微信开发者工具已登录。
+默认使用 `touristappid`。如需上传、预览或真机验收，请替换为合法 AppID 并确认微信开发者工具已登录。
