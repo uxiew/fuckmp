@@ -1,6 +1,6 @@
 # Native-first Runtime Boundary
 
-更新时间：2026-06-06
+更新时间：2026-06-18
 
 ## 决策
 
@@ -27,6 +27,10 @@ FuckMP 的目标是把 Vue3 SFC 编译为原生微信小程序工程，而不是
 
 `<script setup>` 本身不触发响应式 runtime；只有实际使用 `ref/reactive/computed` 时才注入响应式代码。
 
+| 能力 | 触发条件 | 说明 |
+|---|---|---|
+| `wxs-helpers` | 模板中使用 `.includes()` 等 JS 方法 | 生成 `helpers.wxs` 辅助模块，WXML 注入 `<wxs>` 引用 |
+
 页面/组件生成器不得再内联旧版响应式运行时。尤其不能为了“看起来支持”而在页面 JS 中无条件输出 `watch` 轮询占位、`setDataContext` 或一套脱离 `runtime-injection.js` 的 `ref/reactive/computed` helper。
 
 ## 必须走原生编译的能力
@@ -45,6 +49,8 @@ FuckMP 的目标是把 Vue3 SFC 编译为原生微信小程序工程，而不是
 | `defineEmits` | 运行时声明 / TypeScript call signature / named tuple / 本地类型 / 相对 import type 事件名提取 + `this.triggerEvent` | 不注入 event runtime |
 | 生命周期 | Page/Component 原生生命周期 | 不注入 lifecycle runtime |
 | 样式与 SCSS | `wxss` | 不注入 style runtime |
+| JS 方法调用（`.includes()` 等） | `helpers.wxs` + `wxsH.xxx()` WXS 调用 | 编译时转换为 WXS，不注入 JS runtime |
+| 插槽 (default / named) | 原生 `<slot>` + `multipleSlots` + `apply-shared` | 编译时自动配置 Component options |
 
 ## 明确降级或暂不宣称运行时支持
 
