@@ -348,7 +348,7 @@ A: 请检查：
 A: 使用 `--verbose` 参数运行编译器，查看详细的配置加载日志：
 
 ```bash
-npx vue3mp build --verbose
+fuckmp build --verbose
 ```
 
 ### Q: 支持哪些配置文件格式？
