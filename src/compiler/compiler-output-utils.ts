@@ -85,11 +85,19 @@ export function buildCompiledFileList(
 
 /**
  * 从编译成功文件列表中构造 app.json 需要的页面路由。
+ * 包含 "index" 的页面优先排列（微信小程序 pages 首项为首页）。
  */
 export function buildPageRoutesFromFiles(successFiles: string[], inputRoot: string): string[] {
   return successFiles
     .filter(file => isPageComponent(file))
     .map(file => normalizePath(getRelativePath(inputRoot, file)).replace(/\.vue$/, ''))
+    .sort((a, b) => {
+      const aIsIndex = a.endsWith('/index') || a === 'index'
+      const bIsIndex = b.endsWith('/index') || b === 'index'
+      if (aIsIndex && !bIsIndex) return -1
+      if (!aIsIndex && bIsIndex) return 1
+      return a.localeCompare(b)
+    })
 }
 
 /**
