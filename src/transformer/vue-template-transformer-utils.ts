@@ -49,7 +49,10 @@ export function transformVueTemplateASTNode(
     case 8: // COMPOUND_EXPRESSION - 复合表达式（混合文本+插值）
       if (node.children && Array.isArray(node.children)) {
         return node.children.map((child: any) => {
-          if (typeof child === 'string') return child
+          // Vue 编译器用 " + " 字符串表示 JS 拼接，WXML 中不需要
+          if (typeof child === 'string') {
+            return child === ' + ' ? '' : child
+          }
           return transformVueTemplateASTNode(child, result, context)
         }).join('')
       }
