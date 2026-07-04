@@ -110,13 +110,6 @@ ${generateComponentMethods({ methods, computed, emits, context: transformContext
       styleIsolation: hasSlots ? 'apply-shared' : 'isolated'
     }
 
-    // 如果有插槽，启用多插槽支持
-    if (hasSlots) {
-      config.options = {
-        multipleSlots: true
-      }
-    }
-
     return config
   }
 
