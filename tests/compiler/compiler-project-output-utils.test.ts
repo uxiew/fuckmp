@@ -82,9 +82,7 @@ describe('compiler project output utils', () => {
     await expect(fs.access(join(outputRoot, 'images/stale.png'))).rejects.toThrow()
   })
 
-  it('运行时注入失败时仍继续生成项目配置', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {})
-
+  it('运行时注入失败会中断项目输出刷新', async () => {
     const inputRoot = join(tempRoot, 'src')
     const outputRoot = join(tempRoot, 'dist')
     const pagePath = join(inputRoot, 'pages/index.vue')
@@ -102,10 +100,10 @@ describe('compiler project output utils', () => {
       configGenerator,
       runtimeInjector,
       typescript: false
-    })).resolves.toBeUndefined()
+    })).rejects.toThrow('运行时注入失败: inject failed')
 
-    expect(configGenerator.generateProjectConfig).toHaveBeenCalledWith(outputRoot)
-    expect(configGenerator.generateSitemapConfig).toHaveBeenCalledWith(outputRoot)
+    expect(configGenerator.generateProjectConfig).not.toHaveBeenCalled()
+    expect(configGenerator.generateSitemapConfig).not.toHaveBeenCalled()
     expect(configGenerator.generateTSConfig).not.toHaveBeenCalled()
   })
 })

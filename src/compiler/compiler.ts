@@ -14,12 +14,13 @@ import {
 } from './compiler-output-utils.js'
 import {
   compileFilesWithResult,
+  createCompileError,
   createCompileResult,
   createMissingInputMessage,
   createMissingInputResult
 } from './compiler-result-utils.js'
 import { parseAndTransformSfcSections } from './compiler-transform-pipeline.js'
-import { refreshProjectOutputFiles } from './compiler-project-output-utils.js'
+import { refreshProjectOutputFiles, RuntimeInjectionError } from './compiler-project-output-utils.js'
 import { removeFileFromCompilationState, resetCompilationState } from './compiler-state-utils.js'
 import { generateTargetCode } from './compiler-generate-utils.js'
 import {
@@ -194,7 +195,15 @@ export class Vue3MiniprogramCompiler {
       // 编译每个文件
       await compileFilesWithResult(vueFiles, result, filePath => this.compileFile(filePath))
 
-      await this.refreshProjectOutputs()
+      try {
+        await this.refreshProjectOutputs()
+      } catch (error) {
+        if (!(error instanceof RuntimeInjectionError)) throw error
+        result.errors.push(createCompileError(options.output, error))
+        result.stats.duration = Date.now() - startTime
+        logger.error('项目输出生成失败', error)
+        return result
+      }
 
       result.stats.duration = Date.now() - startTime
 

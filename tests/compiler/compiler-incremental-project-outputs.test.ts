@@ -1,10 +1,34 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { promises as fs } from 'fs'
 import { join } from 'path'
 import { Vue3MiniprogramCompiler } from '@/compiler/compiler.js'
+import { RuntimeInjector } from '@/compiler/runtime-injector.js'
 import { createTestFile, getTestDir, readTestFile, removeTestFile } from '../setup.js'
 
 describe('compiler incremental project outputs', () => {
+  it('最终 JS 生成失败会写入项目编译结果的 errors', async () => {
+    const compiler = createCompiler()
+    const pagePath = await createTestFile('pages/home/index.vue', createStaticPage('Home'))
+    const injection = vi.spyOn(RuntimeInjector.prototype, 'injectRuntime')
+      .mockRejectedValueOnce(new Error('final JS generation failed'))
+
+    try {
+      const result = await compiler.compile()
+
+      expect(injection).toHaveBeenCalledTimes(1)
+      expect(result.success).toContain(pagePath)
+      expect(result.errors).toEqual([
+        expect.objectContaining({
+          file: join(getTestDir(), 'output'),
+          message: '运行时注入失败: final JS generation failed'
+        })
+      ])
+    } finally {
+      injection.mockRestore()
+      await removeTestFile('pages/home/index.vue')
+    }
+  })
+
   it('新增页面单文件编译后可刷新 app.json 页面列表', async () => {
     const compiler = createCompiler()
     const appPath = await createTestFile('app.vue', createAppVue())

@@ -32,6 +32,12 @@ export interface RuntimeInjectorLike {
   ): Promise<void>
 }
 
+export class RuntimeInjectionError extends Error {
+  constructor(cause: unknown) {
+    super(`运行时注入失败: ${cause instanceof Error ? cause.message : String(cause)}`, { cause })
+  }
+}
+
 /**
  * 刷新依赖全局编译状态的 app/runtime/project/sitemap/tsconfig 输出。
  */
@@ -93,7 +99,7 @@ async function generateAppConfigFromCompiledFiles(
 }
 
 /**
- * 注入运行时。注入失败时保留既有策略：记录错误但不中断项目输出刷新。
+ * 注入运行时并生成最终 JS。
  */
 async function performRuntimeInjection(options: {
   inputRoot: string
@@ -120,6 +126,6 @@ async function performRuntimeInjection(options: {
 
     logger.success('运行时注入完成')
   } catch (error) {
-    logger.error('运行时注入失败:', error as Error)
+    throw new RuntimeInjectionError(error)
   }
 }
