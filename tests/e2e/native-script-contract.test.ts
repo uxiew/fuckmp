@@ -34,6 +34,31 @@ describe('阶段一：脚本原生输出契约', () => {
     return { options, wxml, js, runtime }
   }
 
+  it.each([
+    { register: 'Page', path: 'pages/index/index', lifecycle: ['onLoad', 'onShow', 'onReady'] },
+    { register: 'Component', path: 'components/ComputedChain', lifecycle: ['attached', 'ready'] }
+  ] as const)('recomputes chained computed values in a native $register', async ({ register, path, lifecycle }) => {
+    const { result, output } = await compile(path, '<view>{{ n }} {{ b }} {{ c }}</view>', `
+      import { ref, computed, onMounted } from 'vue'
+      const n = ref(0)
+      const c = computed(() => b.value + a.value)
+      const b = computed(() => a.value * 2)
+      const a = computed(() => n.value + 1)
+      function init() { n.value = 5 }
+      function increment() { n.value++ }
+      onMounted(() => { init() })
+    `)
+    expect(result.errors).toEqual([])
+    const { options } = await readRegistration(output, path, register)
+    const instance = createInstance(options)
+    lifecycle.forEach(hook => runWeChatLifecycle(instance, hook))
+    expect(instance.data).toMatchObject({ n: 5, a: 6, b: 12, c: 18 })
+    instance.increment()
+    expect(instance.data).toMatchObject({ n: 6, a: 7, b: 14, c: 21 })
+    instance.increment()
+    expect(instance.data).toMatchObject({ n: 7, a: 8, b: 16, c: 24 })
+  })
+
   it('initializes reactive component state before native mounted hooks and computed getters', async () => {
     const path = 'components/ReviewCard'
     const { result, output } = await compile(path, '<view>{{ label }}</view>', `
@@ -50,6 +75,34 @@ describe('阶段一：脚本原生输出契约', () => {
     const instance = createInstance(options, { step: 3, title: 'N' })
     runWeChatLifecycle(instance, 'attached')
     expect(instance.data).toMatchObject({ count: 3, label: 'N10' })
+  })
+
+  it('warns about dropped top-level script statements without flagging supported hooks', async () => {
+    const path = 'pages/index/index'
+    const { result, output } = await compile(path, '<view>{{ n }}</view>', `
+      import { ref, onMounted, onLoad } from 'vue'
+      const n = ref(0)
+      function init() { n.value = 5 }
+      init()
+      onLoad(() => { n.value = 9 })
+      if (true) { init() }
+      onMounted(() => { n.value = 7 })
+    `)
+    expect(result.errors).toEqual([])
+    const file = join(root, 'src', path + '.vue')
+    expect(result.warnings).toEqual([
+      { file, line: 6, message: '脚本降级: 已省略不支持的顶层语句 init()' },
+      { file, line: 7, message: '脚本降级: 已省略不支持的顶层语句 onLoad()' },
+      { file, line: 8, message: '脚本降级: 已省略不支持的顶层语句 IfStatement' }
+    ])
+    const { js, options } = await readRegistration(output, path, 'Page')
+    result.warnings.forEach(({ message }) => expect(js).toContain(`// ${message}`))
+    const instance = createInstance(options)
+    runWeChatLifecycle(instance, 'onLoad')
+    expect(instance.data.n).toBe(0)
+    runWeChatLifecycle(instance, 'onShow')
+    runWeChatLifecycle(instance, 'onReady')
+    expect(instance.data.n).toBe(7)
   })
 
   it('executes reactive mutations and native dataset and direct-event calls in a page', async () => {

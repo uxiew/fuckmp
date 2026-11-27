@@ -23,13 +23,11 @@ export function processScriptMacros(
   context: TransformContext,
   macroHandlers: Map<string, MacroHandler>,
   onMacroError?: ScriptMacroErrorHandler
-): void {
-  if (!parseResult.macros) {
-    return
-  }
-
-  parseResult.macros.forEach((macroCalls, macroName) => {
+): Set<string> {
+  const handledMacros = new Set<string>()
+  parseResult.macros?.forEach((macroCalls, macroName) => {
     if (processNativeBoundaryMacro(macroName, macroCalls, context)) {
+      handledMacros.add(macroName)
       return
     }
 
@@ -41,11 +39,13 @@ export function processScriptMacros(
     macroCalls.forEach(macroCall => {
       try {
         handler(createMacroHandlerNode(macroName, macroCall, parseResult, context), context)
+        handledMacros.add(macroName)
       } catch (error) {
         onMacroError?.(macroName, error)
       }
     })
   })
+  return handledMacros
 }
 
 /**

@@ -152,6 +152,7 @@ export interface TransformContext {
   defineSlots?: Record<string, any>
   /** 原生目标下降级的 watcher 副作用 API */
   watcherEffects?: Record<string, any>
+  scriptWarnings?: Array<{ message: string; line?: number }>
   /** 原生目标下降级的模板引用 */
   templateRefs?: Record<string, any>
   /** 原生目标下编译为稳定 data id 的 useId 调用 */
@@ -228,7 +229,7 @@ export interface CompileResult {
     message: string
     stack?: string
   }>
-  warnings: Array<{ file: string; message: string }>
+  warnings: Array<{ file: string; message: string; line?: number }>
   /** 编译统计 */
   stats: {
     /** 总文件数 */

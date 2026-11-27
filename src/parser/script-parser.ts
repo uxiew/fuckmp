@@ -36,6 +36,7 @@ export interface ScriptParseResult {
   /** 导出信息 */
   exports: ExportInfo[]
   nativeMacroReferencesLowered?: true
+  setupStatements?: Array<{ description: string; macroName?: string; line?: number }>
 }
 
 /**
@@ -122,6 +123,7 @@ export class ScriptParser {
         exports: [],
         nativeMacroReferencesLowered: true
       }
+      const setupStatements: NonNullable<ScriptParseResult['setupStatements']> = []
 
       // 遍历 AST 收集信息
       traverseAST(ast, {
@@ -130,6 +132,19 @@ export class ScriptParser {
         },
         CallExpression: (path) => {
           if (isSetupCall(path)) this.handleCallExpression(path, result)
+        },
+        Statement(path) {
+          if (!path.parentPath?.isProgram() || path.isDeclaration() || path.isEmptyStatement()) return
+          const expression = path.isExpressionStatement() ? path.node.expression : undefined
+          const call = isCallExpression(expression) ? expression : undefined
+          const macroName = call ? getVueCallName(call, path.scope) : null
+          const description = call?.callee.type === 'Identifier' ? `${call.callee.name}()` : path.node.type
+          const line = path.node.loc?.start.line
+          setupStatements.push({
+            description,
+            ...(macroName && { macroName }),
+            ...(line !== undefined && { line })
+          })
         },
         VariableDeclaration: (path) => {
           if (isSetupDeclaration(path)) this.handleVariableDeclaration(path, result)
@@ -144,6 +159,7 @@ export class ScriptParser {
           this.handleExportDeclaration(path.node, result, 'named')
         }
       })
+      if (setupStatements.length) result.setupStatements = setupStatements
 
       logger.debug(`脚本解析完成: ${filename}`)
 

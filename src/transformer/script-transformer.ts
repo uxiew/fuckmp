@@ -144,9 +144,17 @@ export class ScriptTransformer {
    * 处理宏调用
    */
   private processMacros(parseResult: ScriptParseResult, context: TransformContext): void {
-    processScriptMacros(parseResult, context, this.macroHandlers, (macroName, error) => {
+    const handledMacros = processScriptMacros(parseResult, context, this.macroHandlers, (macroName, error) => {
       logger.error(`宏处理失败: ${macroName}`, error as Error)
     })
+    if (parseResult.setupStatements?.length) {
+      context.scriptWarnings = parseResult.setupStatements.flatMap(({ description, macroName, line }) =>
+        macroName && handledMacros.has(macroName) ? [] : [{
+          message: `脚本降级: 已省略不支持的顶层语句 ${description}`,
+          ...(line !== undefined && { line })
+        }]
+      )
+    }
   }
 
   /**

@@ -30,9 +30,6 @@ export function lowerMacroReferences(ast: t.File, filename: string): void {
         if (binding?.kind === 'const' && binding.constant && readStaticScriptValue(init) !== undefined) {
           staticBindings.add(binding)
         }
-        if (binding && t.isCallExpression(init) && getVueCallName(init, path.scope) === 'reactive') {
-          reactiveBindings.add(binding)
-        }
       }
       if (!t.isCallExpression(init)) return
 
@@ -57,6 +54,7 @@ export function lowerMacroReferences(ast: t.File, filename: string): void {
       const binding = path.scope.getBinding(local.name)
       if (!binding) return
 
+      if (t.isIdentifier(id) && (macro === 'reactive' || macro === 'computed')) reactiveBindings.add(binding)
       if (macro === 'defineEmits' && t.isIdentifier(id)) emitBindings.add(binding)
       if (macro === 'defineModel') {
         const name = init.arguments[0]

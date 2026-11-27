@@ -124,13 +124,16 @@ export class Vue3MiniprogramCompiler {
 
       // 解析和转换各个部分
       const results = await this.parseAndTransform(parseResult, context)
-      const messages = [
-        ...(context.templateUnsupported?.capabilities ?? []).map((capability: string) => `模板降级: ${capability}`),
-        ...(context.watcherEffects?.apis ?? []).map((api: string) => `watch/watchEffect 降级: ${api}`)
+      const scriptStart = (parseResult.descriptor.scriptSetup ?? parseResult.descriptor.script)?.loc.start.line ?? 1
+      const diagnostics: NonNullable<TransformContext['scriptWarnings']> = [
+        ...(context.templateUnsupported?.capabilities ?? []).map((capability: string) => ({ message: `模板降级: ${capability}` })),
+        ...(context.watcherEffects?.apis ?? []).map((api: string) => ({ message: `watch/watchEffect 降级: ${api}` })),
+        ...(context.scriptWarnings ?? []).map(({ message, line }) =>
+          line === undefined ? { message } : { message, line: scriptStart + line - 1 })
       ]
-      messages.forEach(message => {
-        warnings?.push({ file: filePath, message })
-        logger.warn(`${filePath}: ${message}`)
+      diagnostics.forEach(diagnostic => {
+        warnings?.push({ file: filePath, ...diagnostic })
+        logger.warn(`${filePath}${diagnostic.line === undefined ? '' : `:${diagnostic.line}`}: ${diagnostic.message}`)
       })
 
       // 生成代码

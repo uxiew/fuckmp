@@ -206,7 +206,7 @@ function computed(getter, context, name) {
         if (target._dirty) {
           target._computing = true;
           try {
-            _value = target._getter();
+            _value = target._getter.call(target._context);
             target._dirty = false;
             if (target._context && typeof target._context.setData === 'function') {
               target._context.setData({ [target._key]: _value });

@@ -21,4 +21,5 @@
 
 - `TransformContext.templateUnsupported` 保留原结构；只扩充 capabilities 的值。模板阶段在上下文记录可选的 `templateWxsModules: ReadonlySet<string>`，供表达式检查使用；脚本和最终 codegen 无需提供它。`TemplateTransformResult` 额外用 `datasetEventHandlers` 标记有模板参数调用的方法；每个绑定的 `data-fmp-args` 标记其静态参数类型。
 - 页面、组件最终 JS 的 codegen 现在也保留模板能力诊断；断言可针对整项目编译或 `refreshProjectOutputs()` 后的产物。不要只依赖中间 JS。
+- 不支持的顶层脚本语句（例如普通函数调用，或从 Vue 导入的未知生命周期钩子）会被省略，并在编译警告和最终 JS 注释中标明。需要运行的初始化逻辑可放在支持的生命周期钩子中。
 - 默认使用 Vue AST；`TemplateTransformer` 的显式 parser 选项属于公开 API，不把旧 AST/增强模式视为不可达。默认路径的异常/无 AST 时也仍可回退到字符串；后续需要用真实输入验证后，才能改变回退策略。
