@@ -44,6 +44,8 @@ pnpm vitest run tests/e2e/real-example-acceptance.test.ts
 fuckmp build --input examples/real-miniprogram --output test-output/real-miniprogram --app-id touristappid
 ```
 
+`examples/community-pickup` 补充了从商品列表、组件预订事件到页面更新和自提须知的业务链。两个项目的原生产物验收及已知不通过用例见 [Phase 1 P 验收记录](phase-1-p-acceptance.md)。
+
 ## 微信开发者工具集成
 
 ### 自动化冒烟测试
@@ -98,7 +100,7 @@ pnpm test:real-devtools
 FUCKMP_PACKAGE_SMOKE=1 pnpm test:package-smoke
 ```
 
-执行流程：`pnpm build` → `npm pack` → 临时项目安装 tarball → 验证根入口和 CLI bin。
+执行流程：`pnpm build` → `npm pack` → 临时项目安装 tarball → 验证根入口和两个 CLI bin → 用安装后的 `fuckmp build` 编译社区自提示例并检查原生路由、组件引用和 JS/WXML/WXSS。
 
 ## 参考链接
 
