@@ -7,7 +7,7 @@
  */
 
 import { spawn as spawnChildProcess } from 'node:child_process'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 
@@ -39,25 +39,25 @@ export async function runPackageSmoke(env: NodeJS.ProcessEnv = process.env, cwd 
 
   await runCommand('pnpm', ['build'], cwd)
 
-  const pack = await packProject(cwd)
   const packageRoot = await mkdtemp(join(tmpdir(), 'fuckmp-package-smoke-'))
-  const tarballPath = resolve(cwd, pack.filename)
   try {
+    const pack = await packProject(cwd, packageRoot)
+    const tarballPath = join(packageRoot, pack.filename)
     assertPackFiles(pack.files.map(file => file.path))
     await writeConsumerPackageJson(packageRoot)
     await runCommand('npm', ['install', '--silent', '--no-audit', '--no-fund', tarballPath, 'vue@3.5.35'], packageRoot)
     await verifyPublicApi(packageRoot)
     await verifyCliBins(packageRoot)
+    await verifyCliBuild(cwd, packageRoot)
   } finally {
-    await rm(tarballPath, { force: true })
     await rm(packageRoot, { recursive: true, force: true })
   }
 
   return { status: 'passed' }
 }
 
-async function packProject(cwd: string): Promise<PackResult> {
-  const result = await runCommand('npm', ['pack', '--json'], cwd)
+async function packProject(cwd: string, destination: string): Promise<PackResult> {
+  const result = await runCommand('npm', ['pack', '--json', '--pack-destination', destination], cwd)
   const packs = JSON.parse(result.stdout) as PackResult[]
   const pack = packs[0]
   if (!pack) {
@@ -111,6 +111,35 @@ async function verifyCliBins(packageRoot: string): Promise<void> {
     const result = await runCommand(join(packageRoot, 'node_modules/.bin', binName), ['--version'], packageRoot)
     if (!result.stdout.includes('1.0.0')) {
       throw new Error(`${binName} --version did not print package version`)
+    }
+  }
+}
+
+async function verifyCliBuild(cwd: string, packageRoot: string): Promise<void> {
+  await cp(join(cwd, 'examples/community-pickup'), join(packageRoot, 'src'), { recursive: true })
+  await runCommand(join(packageRoot, 'node_modules/.bin/fuckmp'), [
+    'build', '--input', 'src', '--output', 'dist', '--app-id', 'touristappid'
+  ], packageRoot)
+
+  const readOutput = (file: string) => readFile(join(packageRoot, 'dist', file), 'utf8')
+  const app = JSON.parse(await readOutput('app.json'))
+  if (JSON.stringify(app.pages) !== JSON.stringify(['pages/booking', 'pages/pickup-info'])) {
+    throw new Error('installed CLI did not generate the community pickup routes')
+  }
+  const booking = JSON.parse(await readOutput('pages/booking.json'))
+  if (booking.usingComponents?.['pickup-offer'] !== '../components/PickupOffer') {
+    throw new Error('installed CLI did not link the pickup offer component')
+  }
+  for (const [file, marker] of [
+    ['app.js', 'App('],
+    ['pages/booking.js', 'Page('],
+    ['pages/pickup-info.wxml', 'open-type="navigateBack"'],
+    ['pages/booking.wxml', 'bind:reserve="reserveOffer"'],
+    ['pages/booking.wxss', '.pickup-page[data-v-'],
+    ['components/PickupOffer.js', 'Component(']
+  ]) {
+    if (!(await readOutput(file)).includes(marker)) {
+      throw new Error(`installed CLI generated unexpected output: ${file}`)
     }
   }
 }

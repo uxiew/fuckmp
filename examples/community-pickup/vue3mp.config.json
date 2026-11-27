@@ -1,0 +1,14 @@
+{
+  "app": {
+    "window": {
+      "navigationBarTitleText": "社区自提"
+    }
+  },
+  "project": {
+    "projectname": "community-pickup"
+  },
+  "pageTitles": {
+    "booking": "社区自提",
+    "pickup-info": "自提须知"
+  }
+}
