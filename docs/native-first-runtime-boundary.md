@@ -79,7 +79,8 @@ FuckMP 的目标是把 Vue3 SFC 编译为原生微信小程序工程，而不是
 微信原生组件支持基础 slot 与 named slot。当前编译器对 `<slot>` 和 `<slot name=...>` 采用**原生映射**：
 
 - WXML 保留 `<slot>` / `<slot name="..."></slot>`。
-- 组件 JSON 在检测到 slot 时输出 `options.multipleSlots: true`。
+- 检测到 slot 时，在生成的 JS 中为原生 [`Component()`](https://developers.weixin.qq.com/miniprogram/dev/framework/component-framework/slot.html#多-slot) 设置 `options.multipleSlots: true`。
+- 组件 JSON 设置 `styleIsolation: 'apply-shared'`，不写入 `options.multipleSlots`。
 - 不引入 Vue slots 对象、scoped slot runtime 或 template runtime 模块。
 
 验证测试：`tests/e2e/slots-provide-inject-boundary.test.ts`。

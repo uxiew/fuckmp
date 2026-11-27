@@ -24,7 +24,7 @@
 TouchWX 旧工程必须先迁移 `_original`，再迁移真实应用：
 
 1. 运行 `pnpm exec tsx scripts/migrate-touchwx-original.ts`，生成 `examples/touchwx-original-migrated`。
-2. 运行 `pnpm vitest run tests/e2e/touchwx-original-migration-acceptance.test.ts`，确认 `_original` 的 4 个 scaffold 页面、41 个原始组件和缺失引用补位组件可完整编译。
+2. 运行 `pnpm vitest run tests/e2e/touchwx-original-migration-acceptance.test.ts`，从仓库内快照验证 4 个 scaffold 页面、41 个原始组件和缺失引用补位组件可完整编译。如需同时验收重新迁移，运行 `TOUCHWX_ORIGINAL_ROOT=/path/to/touchwx/_original pnpm vitest run tests/e2e/touchwx-original-migration-acceptance.test.ts`；该用例只在临时目录重新生成，不修改快照。
 3. `_original` 通过后，才继续运行 `scripts/migrate-touchwx.ts` 迁移 `/Users/bing/Workspace/touchwx/touchwx`。
 
 1. **建立迁移分支和基线**

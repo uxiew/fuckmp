@@ -212,9 +212,12 @@ describe('真实示例工程验收', () => {
     expect(activityListWxss).toContain('.activity-row')
 
     const slotPanelJson = JSON.parse(await readOutputFile('components/SlotPanel.json'))
+    const slotPanelJs = await readOutputFile('components/SlotPanel.js')
     const slotPanelWxml = await readOutputFile('components/SlotPanel.wxml')
     const slotPanelWxss = await readOutputFile('components/SlotPanel.wxss')
-    expect(slotPanelJson.options).toEqual({ multipleSlots: true })
+    expect(slotPanelJs).toMatch(/options:\s*\{\s*multipleSlots:\s*true\s*\}/)
+    expect(slotPanelJson.styleIsolation).toBe('apply-shared')
+    expect(slotPanelJson.options).toBeUndefined()
     expect(slotPanelWxml).toContain('<slot name="header"')
     expect(slotPanelWxml).toMatch(new RegExp('<slot(?:\\sdata-v-[^>]*)?></slot>'))
     expect(slotPanelWxss).toContain('.slot-panel')

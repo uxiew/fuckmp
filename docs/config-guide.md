@@ -202,7 +202,6 @@ Vue3 微信小程序编译器支持通过配置文件自定义编译行为和生
         "sub-component": "../SubComponent/index"
       },
       "options": {
-        "multipleSlots": true,
         "addGlobalClass": false,
         "styleIsolation": "isolated",
         "virtualHost": false
@@ -212,7 +211,6 @@ Vue3 微信小程序编译器支持通过配置文件自定义编译行为和生
       "component": true,
       "styleIsolation": "shared",
       "options": {
-        "multipleSlots": false,
         "addGlobalClass": true,
         "styleIsolation": "shared",
         "virtualHost": true
@@ -235,10 +233,11 @@ Vue3 微信小程序编译器支持通过配置文件自定义编译行为和生
 
 | 属性 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| multipleSlots | boolean | false | 在组件定义时的选项中启用多slot支持 |
 | addGlobalClass | boolean | false | 表示页面样式将影响到自定义组件 |
 | styleIsolation | string | isolated | 样式隔离选项 |
 | virtualHost | boolean | false | 使自定义组件内部的第一层节点能够响应 flex 布局 |
+
+多 slot 支持由编译器在生成的 JS 中通过 `Component({ options: { multipleSlots: true } })` 自动启用，不在这里配置。
 
 #### styleIsolation 选项
 

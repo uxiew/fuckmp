@@ -47,7 +47,7 @@
 | `defineExpose` | 明确降级 | 微信原生目标无 Vue template ref public instance 等价语义；产物输出降级注释和 exposed keys，不生成运行时桥接 | `tests/e2e/define-expose-degrade.test.ts` |
 | `defineOptions` | 明确降级 | 微信原生目标无完整 Vue component options 合并等价语义；产物输出降级注释和 option keys，不生成运行时桥接 | `tests/e2e/define-options-degrade.test.ts` |
 | `defineSlots` | 类型宏擦除 / 明确降级 | 当前不暴露 Vue slots 对象桥接；产物输出降级注释并擦除 `defineSlots()` 变量，不生成运行时桥接 | `tests/e2e/define-slots-degrade.test.ts` |
-| 基础 slots / named slots | 已原生映射 | `<slot>` 与 `<slot name=...>` 保留为微信原生 slot；组件 JSON 自动启用 `options.multipleSlots` | `tests/e2e/slots-provide-inject-boundary.test.ts` |
+| 基础 slots / named slots | 已原生映射 | `<slot>` 与 `<slot name=...>` 保留为微信原生 slot；生成的 JS 在 `Component()` 选项中启用 `options.multipleSlots`，组件 JSON 保留 `styleIsolation: 'apply-shared'` | `tests/e2e/slots-provide-inject-boundary.test.ts` |
 | scoped slots / dynamic slots | 明确降级 / 不宣称支持 | Vue slot props 分发和动态 slot 名依赖 Vue slots 语义；产物输出降级注释，不生成 scoped/dynamic slots runtime 或 template runtime | `tests/e2e/unsupported-template-boundary.test.ts` |
 | `provide` / `inject` | 明确降级 | Vue 依赖注入依赖组件/app 实例树；产物输出降级注释，不生成 DI runtime 桥接，不让 `inject()` 落入 data | `tests/e2e/slots-provide-inject-boundary.test.ts` |
 | `Transition` / `KeepAlive` | 明确降级 / 不宣称支持 | Vue 过渡状态机与组件缓存状态依赖 Vue runtime；产物输出降级注释，不生成 transition/keep-alive runtime | `tests/e2e/unsupported-template-boundary.test.ts` |

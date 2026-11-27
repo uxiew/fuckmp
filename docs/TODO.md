@@ -50,7 +50,7 @@
 - [x] `defineExpose` 原生目标降级：微信原生目标无 Vue template ref public instance 等价语义，产物输出降级注释和 exposed keys，不生成 runtime 桥接；覆盖 `tests/e2e/define-expose-degrade.test.ts`。
 - [x] `defineOptions` 原生目标降级：微信原生目标无完整 Vue component options 合并等价语义，产物输出降级注释和 option keys，不生成 runtime 桥接；覆盖 `tests/e2e/define-options-degrade.test.ts`。
 - [x] `defineSlots` 类型宏擦除 / 原生目标降级：当前不暴露 Vue slots 对象桥接，产物输出降级注释并避免 `defineSlots()` 落入 data；覆盖 `tests/e2e/define-slots-degrade.test.ts`。
-- [x] 基础 slots / named slots 原生映射：`<slot>` 保留为微信原生 slot，组件 JSON 自动启用 `options.multipleSlots`；覆盖 `tests/e2e/slots-provide-inject-boundary.test.ts`。
+- [x] 基础 slots / named slots 原生映射：`<slot>` 保留为微信原生 slot，组件 JS 的原生 `Component()` 选项自动启用 `options.multipleSlots`；覆盖 `tests/e2e/slots-provide-inject-boundary.test.ts`。
 - [x] `provide/inject` 原生目标降级：当前不提供 Vue dependency injection 实例树等价桥接，产物输出降级注释并避免 `inject()` 落入 data；覆盖 `tests/e2e/slots-provide-inject-boundary.test.ts`。
 - [x] scoped/dynamic slots 与 `Transition` / `KeepAlive` 原生目标降级：当前不提供 Vue scoped slot props、动态 slot 名、过渡状态机或组件缓存等价桥接，产物输出明确降级注释，不生成伪 runtime；覆盖 `tests/e2e/unsupported-template-boundary.test.ts`。
 - [x] `watch/watchEffect/onWatcherCleanup` 原生目标降级：当前不提供 Vue watcher 副作用调度与 Vue 3.5 cleanup 等价桥接，产物输出降级注释且不恢复旧版轮询 watch helper；覆盖 `tests/e2e/watcher-degrade.test.ts`。
@@ -96,7 +96,7 @@
 - [x] `VForPlugin` helper 拆分：`v-for` 表达式解析、`wx:for` 属性生成、runtime config、列表表达式校验和过滤/排序表达式 helper 已抽离到 `src/plugins/directives/v-for-plugin-utils.ts`；`src/plugins/directives/v-for-plugin.ts` 当前为 62 行，新增定向单测覆盖。
 - [x] `VModelPlugin` helper 拆分：v-model 变量路径提取、input/textarea/picker/switch/slider 绑定代码、fallback 绑定和 generated method 上下文更新 helper 已抽离到 `src/plugins/directives/v-model-plugin-utils.ts`；`src/plugins/directives/v-model-plugin.ts` 当前为 197 行，新增定向单测覆盖。
 - [x] 真实示例 `v-if` / `v-for` 原生映射覆盖：新增 `components/ActivityList.vue` 并接入 `examples/real-miniprogram` 首页，覆盖列表/条件渲染、动态 class、微信原生 dataset 事件参数和最终组件 JS 语法；同步修复事件 handler 原生 `event` 参数被误转为 `dataset.arg0` 的序列化回归，覆盖 `tests/e2e/real-example-acceptance.test.ts` 与 `tests/compiler/object-serializer.test.ts`。
-- [x] 真实示例基础 slots 原生映射覆盖：新增 `components/SlotPanel.vue` 并接入 `examples/real-miniprogram` 首页，覆盖页面向组件投递 default slot 与静态 named slot、组件 JSON `options.multipleSlots` 和最终页面/组件 JS 语法；同时保持 scoped/dynamic slots 明确降级，不生成伪 runtime；覆盖 `tests/e2e/real-example-acceptance.test.ts`。
+- [x] 真实示例基础 slots 原生映射覆盖：新增 `components/SlotPanel.vue` 并接入 `examples/real-miniprogram` 首页，覆盖页面向组件投递 default slot 与静态 named slot、组件 JS `options.multipleSlots`、组件 JSON `styleIsolation` 和最终页面/组件 JS 语法；同时保持 scoped/dynamic slots 明确降级，不生成伪 runtime；覆盖 `tests/e2e/real-example-acceptance.test.ts`。
 - [x] 真实示例 `v-show` 原生映射覆盖：在 `examples/real-miniprogram` 首页加入 `v-show` 提示块，验收其输出为微信原生 `hidden` 属性，继续不生成显示状态 runtime；覆盖 `tests/e2e/real-example-acceptance.test.ts`。
 - [x] 真实示例 `@click.stop` 原生事件映射覆盖：`UserCard` 消息按钮的 Vue 源侧 `@click.stop` 验收为微信原生 `catch:tap` 绑定，避免点击子按钮冒泡到卡片根节点；Vue AST 事件转换会传递 `.stop` modifiers，但不扩展未明确等价的事件 runtime；覆盖 `tests/e2e/real-example-acceptance.test.ts` 与 `tests/transformer/vue-template-transformer-utils.test.ts`。
 - [x] 真实示例 `@click` 原生事件映射覆盖：`UserCard` 源码使用 Vue 常用 `@click` / `@click.stop`，首页“增加访问”按钮也从小程序专用 `@tap` 收敛为 Vue 源侧 `@click`；验收产物继续输出微信原生 `bind:tap` / `catch:tap`，避免真实示例停留在小程序专用事件写法；覆盖 `tests/e2e/real-example-acceptance.test.ts`。
