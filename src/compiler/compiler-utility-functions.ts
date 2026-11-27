@@ -73,6 +73,7 @@ export function createCompileResult(): CompileResult {
   return {
     success: [],
     errors: [],
+    warnings: [],
     stats: {
       total: 0,
       success: 0,
@@ -91,6 +92,7 @@ export function mergeCompileResults(results: CompileResult[]): CompileResult {
   results.forEach(result => {
     merged.success.push(...result.success)
     merged.errors.push(...result.errors)
+    merged.warnings.push(...result.warnings)
     merged.stats.total += result.stats.total
     merged.stats.success += result.stats.success
     merged.stats.failed += result.stats.failed

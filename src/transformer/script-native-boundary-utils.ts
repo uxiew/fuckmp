@@ -44,8 +44,6 @@ export function applyDefineOptionsMacro(macroCall: any, context: TransformContex
 export function applyWatcherMacro(macroCall: any, context: TransformContext): void {
   const previousApis = Array.isArray(context.watcherEffects?.apis) ? context.watcherEffects.apis : []
   context.watcherEffects = createWatcherDegradeRecord(macroCall.name, previousApis)
-
-  logger.warn(`${macroCall.name} 已在原生小程序目标下降级: ${context.filename}`)
 }
 
 /**

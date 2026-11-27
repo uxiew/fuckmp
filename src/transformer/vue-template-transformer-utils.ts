@@ -135,13 +135,13 @@ export function transformVueTemplateForNode(
   renderChild: VueTemplateChildRenderer
 ): string {
   const source = extractWxmlTemplateExpression(node.source, context)
-  const valueAlias = node.valueAlias?.content || 'item'
-  const keyAlias = node.keyAlias?.content || `__fmpIndex${node.loc?.start?.offset ?? 0}`
-  const keyExpression = resolveVueTemplateForKeyExpression(node, valueAlias, context)
+  const valueAlias = node.valueAlias?.loc?.source ?? node.valueAlias?.content ?? 'item'
+  const keyAlias = node.keyAlias?.loc?.source ?? node.keyAlias?.content ?? `__fmpIndex${node.loc?.start?.offset ?? 0}`
   if (!/^[\w$]+$/.test(valueAlias) || !/^[\w$]+$/.test(keyAlias)) {
     recordUnsupportedTemplateFeatures(context, 'v-for destructured alias')
     return ''
   }
+  const keyExpression = resolveVueTemplateForKeyExpression(node, valueAlias, context)
   const data = context.data?.[source]
   if (node.objectIndexAlias || source.trimStart().startsWith('{') ||
       (data !== null && typeof data === 'object' && !Array.isArray(data))) {
@@ -286,7 +286,8 @@ export function transformVueTemplateElementProps(
   }
 
   if (staticStyle || dynamicStyle) {
-    attrs.push(transformVueTemplateStyleBinding(staticStyle, dynamicStyle))
+    const style = transformVueTemplateStyleBinding(staticStyle, dynamicStyle, context)
+    if (style) attrs.push(style)
   }
 
   return attrs.length > 0 ? ` ${attrs.join(' ')}` : ''
@@ -398,6 +399,8 @@ function resolveNativeEventHandler(handler: string, context: TransformContext): 
     const expression = parseExpression(handler)
     if (expression.type === 'Identifier') return expression.name
     if (expression.type === 'CallExpression' && expression.callee.type === 'Identifier') {
+      if (expression.arguments.length === 1 && expression.arguments[0]?.type === 'Identifier' &&
+        expression.arguments[0].name === '$event') return expression.callee.name
       if (expression.arguments.length === 0) return expression.callee.name
       const valid = expression.arguments.every(arg => {
         const source = handler.slice(arg.start ?? 0, arg.end ?? 0)
@@ -446,28 +449,28 @@ function restoreLegacyWxAttribute(rawSource: string, attrName: string): string |
 /**
  * 合并静态 style 与 Vue `:style` 对象字面量，避免输出 `style="{{{...}}}"`。
  */
-function transformVueTemplateStyleBinding(staticStyle: string, dynamicStyle: string): string {
+function transformVueTemplateStyleBinding(staticStyle: string, dynamicStyle: string, context: TransformContext): string {
   const segments = [
     staticStyle.trim(),
-    formatDynamicStyleExpression(dynamicStyle)
+    formatDynamicStyleExpression(dynamicStyle, context)
   ].filter(Boolean)
 
-  return `style="${joinStyleSegments(segments)}"`
+  return segments.length ? `style="${joinStyleSegments(segments)}"` : ''
 }
 
-function formatDynamicStyleExpression(expression: string): string {
+function formatDynamicStyleExpression(expression: string, context: TransformContext): string {
   if (!expression.trim()) return ''
   try {
-    return renderStyleExpression(parseExpression(expression), expression)
+    return renderStyleExpression(parseExpression(expression), expression, context)
   } catch {
     return ''
   }
 }
 
-function renderStyleExpression(node: Expression, source: string): string {
+function renderStyleExpression(node: Expression, source: string, context: TransformContext, arrayEntry = false): string {
   if (node.type === 'ArrayExpression') {
     return joinStyleSegments(node.elements.flatMap(element =>
-      element && element.type !== 'SpreadElement' ? [renderStyleExpression(element, source)] : []
+      element && element.type !== 'SpreadElement' ? [renderStyleExpression(element, source, context, true)] : []
     ).filter(Boolean))
   }
 
@@ -483,12 +486,17 @@ function renderStyleExpression(node: Expression, source: string): string {
       const cssName = name.replace(/[A-Z]/g, char => `-${char.toLowerCase()}`)
       const value = property.value.type === 'NumericLiteral'
         ? String(property.value.value)
-        : renderStyleExpression(property.value, source)
+        : renderStyleExpression(property.value, source, context)
       return value ? [`${cssName}: ${value};`] : []
     }).join(' ')
   }
 
-  return `{{${escapeAttributeExpression(source.slice(node.start ?? 0, node.end ?? 0))}}}`
+  const value = source.slice(node.start ?? 0, node.end ?? 0)
+  if (arrayEntry && typeof context.data?.[value] !== 'string') {
+    recordUnsupportedTemplateFeatures(context, 'non-string v-bind:style array entry')
+    return ''
+  }
+  return `{{${escapeAttributeExpression(value)}}}`
 }
 
 function joinStyleSegments(segments: string[]): string {

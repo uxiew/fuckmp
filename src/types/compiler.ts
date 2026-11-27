@@ -228,6 +228,7 @@ export interface CompileResult {
     message: string
     stack?: string
   }>
+  warnings: Array<{ file: string; message: string }>
   /** 编译统计 */
   stats: {
     /** 总文件数 */

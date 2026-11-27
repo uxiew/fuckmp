@@ -97,7 +97,7 @@ export class Vue3MiniprogramCompiler {
   /**
    * 编译单个文件
    */
-  async compileFile(filePath: string): Promise<void> {
+  async compileFile(filePath: string, warnings?: CompileResult['warnings']): Promise<void> {
     try {
       logger.info(`编译文件: ${filePath}`)
 
@@ -124,6 +124,14 @@ export class Vue3MiniprogramCompiler {
 
       // 解析和转换各个部分
       const results = await this.parseAndTransform(parseResult, context)
+      const messages = [
+        ...(context.templateUnsupported?.capabilities ?? []).map((capability: string) => `模板降级: ${capability}`),
+        ...(context.watcherEffects?.apis ?? []).map((api: string) => `watch/watchEffect 降级: ${api}`)
+      ]
+      messages.forEach(message => {
+        warnings?.push({ file: filePath, message })
+        logger.warn(`${filePath}: ${message}`)
+      })
 
       // 生成代码
       const isApp = isAppComponent(filePath)
@@ -193,7 +201,7 @@ export class Vue3MiniprogramCompiler {
       await ensureDir(options.output)
 
       // 编译每个文件
-      await compileFilesWithResult(vueFiles, result, filePath => this.compileFile(filePath))
+      await compileFilesWithResult(vueFiles, result, filePath => this.compileFile(filePath, result.warnings))
 
       try {
         await this.refreshProjectOutputs()
