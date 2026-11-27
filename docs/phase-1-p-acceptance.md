@@ -5,7 +5,7 @@
 | 真实工程 | `real-miniprogram` 覆盖资料页、props/emits、v-model、插槽、图片和 WXS；`community-pickup` 覆盖组件预订事件、列表/条件渲染、响应式计数和非 Tab 页导航。TouchWX 迁移工程继续由现有 E2E 验收。 |
 | 原生静态契约 | 两个示例通过 `tests/e2e/native-project-acceptance.test.ts`：检查注册、路由及依赖路径、JS/WXML/WXSS/JSON 基础语法、无 Vue 渲染器/DOM 或模拟 watcher/DI；用实际生成的 JS 驱动组件事件到 `setData`，不模拟视图。 |
 | npm 安装 | `FUCKMP_PACKAGE_SMOKE=1 pnpm test:package-smoke` 通过：临时工程安装真实 tarball，由包内的 CLI 构建并核对落盘产物。 |
-| 微信原生编译器 | P 验收时在 Ubuntu x86_64 通过 [Linux 社区构建 v2.02.2609250-1](https://github.com/msojocs/wechat-web-devtools-linux/releases/tag/v2.02.2609250-1) 的 `wcc` / `wcsc` 编译了两个示例当时的产物。下述 scoped 条件复现当时有诊断，修复后的产物已加静态回归测试，未重新运行微信原生编译器。 |
+| 微信原生编译器 | P 验收时在 Ubuntu x86_64 通过 [Linux 社区构建 v2.02.2609250-1](https://github.com/msojocs/wechat-web-devtools-linux/releases/tag/v2.02.2609250-1) 的 `wcc` / `wcsc` 编译两个示例。在 `305e383` 上复验：`real-miniprogram`（7 个 SFC）和 `community-pickup`（4 个 SFC）的 `wcc` / `wcsc` 均通过，stdout/stderr 为空；下述 scoped 条件缺口已修复，现生成 `<text wx:if="{{reserved > 0}}" data-v-8avav1>`。 |
 | 微信开发者工具模拟器／真机 | **NOT_RUN**。社区版 GUI 启动后停在微信扫码登录，未打开工程。其 `auto` 和 `open` 只打印通用帮助并以 0 退出，不能把脚本打印的「冒烟通过」视作模拟器已启动。未验证客户端渲染、导航、真机或上传。 |
 
 ## 复跑
