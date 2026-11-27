@@ -12,6 +12,7 @@ import {
 } from './codegen/code-generator-utils'
 import { MiniProgramOptionsGenerator } from './codegen/mini-program-options-generator'
 import { logger } from '@/utils/logger'
+import { generateUnsupportedTemplateDegradeComment } from '@/utils/unsupported-template-utils.js'
 
 /**
  * 代码生成选项
@@ -160,7 +161,7 @@ App({
 const { createPage } = require('${getRelativeRuntimePath(pagePath)}');
 
 // 页面选项
-const pageOptions = ${pageOptions};
+${generateUnsupportedTemplateDegradeComment(context?.templateUnsupported, '页面')}const pageOptions = ${pageOptions};
 
 // 创建页面
 Page(createPage(pageOptions));
@@ -191,7 +192,7 @@ Page(createPage(pageOptions));
 const { createComponent } = require('${getRelativeRuntimePath(componentPath)}');
 
 // 组件选项
-const componentOptions = ${componentOptions};
+${generateUnsupportedTemplateDegradeComment(context?.templateUnsupported, '组件')}const componentOptions = ${componentOptions};
 
 // 创建组件
 Component(createComponent(componentOptions));

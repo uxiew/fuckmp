@@ -1,80 +1,61 @@
+import { parseExpression } from '@babel/parser'
+import { isExpression, type Expression } from '@babel/types'
 import type { TemplateTransformResult } from './template-transformer.js'
 
 /**
  * 根据 Vue `:class` 表达式生成 WXML class 表达式片段。
  */
 export function buildDynamicClassExpression(dynamicClass: string): string {
-  const trimmed = dynamicClass.trim()
+  try {
+    return formatClassExpression(parseExpression(dynamicClass), dynamicClass)
+  } catch {
+    return dynamicClass
+  }
+}
 
-  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-    const objectContent = trimmed.slice(1, -1)
-    const classConditions = objectContent
-      .split(',')
-      .map((condition: string) => {
-        const [className, expression] = condition.split(':').map((s: string) => s.trim())
-        const cleanClassName = (className || '').replace(/['"]/g, '')
-        const cleanExpression = (expression || '').trim()
-        return `${cleanExpression} ? '${cleanClassName}' : ''`
-      })
-      .filter((condition: string) => !condition.includes("'' ? '' : ''"))
-
-    if (classConditions.length === 1) {
-      return classConditions[0] || ''
-    }
-
-    if (classConditions.length > 1) {
-      return `(${classConditions.join(' + " " + ')})`
-    }
-
-    return ''
+function formatClassExpression(node: Expression, source: string): string {
+  if (node.type === 'ObjectExpression') {
+    const conditions = node.properties.flatMap(property => {
+      if (property.type !== 'ObjectProperty' || property.computed || !isExpression(property.value)) return []
+      const key = property.key.type === 'Identifier' ? property.key.name
+        : property.key.type === 'StringLiteral' ? property.key.value : undefined
+      if (key === undefined) return []
+      const label = key.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+      const value = source.slice(property.value.start ?? 0, property.value.end ?? 0)
+      return [`${value} ? '${label}' : ''`]
+    })
+    return conditions.length === 1 ? conditions[0]! : joinClassExpressions(conditions)
   }
 
-  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-    return trimmed.slice(1, -1)
+  if (node.type === 'ArrayExpression') {
+    return joinClassExpressions(node.elements.flatMap(element => {
+      if (!element || element.type === 'SpreadElement') return []
+      const expression = formatClassExpression(element, source)
+      return expression ? [`${expression} || ''`] : []
+    }))
   }
 
-  return dynamicClass
+  return source.slice(node.start ?? 0, node.end ?? 0)
+}
+
+function joinClassExpressions(expressions: string[]): string {
+  return expressions.length > 0 ? `(${expressions.map(expression => `(${expression})`).join(" + ' ' + ")})` : ''
 }
 
 /**
  * 解析事件调用参数，保留嵌套函数和引号内逗号。
  */
 export function parseVueTemplateEventArguments(argsString: string): string[] {
-  const args: string[] = []
-  let current = ''
-  let inQuotes = false
-  let quoteChar = ''
-  let depth = 0
-
-  for (let i = 0; i < argsString.length; i++) {
-    const char = argsString[i]
-
-    if (!inQuotes && (char === '"' || char === "'")) {
-      inQuotes = true
-      quoteChar = char
-      current += char
-    } else if (inQuotes && char === quoteChar) {
-      inQuotes = false
-      current += char
-    } else if (!inQuotes && char === '(') {
-      depth++
-      current += char
-    } else if (!inQuotes && char === ')') {
-      depth--
-      current += char
-    } else if (!inQuotes && char === ',' && depth === 0) {
-      args.push(current.trim())
-      current = ''
-    } else {
-      current += char
+  const source = `[${argsString}]`
+  try {
+    const expression = parseExpression(source)
+    if (expression.type === 'ArrayExpression') {
+      return expression.elements.flatMap(element =>
+        element ? [source.slice(element.start ?? 0, element.end ?? 0)] : []
+      )
     }
-  }
-
-  if (current.trim()) {
-    args.push(current.trim())
-  }
-
-  return args
+  } catch {}
+  return []
 }
 
 

@@ -189,12 +189,19 @@ function endsWith(str, suffix) {
   return str.indexOf(suffix) === idx
 }
 
+function range(count) {
+  var values = []
+  for (var i = 1; i <= count; i++) values.push(i)
+  return values
+}
+
 module.exports = {
   includes: includes,
   indexOf: indexOf,
   toString: toString,
   startsWith: startsWith,
-  endsWith: endsWith
+  endsWith: endsWith,
+  range: range
 }
 `
 }

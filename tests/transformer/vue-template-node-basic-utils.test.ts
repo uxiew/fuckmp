@@ -14,12 +14,12 @@ describe('vue-template-node-basic-utils', () => {
     expect(toKebabCase('XMLViewer')).toBe('x-m-l-viewer')
   })
 
-  it('保持动态 class 表达式旧字符串语义', () => {
+  it('转换对象和数组 class 表达式并保留条件优先级', () => {
     expect(buildDynamicClassExpression("{ active: isActive }")).toBe("isActive ? 'active' : ''")
     expect(buildDynamicClassExpression("{ active: isActive, online: isOnline }")).toBe(
-      "(isActive ? 'active' : '' + \" \" + isOnline ? 'online' : '')"
+      "((isActive ? 'active' : '') + ' ' + (isOnline ? 'online' : ''))"
     )
-    expect(buildDynamicClassExpression('[baseClass, activeClass]')).toBe('baseClass, activeClass')
+    expect(buildDynamicClassExpression('[baseClass, activeClass]')).toBe("((baseClass || '') + ' ' + (activeClass || ''))")
     expect(buildDynamicClassExpression('className')).toBe('className')
   })
 

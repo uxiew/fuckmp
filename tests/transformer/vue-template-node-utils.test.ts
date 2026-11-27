@@ -36,7 +36,7 @@ describe('vue-template-node-utils', () => {
   it('从 v-for 首个子节点的 :key 推断 wx:key', () => {
     const context = createScriptTransformContext('components/list.vue', false)
 
-    expect(resolveVueTemplateForKeyExpression({ children: [] }, 'item', context)).toBe('item')
+    expect(resolveVueTemplateForKeyExpression({ children: [] }, 'item', context)).toBeUndefined()
     expect(resolveVueTemplateForKeyExpression({
       children: [{
         props: [{
@@ -56,7 +56,8 @@ describe('vue-template-node-utils', () => {
           exp: { content: 'user.profile.id' }
         }]
       }]
-    }, 'item', context)).toBe('user.profile.id')
+    }, 'item', context)).toBeUndefined()
+    expect(context.templateUnsupported?.capabilities).toContain('non-native v-for key')
   })
 
   it('仅在白名单标签且无子内容时判定为自闭合', () => {

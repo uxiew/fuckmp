@@ -2,11 +2,14 @@
  * Vue template transformer AST rendering helpers.
  */
 
-import { logger } from '@/utils/index.js'
+import { parseExpression } from '@babel/parser'
+import { isExpression, type Expression } from '@babel/types'
+import { recordUnsupportedTemplateFeatures } from '@/utils/index.js'
 import type { TransformContext } from '@/types/index.js'
 import type { TemplateTransformResult } from './template-transformer.js'
 import {
   extractVueTemplateExpression,
+  extractWxmlTemplateExpression,
   isVueTemplateSelfClosingTag,
   mapVueTemplateEventName,
   resolveVueTemplateForKeyExpression,
@@ -18,6 +21,7 @@ import {
   transformVueTemplateVModel
 } from './vue-template-node-utils.js'
 import { isCustomComponentTag } from './vue-template-node-basic-utils.js'
+import { validateWxmlExpression } from './wxml-expression-utils.js'
 
 /**
  * Renders a Vue template AST child node to WXML.
@@ -99,7 +103,7 @@ export function transformVueTemplateIfNode(
   node.branches?.forEach((branch: any, index: number) => {
     let directive: string
     if (branch.condition) {
-      const condition = extractVueTemplateExpression(branch.condition, context)
+      const condition = escapeAttributeExpression(extractWxmlTemplateExpression(branch.condition, context))
       directive = index === 0
         ? `wx:if="{{${condition}}}"`
         : `wx:elif="{{${condition}}}"`
@@ -130,11 +134,23 @@ export function transformVueTemplateForNode(
   context: TransformContext,
   renderChild: VueTemplateChildRenderer
 ): string {
-  const source = extractVueTemplateExpression(node.source, context)
+  const source = extractWxmlTemplateExpression(node.source, context)
   const valueAlias = node.valueAlias?.content || 'item'
-  const keyAlias = node.keyAlias?.content || 'index'
+  const keyAlias = node.keyAlias?.content || `__fmpIndex${node.loc?.start?.offset ?? 0}`
   const keyExpression = resolveVueTemplateForKeyExpression(node, valueAlias, context)
-  const forAttrs = `wx:for="{{${source}}}" wx:for-item="${valueAlias}" wx:for-index="${keyAlias}" wx:key="${keyExpression}"`
+  if (!/^[\w$]+$/.test(valueAlias) || !/^[\w$]+$/.test(keyAlias)) {
+    recordUnsupportedTemplateFeatures(context, 'v-for destructured alias')
+    return ''
+  }
+  const data = context.data?.[source]
+  if (node.objectIndexAlias || source.trimStart().startsWith('{') ||
+      (data !== null && typeof data === 'object' && !Array.isArray(data))) {
+    recordUnsupportedTemplateFeatures(context, 'v-for object enumeration')
+    return ''
+  }
+  const iterable = /^\d+$/.test(source) ? `wxsH.range(${source})` : source
+  const key = keyExpression ? ` wx:key="${keyExpression}"` : ''
+  const forAttrs = `wx:for="{{${escapeAttributeExpression(iterable)}}}" wx:for-item="${valueAlias}" wx:for-index="${keyAlias}"${key}`
 
   const children = node.children || []
   // 当只有一个元素节点时，直接在该元素上注入 wx:for 属性
@@ -177,7 +193,10 @@ export function transformVueTemplateElementNode(
 
   const tagName = transformVueTemplateTagName(node.tag)
   const attributes = transformVueTemplateElementProps(node.props || [], result, context, node.tag)
-  const children = (node.children || []).map(renderChild).join('')
+  const html = node.props?.find((prop: any) => prop.type === 7 && prop.name === 'html')
+  const children = html?.exp
+    ? `<rich-text nodes="{{${escapeAttributeExpression(extractWxmlTemplateExpression(html.exp, context))}}}"></rich-text>`
+    : (node.children || []).map(renderChild).join('')
 
   if (isVueTemplateSelfClosingTag(tagName, children)) {
     return `<${tagName}${attributes} />`
@@ -234,18 +253,19 @@ export function transformVueTemplateElementProps(
     }
 
     if (prop.type === 7) {
-      if (prop.name === 'bind' && prop.arg?.content === 'style') {
+      const arg = prop.name === 'bind' ? resolveStaticDirectiveArgument(prop.arg) : undefined
+      if (arg === 'style') {
         const legacyStaticStyle = restoreLegacyStaticStyleBinding(prop)
         if (legacyStaticStyle !== null) {
           staticStyle = legacyStaticStyle
         } else {
-          dynamicStyle = extractVueTemplateExpression(prop.exp, context)
+          dynamicStyle = extractWxmlTemplateExpression(prop.exp, context)
         }
         return
       }
 
-      if (prop.name === 'bind' && prop.arg?.content === 'class') {
-        dynamicClass = extractVueTemplateExpression(prop.exp, context)
+      if (arg === 'class') {
+        dynamicClass = extractWxmlTemplateExpression(prop.exp, context)
         return
       }
 
@@ -282,35 +302,58 @@ export function transformVueTemplateDirective(
   tagName?: string
 ): string | string[] | null {
   const name = directive.name
-  const arg = directive.arg?.content
-  const exp = directive.exp ? extractVueTemplateExpression(directive.exp, context) : ''
+  const arg = resolveStaticDirectiveArgument(directive.arg)
+  const exp = directive.exp && !['on', 'html', 'slot'].includes(name)
+    ? extractWxmlTemplateExpression(directive.exp, context)
+    : ''
+
+  if (directive.arg?.isStatic === false && !arg && ['bind', 'on', 'model'].includes(name)) {
+    recordUnsupportedTemplateFeatures(context, `dynamic v-${name} argument`)
+    return null
+  }
 
   switch (name) {
     case 'bind':
-      if (arg === 'class') {
+      if (!arg) {
+        recordUnsupportedTemplateFeatures(context, 'v-bind object spread')
         return null
       }
-      return `${mapVueTemplateAttributeName(tagName, arg)}="{{${exp}}}"`
+      if (arg === 'class' || arg === 'key') {
+        return null
+      }
+      return `${mapVueTemplateAttributeName(tagName, arg)}="{{${escapeAttributeExpression(exp || arg)}}}"`
 
     case 'on': {
-      const eventName = mapVueTemplateEventName(arg)
+      if (!arg) {
+        recordUnsupportedTemplateFeatures(context, 'v-on object spread')
+        return null
+      }
       const modifiers = (directive.modifiers || []).map((mod: any) =>
         typeof mod === 'string' ? mod : mod.content || mod
       )
-      return transformVueTemplateEventHandler(eventName, exp, result, modifiers, isCustomComponentTag(tagName))
+      const unsupported = modifiers.filter((modifier: string) => !['stop', 'capture'].includes(modifier))
+      if (unsupported.length > 0) {
+        recordUnsupportedTemplateFeatures(context, ...unsupported.map((modifier: string) => `v-on.${modifier}`))
+        return null
+      }
+      const handler = extractVueTemplateExpression(directive.exp?.loc?.source ?? directive.exp, context)
+      const nativeHandler = resolveNativeEventHandler(handler, context)
+      return nativeHandler
+        ? transformVueTemplateEventHandler(mapVueTemplateEventName(arg), nativeHandler, result, modifiers, isCustomComponentTag(tagName))
+        : null
     }
 
     case 'if':
-      return `wx:if="{{${exp}}}"`
+      return `wx:if="{{${escapeAttributeExpression(exp)}}}"`
 
     case 'else-if':
-      return `wx:elif="{{${exp}}}"`
+      return `wx:elif="{{${escapeAttributeExpression(exp)}}}"`
 
     case 'else':
       return 'wx:else'
 
     case 'show':
-      return `hidden="{{!(${exp})}}"`
+      return `hidden="{{!(${escapeAttributeExpression(exp)})}}"`
 
     case 'for':
       return null
@@ -319,13 +362,57 @@ export function transformVueTemplateDirective(
       const modifiers = (directive.modifiers || []).map((mod: any) =>
         typeof mod === 'string' ? mod : mod.content || mod
       )
+      if (!/^[\w$]+(?:\.[\w$]+)*$/.test(exp) || exp === 'null') {
+        recordUnsupportedTemplateFeatures(context, 'non-native v-model target')
+        return null
+      }
       return transformVueTemplateVModel(exp, result, modifiers, tagName, arg)
     }
 
+    case 'html':
+      if (!directive.exp) recordUnsupportedTemplateFeatures(context, 'empty v-html')
+      return null
+
+    case 'slot':
+      return null
+
     default:
-      logger.warn(`未处理的指令: v-${name}`)
+      recordUnsupportedTemplateFeatures(context, `v-${name}`)
       return null
   }
+}
+
+function resolveStaticDirectiveArgument(arg: any): string | undefined {
+  if (!arg || arg.isStatic !== false) return arg?.content
+  const raw = arg.loc?.source
+  if (typeof raw !== 'string' || !raw.startsWith('[') || !raw.endsWith(']')) return undefined
+  try {
+    const literal = parseExpression(raw.slice(1, -1))
+    if (literal.type === 'StringLiteral' && /^[\w:-]+$/.test(literal.value)) return literal.value
+  } catch {}
+  return undefined
+}
+
+function resolveNativeEventHandler(handler: string, context: TransformContext): string | null {
+  try {
+    const expression = parseExpression(handler)
+    if (expression.type === 'Identifier') return expression.name
+    if (expression.type === 'CallExpression' && expression.callee.type === 'Identifier') {
+      if (expression.arguments.length === 0) return expression.callee.name
+      const valid = expression.arguments.every(arg => {
+        const source = handler.slice(arg.start ?? 0, arg.end ?? 0)
+        return arg.type !== 'SpreadElement' && !/\$event\b/.test(source) &&
+          validateWxmlExpression(source, context) === source
+      })
+      if (valid) return handler.trim()
+    }
+  } catch {}
+  recordUnsupportedTemplateFeatures(context, 'complex v-on handler')
+  return null
+}
+
+function escapeAttributeExpression(expression: string): string {
+  return expression.replace(/"/g, '&quot;')
 }
 
 /** Vue compiler 会把静态 style 解析成 bind 指令，这里按原始属性文本恢复。 */
@@ -369,31 +456,39 @@ function transformVueTemplateStyleBinding(staticStyle: string, dynamicStyle: str
 }
 
 function formatDynamicStyleExpression(expression: string): string {
-  const trimmed = expression.trim()
-  if (!trimmed) return ''
-
-  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-    const declarations = splitTopLevel(trimmed.slice(1, -1), ',')
-      .map(propertySource => formatObjectStyleProperty(propertySource))
-      .filter((declaration): declaration is string => Boolean(declaration))
-
-    if (declarations.length > 0) {
-      return declarations.join(' ')
-    }
+  if (!expression.trim()) return ''
+  try {
+    return renderStyleExpression(parseExpression(expression), expression)
+  } catch {
+    return ''
   }
-
-  return `{{${trimmed}}}`
 }
 
-function formatObjectStyleProperty(propertySource: string): string | null {
-  const separatorIndex = findTopLevelSeparator(propertySource, ':')
-  if (separatorIndex === -1) return null
+function renderStyleExpression(node: Expression, source: string): string {
+  if (node.type === 'ArrayExpression') {
+    return joinStyleSegments(node.elements.flatMap(element =>
+      element && element.type !== 'SpreadElement' ? [renderStyleExpression(element, source)] : []
+    ).filter(Boolean))
+  }
 
-  const propertyName = normalizeCssPropertyName(propertySource.slice(0, separatorIndex))
-  const propertyValue = propertySource.slice(separatorIndex + 1).trim()
-  if (!propertyName || !propertyValue) return null
+  if (node.type === 'StringLiteral') return escapeAttributeExpression(node.value)
+  if (node.type === 'NullLiteral') return ''
 
-  return `${propertyName}: ${formatStyleValue(propertyValue)};`
+  if (node.type === 'ObjectExpression') {
+    return node.properties.flatMap(property => {
+      if (property.type !== 'ObjectProperty' || property.computed || !isExpression(property.value)) return []
+      const name = property.key.type === 'Identifier' ? property.key.name
+        : property.key.type === 'StringLiteral' ? property.key.value : ''
+      if (!/^[-a-zA-Z][\w-]*$/.test(name)) return []
+      const cssName = name.replace(/[A-Z]/g, char => `-${char.toLowerCase()}`)
+      const value = property.value.type === 'NumericLiteral'
+        ? String(property.value.value)
+        : renderStyleExpression(property.value, source)
+      return value ? [`${cssName}: ${value};`] : []
+    }).join(' ')
+  }
+
+  return `{{${escapeAttributeExpression(source.slice(node.start ?? 0, node.end ?? 0))}}}`
 }
 
 function joinStyleSegments(segments: string[]): string {
@@ -406,122 +501,6 @@ function joinStyleSegments(segments: string[]): string {
       return trimmed
     })
     .join(' ')
-}
-
-function normalizeCssPropertyName(propertyName: string): string {
-  const unquoted = stripQuotes(propertyName.trim())
-  return unquoted.replace(/[A-Z]/g, char => `-${char.toLowerCase()}`)
-}
-
-function formatStyleValue(value: string): string {
-  const trimmed = value.trim()
-  if (isQuotedStringLiteral(trimmed)) {
-    return stripQuotes(trimmed)
-  }
-
-  if (/^-?\d+(?:\.\d+)?$/.test(trimmed)) {
-    return trimmed
-  }
-
-  return `{{${trimmed}}}`
-}
-
-function splitTopLevel(source: string, separator: string): string[] {
-  const parts: string[] = []
-  let current = ''
-  let quote = ''
-  let depth = 0
-
-  for (let i = 0; i < source.length; i++) {
-    const char = source.charAt(i)
-
-    if (quote) {
-      current += char
-      if (char === quote && source.charAt(i - 1) !== '\\') {
-        quote = ''
-      }
-      continue
-    }
-
-    if (char === '\'' || char === '"') {
-      quote = char
-      current += char
-      continue
-    }
-
-    if (char === '(' || char === '[' || char === '{') {
-      depth += 1
-      current += char
-      continue
-    }
-
-    if (char === ')' || char === ']' || char === '}') {
-      depth -= 1
-      current += char
-      continue
-    }
-
-    if (char === separator && depth === 0) {
-      parts.push(current.trim())
-      current = ''
-      continue
-    }
-
-    current += char
-  }
-
-  if (current.trim()) {
-    parts.push(current.trim())
-  }
-
-  return parts
-}
-
-function findTopLevelSeparator(source: string, separator: string): number {
-  let quote = ''
-  let depth = 0
-
-  for (let i = 0; i < source.length; i++) {
-    const char = source.charAt(i)
-
-    if (quote) {
-      if (char === quote && source.charAt(i - 1) !== '\\') {
-        quote = ''
-      }
-      continue
-    }
-
-    if (char === '\'' || char === '"') {
-      quote = char
-      continue
-    }
-
-    if (char === '(' || char === '[' || char === '{') {
-      depth += 1
-      continue
-    }
-
-    if (char === ')' || char === ']' || char === '}') {
-      depth -= 1
-      continue
-    }
-
-    if (char === separator && depth === 0) {
-      return i
-    }
-  }
-
-  return -1
-}
-
-function isQuotedStringLiteral(value: string): boolean {
-  if (value.length < 2) return false
-  const quote = value.charAt(0)
-  return (quote === '\'' || quote === '"') && value.charAt(value.length - 1) === quote
-}
-
-function stripQuotes(value: string): string {
-  return isQuotedStringLiteral(value) ? value.slice(1, -1) : value
 }
 
 /** 将 Vue/HTML 源属性名收敛为微信原生属性名。 */

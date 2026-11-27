@@ -160,6 +160,7 @@ export interface TransformContext {
   provideInject?: Record<string, any>
   /** 原生目标下降级的模板能力 */
   templateUnsupported?: Record<string, any>
+  templateWxsModules?: ReadonlySet<string>
   /** 响应式数据 */
   data: Record<string, any>
   /** 方法定义 */

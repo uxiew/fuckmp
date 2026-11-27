@@ -4,11 +4,12 @@
  * 这些 helper 只依赖传入参数，不持有 `VueTemplateTransformer` 实例状态，
  * 便于让主转换器聚焦 AST 遍历与上下文流转。
  */
-import { logger } from '@/utils/index.js'
+import { logger, recordUnsupportedTemplateFeatures } from '@/utils/index.js'
 import { EVENT_MAP, TAG_MAP } from './template-constants.js'
 import type { TemplateTransformResult } from './template-transformer.js'
 import type { TransformContext } from '@/types/index.js'
 import { applyPropAccessMappingsToTemplate } from './prop-access-mapping.js'
+import { validateWxmlExpression } from './wxml-expression-utils.js'
 import {
   buildDynamicClassExpression,
   isCustomComponentTag,
@@ -45,12 +46,12 @@ export function transformVueTemplateInterpolationNode(node: any, context?: Trans
   if (!node.content) return ''
 
   if (node.content.type === 4 && node.content.content) {
-    return `{{${extractVueTemplateExpression(node.content.content, context)}}}`
+    return `{{${extractWxmlTemplateExpression(node.content, context)}}}`
   }
 
   if (node.content.type === 8) {
     if (node.content.loc?.source) {
-      return `{{${extractVueTemplateExpression(node.content.loc.source, context)}}}`
+      return `{{${extractWxmlTemplateExpression(node.content.loc.source, context)}}}`
     }
 
     if (node.content.children) {
@@ -60,13 +61,13 @@ export function transformVueTemplateInterpolationNode(node: any, context?: Trans
         .join('')
 
       if (expressions) {
-        return `{{${extractVueTemplateExpression(expressions, context)}}}`
+        return `{{${extractWxmlTemplateExpression(expressions, context)}}}`
       }
     }
   }
 
   if (node.content.loc?.source) {
-    return `{{${extractVueTemplateExpression(node.content.loc.source, context)}}}`
+    return `{{${extractWxmlTemplateExpression(node.content.loc.source, context)}}}`
   }
 
   return ''
@@ -98,6 +99,10 @@ export function extractVueTemplateExpression(exp: any, context?: TransformContex
   return expression
 }
 
+export function extractWxmlTemplateExpression(exp: any, context?: TransformContext): string {
+  return validateWxmlExpression(extractVueTemplateExpression(exp?.loc?.source || exp, context), context)
+}
+
 /**
  * 从 `v-for` 子节点上的 `:key` 推断 WXML `wx:key` 表达式。
  */
@@ -105,28 +110,28 @@ export function resolveVueTemplateForKeyExpression(
   node: any,
   valueAlias: string,
   context?: TransformContext
-): string {
+): string | undefined {
   const firstChild = node.children?.[0]
   const keyProp = firstChild?.props?.find((prop: any) =>
     prop.type === 7 && prop.name === 'bind' && prop.arg?.content === 'key'
   )
 
-  if (!keyProp?.exp) {
-    return valueAlias
-  }
+  const templateKey = node.codegenNode?.children?.arguments?.[1]?.returns?.props?.properties
+    ?.find((property: any) => property.key?.content === 'key')?.value
+  const key = keyProp?.exp ?? templateKey
+  if (!key) return undefined
 
-  const fullKeyExpression = extractVueTemplateExpression(keyProp.exp, context)
+  const fullKeyExpression = extractVueTemplateExpression(key, context)
 
-  if (!fullKeyExpression.includes('.')) {
-    return fullKeyExpression
-  }
+  if (fullKeyExpression === valueAlias) return '*this'
 
   const parts = fullKeyExpression.split('.')
-  if (parts.length === 2 && parts[0] === valueAlias) {
-    return parts[1] || valueAlias
+  if (parts.length === 2 && parts[0] === valueAlias && /^[\w$]+$/.test(parts[1] || '')) {
+    return parts[1]
   }
 
-  return fullKeyExpression
+  if (context) recordUnsupportedTemplateFeatures(context, 'non-native v-for key')
+  return undefined
 }
 
 /**
@@ -148,10 +153,10 @@ export function transformVueTemplateClassBinding(staticClass: string, dynamicCla
 
   const dynamicExpression = buildDynamicClassExpression(dynamicClass)
   const classExpression = staticClass && dynamicExpression
-    ? `'${staticClass}' + ' ' + (${dynamicExpression})`
+    ? `'${staticClass.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' + ' ' + (${dynamicExpression})`
     : dynamicExpression || `'${staticClass}'`
 
-  return `class="{{${classExpression}}}"`
+  return `class="{{${classExpression.replace(/"/g, '&quot;')}}}"`
 }
 
 /**
@@ -172,7 +177,7 @@ export function transformVueTemplateEventHandler(
   isCustomComponentEvent = false
 ): string | string[] {
   const eventBindingPrefix = getVueTemplateEventBindingPrefix(modifiers)
-  const functionCallMatch = expression.match(/^(\w+)\s*\(\s*(.+)\s*\)$/)
+  const functionCallMatch = expression.match(/^([\w$]+)\s*\(\s*([\s\S]+)\s*\)$/)
 
   if (!functionCallMatch) {
     result.eventHandlers.set(expression, expression)
