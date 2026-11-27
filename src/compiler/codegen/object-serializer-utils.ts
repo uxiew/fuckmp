@@ -203,7 +203,8 @@ export function convertArrowFunctionToRegular(functionStr: string): string {
  */
 export interface EventHandlerConversionOptions {
   /** 单参数 handler 的 payload 来源。dataset 用于原生事件参数，detail 用于组件自定义事件。 */
-  singleParamSource?: 'dataset' | 'detail'
+  singleParamSource?: 'dataset' | 'detail' | 'event'
+  datasetCall?: boolean
 }
 
 export function convertEventHandlerFunction(
@@ -214,6 +215,32 @@ export function convertEventHandlerFunction(
   if (!functionStr || typeof functionStr !== 'string') {
     return functionStr
   }
+
+  if (options.datasetCall) {
+    const original = convertArrowFunctionToRegular(functionStr)
+    return `function(event) {
+    const dataset = event && event.currentTarget && event.currentTarget.dataset;
+    const types = dataset && dataset.fmpArgs;
+    const handler = (${original});
+    if (typeof types !== 'string' || !types.length) {
+      ${options.singleParamSource === 'detail'
+        ? 'if (event && event.type) return handler.call(this, event.detail);'
+        : ''}
+      return handler.apply(this, arguments);
+    }
+    const args = Array.from(types, (type, index) => {
+      const value = dataset['arg' + index];
+      if (type === 'n') return Number(value);
+      if (type === 'b') return value === true || value === 'true';
+      if (type === 'l') return null;
+      if (type === 'u') return undefined;
+      return value;
+    });
+    return handler.apply(this, args);
+  }`
+  }
+
+  if (options.singleParamSource === 'event') return functionStr
 
   if (!isSerializerEventHandlerName(functionName)) {
     return functionStr

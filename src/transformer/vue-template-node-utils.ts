@@ -14,6 +14,7 @@ import {
   buildDynamicClassExpression,
   isCustomComponentTag,
   formatVueTemplateEventDataArgument,
+  getVueTemplateEventDataArgumentType,
   parseVueTemplateEventArguments,
   toKebabCase,
   transformVueTemplateComponentVModel
@@ -194,13 +195,18 @@ export function transformVueTemplateEventHandler(
     return `${eventBindingPrefix}${eventName}="${expression}"`
   }
 
-  const dataAttrs = parseVueTemplateEventArguments(argsString).map((arg, index) =>
+  const args = parseVueTemplateEventArguments(argsString)
+  const dataAttrs = args.map((arg, index) =>
     `data-arg${index}="${formatVueTemplateEventDataArgument(arg)}"`
   )
 
   result.eventHandlers.set(functionName, functionName)
 
   const eventBinding = `${eventBindingPrefix}${eventName}="${functionName}"`
+  if (args.length > 0 && result.datasetEventHandlers) {
+    result.datasetEventHandlers.add(functionName)
+    dataAttrs.push(`data-fmp-args="${args.map(getVueTemplateEventDataArgumentType).join('')}"`)
+  }
   return dataAttrs.length > 0 ? [eventBinding, ...dataAttrs] : eventBinding
 }
 

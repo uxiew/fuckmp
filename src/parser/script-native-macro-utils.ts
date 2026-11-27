@@ -2,13 +2,15 @@ import type { Binding, NodePath } from '@babel/traverse'
 import * as t from '@babel/types'
 import { traverseAST } from '@/utils/index.js'
 import { getVueCallName, isSetupDeclaration } from './script-binding-utils.js'
-import { getStaticPropertyKey } from './script-static-value.js'
+import { getStaticPropertyKey, readStaticScriptValue } from './script-static-value.js'
 
 export function lowerMacroReferences(ast: t.File, filename: string): void {
   const emitBindings = new Set<Binding>()
   const modelBindings = new Map<Binding, string>()
   const propBindings = new Map<Binding, { property?: string }>()
   const methodBindings = new Set<Binding>()
+  const reactiveBindings = new Set<Binding>()
+  const staticBindings = new Set<Binding>()
 
   traverseAST(ast, {
     FunctionDeclaration(path) {
@@ -22,6 +24,15 @@ export function lowerMacroReferences(ast: t.File, filename: string): void {
       if (t.isIdentifier(id) && (t.isArrowFunctionExpression(init) || t.isFunctionExpression(init))) {
         const binding = path.scope.getBinding(id.name)
         if (binding?.constant) methodBindings.add(binding)
+      }
+      if (t.isIdentifier(id)) {
+        const binding = path.scope.getBinding(id.name)
+        if (binding?.kind === 'const' && binding.constant && readStaticScriptValue(init) !== undefined) {
+          staticBindings.add(binding)
+        }
+        if (binding && t.isCallExpression(init) && getVueCallName(init, path.scope) === 'reactive') {
+          reactiveBindings.add(binding)
+        }
       }
       if (!t.isCallExpression(init)) return
 
@@ -59,11 +70,17 @@ export function lowerMacroReferences(ast: t.File, filename: string): void {
       if (path.findParent(parent => parent.isTSType())) return
       const binding = path.scope.getBinding(path.node.name)
       const prop = binding ? propBindings.get(binding) : undefined
-      if (!prop) return
-
-      path.replaceWith(prop.property === undefined
-        ? t.memberExpression(t.thisExpression(), t.identifier('properties'))
-        : modelData(prop.property))
+      if (prop) {
+        path.replaceWith(prop.property === undefined
+          ? t.memberExpression(t.thisExpression(), t.identifier('properties'))
+          : modelData(prop.property))
+      } else if (binding && path.getFunctionParent()) {
+        if (reactiveBindings.has(binding)) {
+          path.replaceWith(t.memberExpression(t.thisExpression(), t.identifier(path.node.name)))
+        } else if (staticBindings.has(binding)) {
+          path.replaceWith(modelData(path.node.name))
+        }
+      }
     },
     CallExpression(path) {
       const callee = path.node.callee

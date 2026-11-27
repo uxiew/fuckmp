@@ -4,6 +4,7 @@
 
 import { ObjectLiteralSerializer } from './object-serializer'
 import { LiteralOptionValue } from './object-serializer-utils.js'
+import type { TemplateTransformResult } from '@/transformer/index.js'
 import {
   createComputedOptions,
   createLifecycleOptions,
@@ -68,7 +69,7 @@ export class MiniProgramOptionsGenerator {
         data: this.generateDataFunction(context.data),
 
         // Vue 组件方法（页面方法直接放在根级别）
-        ...this.generateMethods(context.methods, templateResult?.customEventHandlers),
+        ...this.generateMethods(context.methods, templateResult),
 
         // 模板派生事件处理器
         ...generatePageTemplateHandlers(templateResult),
@@ -120,7 +121,7 @@ export class MiniProgramOptionsGenerator {
 
       // Vue 组件方法
       methods: {
-        ...this.generateMethods(context.methods, templateResult?.customEventHandlers),
+        ...this.generateMethods(context.methods, templateResult),
         ...generateComponentTemplateHandlers(templateResult, context.emits),
         ...generateComputedRuntimeMethods(context.computed)
       },
@@ -158,7 +159,7 @@ export class MiniProgramOptionsGenerator {
   /**
    * 生成方法选项。
    */
-  private generateMethods(methods: any, detailEventHandlers: Set<string> = new Set()): any {
+  private generateMethods(methods: any, template?: TemplateTransformResult): any {
     if (!methods || Object.keys(methods).length === 0) {
       return {}
     }
@@ -167,7 +168,9 @@ export class MiniProgramOptionsGenerator {
     Object.entries(methods).forEach(([name, method]: [string, any]) => {
       if (method && typeof method.body === 'string') {
         result[name] = this.serializer.convertEventHandlerFunction(name, method.body, {
-          singleParamSource: detailEventHandlers.has(name) ? 'detail' : 'dataset'
+          singleParamSource: template?.customEventHandlers?.has(name) ? 'detail' :
+            template?.datasetEventHandlers ? 'event' : 'dataset',
+          datasetCall: template?.datasetEventHandlers?.has(name) ?? false
         })
       }
     })

@@ -70,7 +70,10 @@ export function formatVueTemplateEventDataArgument(arg: string): string {
   const trimmed = arg.trim()
 
   if (isQuotedStringLiteral(trimmed)) {
-    return trimmed.slice(1, -1)
+    const literal = parseExpression(trimmed)
+    if (literal.type === 'StringLiteral') {
+      return literal.value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
+    }
   }
 
   if (isStaticDatasetLiteral(trimmed)) {
@@ -78,6 +81,14 @@ export function formatVueTemplateEventDataArgument(arg: string): string {
   }
 
   return `{{${trimmed.replace(/"/g, '&quot;')}}}`
+}
+
+export function getVueTemplateEventDataArgumentType(arg: string): string {
+  if (/^-?\d+(\.\d+)?$/.test(arg)) return 'n'
+  if (arg === 'true' || arg === 'false') return 'b'
+  if (arg === 'null') return 'l'
+  if (arg === 'undefined') return 'u'
+  return 'v'
 }
 
 function isQuotedStringLiteral(value: string): boolean {

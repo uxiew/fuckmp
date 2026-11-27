@@ -205,7 +205,7 @@ describe('真实示例工程验收', () => {
     expect(activityListWxml).toContain('data-arg0="{{activity.id}}"')
     expect(activityListWxml).toContain('bind:tap="handleSelect"')
     expect(activityListWxml).toContain("activity.done ? 'done' : ''")
-    expect(activityListJs).toContain('const activityId = event.currentTarget.dataset.arg0')
+    expect(activityListWxml).toContain('data-fmp-args="v"')
     expect(activityListJs).toContain('this.properties.items.find')
     expect(activityListJs).not.toContain('const event = event.currentTarget.dataset.arg0')
     expect(activityListWxss).toContain('.activity-list')

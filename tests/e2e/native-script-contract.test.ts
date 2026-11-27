@@ -1,9 +1,9 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { runInNewContext } from 'node:vm'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Vue3MiniprogramCompiler } from '@/compiler/compiler.js'
+import { createWeChatInstance as createInstance, dispatchWeChatEvent, loadWeChatRegistration, runWeChatLifecycle } from '../helpers/native-wechat.js'
 
 describe('阶段一：脚本原生输出契约', () => {
   let root: string
@@ -28,40 +28,98 @@ describe('阶段一：脚本原生输出契约', () => {
   }
 
   async function readRegistration(output: string, path: string, register: 'Component' | 'Page') {
-    const [js, wxml, runtime] = await Promise.all([
-      readFile(join(output, path + '.js'), 'utf8'),
-      readFile(join(output, path + '.wxml'), 'utf8'),
-      readFile(join(output, 'runtime-injection.js'), 'utf8')
-    ])
-    const module = { exports: {} }
-    runInNewContext(runtime, { module })
-    const registration = vi.fn()
-    runInNewContext(js, {
-      [register]: registration,
-      require: (id: string) => {
-        expect(id).toMatch(/^\.\.?\/.*runtime-injection\.js$/)
-        return module.exports
-      }
-    })
-    expect(registration).toHaveBeenCalledTimes(1)
+    const { options, wxml, js, runtime } = await loadWeChatRegistration(output, path, register)
     expect(js).not.toMatch(/\bdefine(?:Props|Model|Emits)\s*[(<]|from ['"]vue['"]|createApp\(|document\./)
     expect(runtime).not.toMatch(/createVNode|mountComponent|document\.|function (watch|provide|inject)\(/)
-    return { options: registration.mock.calls[0]![0], wxml, js, runtime }
+    return { options, wxml, js, runtime }
   }
 
-  function createInstance(options: any, props: Record<string, unknown> = {}) {
-    const instance = {
-      ...options,
-      ...options.methods,
-      data: { ...(typeof options.data === 'function' ? options.data() : options.data), ...props },
-      properties: props,
-      triggerEvent: vi.fn(),
-      setData(patch: Record<string, unknown>) {
-        Object.assign(instance.data, patch)
+  it('initializes reactive component state before native mounted hooks and computed getters', async () => {
+    const path = 'components/ReviewCard'
+    const { result, output } = await compile(path, '<view>{{ label }}</view>', `
+      import { ref, computed, onMounted } from 'vue'
+      const props = defineProps<{ step: number; title: string }>()
+      const BASE = 10
+      const count = ref(5)
+      const label = computed(() => props.title + BASE)
+      onMounted(() => { count.value = props.step })
+    `)
+    expect(result.errors).toEqual([])
+    const { options } = await readRegistration(output, path, 'Component')
+    options.attached = () => { throw new Error('legacy attached must not run') }
+    const instance = createInstance(options, { step: 3, title: 'N' })
+    runWeChatLifecycle(instance, 'attached')
+    expect(instance.data).toMatchObject({ count: 3, label: 'N10' })
+  })
+
+  it('executes reactive mutations and native dataset and direct-event calls in a page', async () => {
+    const path = 'pages/index/index'
+    const { result, output } = await compile(path, `
+      <button id="push" @click="push">push</button>
+      <button id="add" @click="add(2)">add</button>
+      <button id="two" @click="two(n, 'x', true, '2')">two</button>
+      <button id="direct" @click="submit($event)">direct</button>
+      <button id="explicit" @click="submit('done')">explicit</button>
+    `, `
+      import { reactive, ref, computed, watch } from 'vue'
+      const state = reactive({ items: [{ id: 1 }] })
+      const n = ref(0)
+      const total = computed(() => n.value + state.items.length)
+      function push() { state.items.push({ id: 2 }) }
+      const add = (k: number) => { n.value += k }
+      const two = (a: number, b: string, enabled: boolean, s: string) => {
+        if (enabled === true && s === '2') n.value = a + b.length
       }
+      function submit(payload: any) { n.value = payload.type === 'tap' ? 9 : payload === 'done' ? 10 : -1 }
+      watch(n, () => {})
+    `)
+    expect(result.errors).toEqual([])
+    expect(result.warnings).toContainEqual({ file: join(root, 'src', path + '.vue'), message: 'watch/watchEffect 降级: watch' })
+    const { options, wxml, js } = await readRegistration(output, path, 'Page')
+    expect(js).toContain('watch/watchEffect 降级')
+    expect(js).not.toContain('watch(n')
+    const instance = createInstance(options)
+    runWeChatLifecycle(instance, 'onLoad')
+    expect(instance.data.total).toBe(1)
+    dispatchWeChatEvent(instance, wxml, '#push', 'tap')
+    expect(instance.data.state.items).toEqual([{ id: 1 }, { id: 2 }])
+    expect(instance.data.total).toBe(2)
+    dispatchWeChatEvent(instance, wxml, '#add', 'tap')
+    expect(instance.data.n).toBe(2)
+    dispatchWeChatEvent(instance, wxml, '#two', 'tap')
+    expect(instance.data.total).toBe(5)
+    dispatchWeChatEvent(instance, wxml, '#direct', 'tap')
+    expect(instance.data.n).toBe(9)
+    dispatchWeChatEvent(instance, wxml, '#explicit', 'tap')
+    expect(instance.data.n).toBe(10)
+  })
+
+  it('omits unsafe destructuring and reports native template degradations', async () => {
+    const path = 'pages/index/index'
+    const { result, output } = await compile(path, `
+      <view v-for="{ id, name } in list" :key="id">{{ name }}</view>
+      <button @click.prevent="submit">a</button>
+      <button @click.once="submit">b</button>
+      <button @click="() => submit()">c</button>
+      <view :style="[base, { color }]">{{ fn(x) }}</view>
+    `, `
+      const list = [{ id: 1, name: 'one' }]
+      const base = { padding: '1px' }
+      const color = 'blue'
+      function submit() {}
+    `)
+    expect(result.errors).toEqual([])
+    for (const capability of [
+      'v-for destructured alias', 'v-on.prevent', 'v-on.once', 'complex v-on handler',
+      'non-string v-bind:style array entry', 'non-native WXML expression'
+    ]) {
+      expect(result.warnings).toContainEqual({ file: join(root, 'src', path + '.vue'), message: `模板降级: ${capability}` })
     }
-    return instance
-  }
+    const wxml = await readFile(join(output, path + '.wxml'), 'utf8')
+    expect(wxml).not.toMatch(/wx:for|\{\{name\}\}|\{\{base\}\}|bind:tap/)
+    expect(wxml).toContain('color: {{color}};')
+    expect(wxml).toContain('{{null}}')
+  })
 
   it('运行原生 Component 的 props 默认值、模型回写和重命名的 emit', async () => {
     const path = 'components/QuantityEditor'
@@ -180,7 +238,7 @@ describe('阶段一：脚本原生输出契约', () => {
     expect(options.properties.label.type.name).toBe('String')
     expect(options.properties.label.value).toBe('true')
     const instance = createInstance(options)
-    options.attached.call(instance)
+    runWeChatLifecycle(instance, 'attached')
     expect(instance.flag.value).toBe('false')
     expect(instance.nested['dash-key'][0]).toBe('42')
   })

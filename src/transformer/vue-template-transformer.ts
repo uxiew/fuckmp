@@ -31,7 +31,8 @@ export class VueTemplateTransformer {
         wxml: '',
         components: new Set(),
         eventHandlers: new Map(),
-        customEventHandlers: new Set()
+        customEventHandlers: new Set(),
+        datasetEventHandlers: new Set()
       }
 
       recordUnsupportedTemplateCapabilities(parseResult.source, context)
