@@ -1,7 +1,7 @@
 import { parse as parseScript } from '@babel/parser'
 import glob from 'fast-glob'
 import { valid as validMarkup } from 'node-html-parser'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { runInNewContext } from 'node:vm'
@@ -72,7 +72,7 @@ it.each(['real-miniprogram', 'community-pickup'])('%s 项目输出符合原生�
       expect(markup).toContain('url="/pages/pickup-info"')
       expect(markup).toContain('wx:for="{{offers}}"')
       expect(markup).toContain('wx:key="id"')
-      expect(markup).toContain('wx:if="{{reserved}}"')
+      expect(markup).toMatch(/<text wx:if="\{\{reserved > 0\}\}" data-v-[\w-]+>已预订/)
       expect(markup).toContain('wx:else')
       expect(markup).toContain('bind:reserve="reserveOffer"')
       expect(await read('components/PickupOffer.wxml')).toContain('bind:tap="reserve"')
@@ -80,6 +80,13 @@ it.each(['real-miniprogram', 'community-pickup'])('%s 项目输出符合原生�
       expect(scope).toBeTruthy()
       const styles = parseStylesheet(await read('pages/booking.wxss'))
       expect(styles.first).toMatchObject({ selector: `.pickup-page[${scope}]` })
+      expect(files.has('app.wxml')).toBe(false)
+      expect(await read('app.js')).toContain("console.log('社区自提小程序已启动')")
+      const appStyles = parseStylesheet(await read('app.wxss'))
+      expect(appStyles.nodes).toContainEqual(expect.objectContaining({
+        type: 'rule', selector: 'page',
+        nodes: expect.arrayContaining([expect.objectContaining({ prop: 'background', value: '#f1f5f1' })])
+      }))
 
       const component = vi.fn()
       const page = vi.fn()
@@ -127,5 +134,32 @@ it.each(['real-miniprogram', 'community-pickup'])('%s 项目输出符合原生�
     }
   } finally {
     await rm(output, { recursive: true, force: true })
+  }
+})
+
+it.each([
+  ['pages/booking', 'pages/pickup-info'],
+  ['pages/index/index', 'pages/pickup-info/index'],
+])('未配置 TabBar 时保留普通页面 %s 和 %s', async (from, to) => {
+  const root = await mkdtemp(join(tmpdir(), 'fuckmp-routes-'))
+  const input = join(root, 'src')
+  const output = join(root, 'dist')
+  try {
+    for (const [route, template] of [
+      [from, `<navigator url="/${to}">须知</navigator>`],
+      [to, '<view>自提须知</view>'],
+    ] as const) {
+      const file = join(input, `${route}.vue`)
+      await mkdir(dirname(file), { recursive: true })
+      await writeFile(file, `<template>${template}</template>`)
+    }
+    const result = await new Vue3MiniprogramCompiler({ input, output, appId: 'touristappid' }).compile()
+    expect(result.errors).toEqual([])
+    const app = JSON.parse(await readFile(join(output, 'app.json'), 'utf8'))
+    expect(app.pages).toEqual([from, to])
+    expect(app).not.toHaveProperty('tabBar')
+    expect(await readFile(join(output, `${from}.wxml`), 'utf8')).toContain(`url="/${to}"`)
+  } finally {
+    await rm(root, { recursive: true, force: true })
   }
 })

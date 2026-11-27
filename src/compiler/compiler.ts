@@ -125,20 +125,24 @@ export class Vue3MiniprogramCompiler {
       const results = await this.parseAndTransform(parseResult, context)
 
       // 生成代码
-      const generateResult = await this.generateCode(results, context)
+      const isApp = isAppComponent(filePath)
+      const generateResult = isApp ? { json: {} } : await this.generateCode(results, context)
 
       this.appConfig = collectCompiledRuntimeRecord({
         filePath,
         context,
         generateResult,
         template: results.template,
+        ...(isApp && {
+          appStyles: results.styles.map(style => style?.wxss).filter(Boolean).join('\n\n')
+        }),
         currentAppConfig: this.appConfig,
         compiledPages: this.compiledPages,
         compiledComponents: this.compiledComponents
       })
 
       // 写入文件（应用入口文件由运行时注入器处理）
-      if (!isAppComponent(filePath)) {
+      if (!isApp) {
         const options = this.configManager.getOptions()
         await writeGeneratedOutputFiles({
           inputPath: filePath,

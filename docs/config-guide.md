@@ -60,16 +60,16 @@ Vue3 微信小程序编译器支持通过配置文件自定义编译行为和生
       "selectedColor": "#007bff",
       "backgroundColor": "#ffffff",
       "borderStyle": "white",
-      "defaultIcons": {
-        "iconPath": "images/icon_default.png",
-        "selectedIconPath": "images/icon_selected.png"
-      },
       "list": [
         {
           "pagePath": "pages/index/index",
           "text": "首页",
           "iconPath": "images/home.png",
           "selectedIconPath": "images/home-active.png"
+        },
+        {
+          "pagePath": "pages/profile",
+          "text": "我的"
         }
       ]
     },
@@ -115,17 +115,9 @@ Vue3 微信小程序编译器支持通过配置文件自定义编译行为和生
 | selectedColor | string | tab 上的文字选中时的颜色 |
 | backgroundColor | string | tab 的背景色 |
 | borderStyle | string | tabbar 上边框的颜色，仅支持 black / white |
-| defaultIcons | Object | 默认图标配置，为没有指定图标的 tab 项目提供默认图标 |
 | list | Array | tab 的列表，最少 2 个、最多 5 个 tab |
 
-**defaultIcons 配置选项**：
-
-| 属性 | 类型 | 说明 |
-|------|------|------|
-| iconPath | string | 默认图标路径 |
-| selectedIconPath | string | 默认选中状态图标路径 |
-
-**修复说明**：移除了硬编码的图标路径，现在用户可以通过 `defaultIcons` 配置自定义默认图标。编译器会自动为检测到的页面生成 tabBar 项目，使用这些默认图标。
+只有显式配置 `app.tabBar.list` 才会启用标签栏；普通页面不会依据文件名变成 Tab 页。列表按配置顺序选取最多 5 个实际存在的主包页面，忽略重复、缺失或分包路由；不足 2 项时不生成 `tabBar`。可在各项中填写 `iconPath` 和 `selectedIconPath`。
 
 ### 页面标题映射 (pageTitles)
 

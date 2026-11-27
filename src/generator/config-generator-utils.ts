@@ -28,32 +28,27 @@ export function buildAppConfig(
   }
 
   if (userAppConfig) {
-    const { window, ...otherConfig } = userAppConfig
+    const { window, tabBar, ...otherConfig } = userAppConfig
     Object.assign(appConfig, otherConfig)
-  }
-
-  const tabBarPages = selectTabBarPages(pages, userAppConfig)
-  if (tabBarPages.length > 0) {
-    const userTabBarConfig = userAppConfig?.tabBar || {}
-
-    appConfig.tabBar = {
-      color: userTabBarConfig.color || '#7A7E83',
-      selectedColor: userTabBarConfig.selectedColor || '#3cc51f',
-      backgroundColor: userTabBarConfig.backgroundColor || '#ffffff',
-      borderStyle: userTabBarConfig.borderStyle || 'black',
-      list: tabBarPages.map(page => buildTabBarItem(page, userTabBarConfig, pageTitles))
-    }
-
-    userTabBarConfig.list?.forEach((userItem: any) => {
-      if (!tabBarPages.includes(userItem.pagePath)) {
-        appConfig.tabBar!.list!.push(buildExtraTabBarItem(userItem))
-      }
-    })
   }
 
   const subpackages = buildSubpackages(pages)
   if (subpackages.length > 0) {
     appConfig.subpackages = subpackages
+  }
+
+  const mainPages = pages.filter(page => !appConfig.subpackages?.some(pkg => page.startsWith(pkg.root + '/')))
+  const tabBarPages = selectTabBarPages(mainPages, userAppConfig)
+  if (tabBarPages.length >= 2) {
+    const userTabBarConfig = userAppConfig.tabBar
+
+    appConfig.tabBar = {
+      color: userTabBarConfig.color || '#7A7E83',
+      selectedColor: userTabBarConfig.selectedColor || '#3cc51f',
+      backgroundColor: userTabBarConfig.backgroundColor || '#ffffff',
+      borderStyle: userTabBarConfig.borderStyle === 'white' ? 'white' : 'black',
+      list: tabBarPages.map(page => buildTabBarItem(page, userTabBarConfig, pageTitles))
+    }
   }
 
   return appConfig
@@ -96,18 +91,12 @@ export function buildComponentConfig(
  * 获取 TabBar 页面。
  */
 export function selectTabBarPages(pages: string[], userAppConfig: any): string[] {
-  const userTabBarPages = userAppConfig?.tabBar?.list?.map((item: any) => item.pagePath) || []
-
-  if (userTabBarPages.length > 0) {
-    return userTabBarPages.filter((page: string) => pages.includes(page)).slice(0, 5)
-  }
-
-  const defaultTabBarKeywords = ['home', 'index', 'main', 'profile', 'user', 'mine']
-
-  return pages.filter(page => {
-    const pageName = page.split('/').pop()?.toLowerCase() || ''
-    return defaultTabBarKeywords.some(keyword => pageName.includes(keyword))
-  }).slice(0, 5)
+  const list = userAppConfig?.tabBar?.list
+  if (!Array.isArray(list)) return []
+  const routes = list.flatMap(item =>
+    typeof item?.pagePath === 'string' && pages.includes(item.pagePath) ? [item.pagePath] : []
+  )
+  return [...new Set(routes)].slice(0, 5)
 }
 
 /**
@@ -156,7 +145,7 @@ export function getPageTitle(pagePath: string, pageTitles?: Record<string, strin
 }
 
 function buildTabBarItem(page: string, userTabBarConfig: any, pageTitles?: Record<string, string>): TabBarItem {
-  const userPageConfig = userTabBarConfig.list?.find((item: any) => item.pagePath === page)
+  const userPageConfig = userTabBarConfig.list.find((item: any) => item?.pagePath === page)
   const tabBarItem: TabBarItem = {
     pagePath: page,
     text: userPageConfig?.text || getPageTitle(page, pageTitles)
@@ -170,20 +159,4 @@ function buildTabBarItem(page: string, userTabBarConfig: any, pageTitles?: Recor
   }
 
   return tabBarItem
-}
-
-function buildExtraTabBarItem(userItem: any): TabBarItem {
-  const extraTabBarItem: TabBarItem = {
-    pagePath: userItem.pagePath,
-    text: userItem.text
-  }
-
-  if (userItem.iconPath) {
-    extraTabBarItem.iconPath = userItem.iconPath
-  }
-  if (userItem.selectedIconPath) {
-    extraTabBarItem.selectedIconPath = userItem.selectedIconPath
-  }
-
-  return extraTabBarItem
 }

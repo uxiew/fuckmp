@@ -26,6 +26,8 @@ export interface CollectCompiledRuntimeRecordOptions {
   generateResult: { json: any }
   /** 模板转换结果。 */
   template?: TemplateTransformResult
+  /** 应用入口的全局 WXSS。 */
+  appStyles?: string
   /** 当前 app 配置记录。 */
   currentAppConfig: any
   /** 页面编译记录集合。 */
@@ -44,7 +46,7 @@ export function collectCompiledRuntimeRecord(options: CollectCompiledRuntimeReco
   options.compiledComponents.delete(options.filePath)
 
   if (isAppComponent(options.filePath)) {
-    return record
+    return { ...record, appStyles: options.appStyles ?? '' }
   }
 
   if (options.context.isPage) {

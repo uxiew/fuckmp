@@ -1,7 +1,7 @@
 <template>
   <view class="pickup-page">
     <text>周六社区自提</text>
-    <text v-if="reserved">已预订 {{ reserved }} 份</text>
+    <text v-if="reserved > 0">已预订 {{ reserved }} 份</text>
     <text v-else>尚未预订</text>
     <PickupOffer
       v-for="offer in offers"

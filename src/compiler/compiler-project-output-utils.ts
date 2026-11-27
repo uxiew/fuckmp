@@ -54,7 +54,7 @@ export async function refreshProjectOutputFiles(options: {
     options.inputRoot,
     options.outputRoot
   )
-  await generateAppStyles(options.outputRoot)
+  await generateAppStyles(options.outputRoot, options.appConfig?.appStyles)
   await copyStaticAssetDirectories({
     inputRoot: options.inputRoot,
     outputRoot: options.outputRoot

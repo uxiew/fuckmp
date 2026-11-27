@@ -10,12 +10,12 @@
  * 6. 移除了硬编码的 TabBar 页面识别关键词
  *
  * 现在所有配置都通过用户配置系统 (vue3mp 配置文件) 管理：
- * - 图标路径: app.tabBar.defaultIcons.{iconPath, selectedIconPath}
+ * - 图标路径: app.tabBar.list 中每个页面的 iconPath / selectedIconPath
  * - TabBar 样式: app.tabBar.{color, selectedColor, backgroundColor, borderStyle}
  * - 项目信息: project.{description, projectname}
  * - 页面标题: pageTitles.{pageName: title}
  * - 组件配置: components.{componentPath}.styleIsolation
- * - TabBar 页面: app.tabBar.list (优先级高于自动识别)
+ * - TabBar 页面: app.tabBar.list（显式配置，不自动识别）
  *
  * 这样用户可以完全自定义所有配置，避免了硬编码的限制。
  */
