@@ -48,7 +48,7 @@ styles=$(find ./pages ./components -name '*.wxss' | sort)
 - 区域：`src/generator/shared-generator-utils.ts` 的 `addScopeAttributes`（页面和组件都会调用）。
 - 回归：社区自提示例直接使用该条件；验收断言生成的 WXML 表达式不变，scope 属性位于引号之外。
 
-### 2. 模板引用的函数声明没有写入原生事件方法（S，待集成验证）
+### 2. 模板引用的函数声明没有写入原生事件方法（S，已修复）
 
 在社区自提示例的 `PickupOffer.vue` 中，将箭头函数改为声明；以下是去掉无关代码后的组件：
 
@@ -63,6 +63,7 @@ function reserve() { emit('reserve') }
 - 预期：按钮绑定 `reserve`，原生组件的 `methods.reserve` 调用 `this.triggerEvent('reserve')`。
 - 实际：WXML 仍是 `bind:tap="reserve"`，但生成 JS 的 `methods` 没有 `reserve`；改回箭头函数则生成该方法。页面同样可复现：将 `booking.vue` 的 `const reserveOffer = () => { … }` 改为 `function reserveOffer() { … }`，保留 WXML 绑定但丢失 Page 方法。
 - 区域：`src/parser/script-parser-utils.ts` 的 `createFunctionInfo` 不带方法体；最终 `src/compiler/codegen/mini-program-options-generator.ts` 仅输出含字符串方法体的条目。
+- 回归：`tests/e2e/native-script-contract.test.ts` 执行实际生成的 Component / Page 事件处理器，检查事件发送和数据更新。
 
 ### 3. 无模板的应用入口使项目构建失败（T／共享生成接口，已修复）
 

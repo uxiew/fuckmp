@@ -158,4 +158,30 @@ describe('阶段一：脚本原生输出契约', () => {
     expect(JSON.stringify(result.errors)).toMatch(/index\.vue:\d+: 无法静态编译 composable/)
     await expect(readFile(join(output, 'pages/index/index.js'))).rejects.toMatchObject({ code: 'ENOENT' })
   })
+
+  it('保留原生 data、响应式初始值和 props 默认值中的字符串类型', async () => {
+    const path = 'components/LiteralData'
+    const { result, output } = await compile(path, '<view>{{ text }} {{ flag }} {{ label }}</view>', `
+      import { ref, reactive } from 'vue'
+      const text = 'true'
+      const flag = ref('false')
+      const formatter = '() => 1'
+      const nested = reactive({ 'dash-key': ['42', '[1]', 'new Date()', 'String'], '01': 'null' })
+      const actual = [true, false, 42, null]
+      defineProps({ label: { type: String, default: 'true' } })
+    `)
+    expect(result.errors).toEqual([])
+    const { options } = await readRegistration(output, path, 'Component')
+    expect(options.data).toEqual({
+      text: 'true', flag: 'false', formatter: '() => 1',
+      nested: { 'dash-key': ['42', '[1]', 'new Date()', 'String'], '01': 'null' },
+      actual: [true, false, 42, null]
+    })
+    expect(options.properties.label.type.name).toBe('String')
+    expect(options.properties.label.value).toBe('true')
+    const instance = createInstance(options)
+    options.attached.call(instance)
+    expect(instance.flag.value).toBe('false')
+    expect(instance.nested['dash-key'][0]).toBe('42')
+  })
 })

@@ -71,6 +71,7 @@ export interface VariableInfo {
   name: string
   type: 'const' | 'let' | 'var'
   init?: any
+  literalStringInitializer?: string
   isReactive: boolean
   macroType?: string
 }

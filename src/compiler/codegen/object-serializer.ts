@@ -26,12 +26,8 @@ export class ObjectLiteralSerializer {
       placeholderState
     )
 
-    let result = stringifyObjectLiteral(processedObj, 2)
-
-    for (const [placeholder, functionCode] of functionPlaceholders) {
-      result = result.split(`"${placeholder}"`).join(functionCode)
-    }
-
+    const result = stringifyObjectLiteral(processedObj, 2).replace(/"(__[A-Z]+_PLACEHOLDER_\d+__)"/g,
+      (match, placeholder) => functionPlaceholders.get(placeholder) ?? match)
     return convertObjectMethodArrowFunctions(result)
   }
 

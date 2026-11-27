@@ -192,7 +192,7 @@ export class ScriptTransformer {
           })
         } else {
           // ref/reactive 变量 - 确保保持原始数据类型
-          const initialValue = parseScriptInitValue(variable.init)
+          const initialValue = variable.literalStringInitializer ?? parseScriptInitValue(variable.init)
           context.data[name] = initialValue
           // 保存响应式变量信息
           context.reactiveVariables!.set(name, {
@@ -206,7 +206,9 @@ export class ScriptTransformer {
         const initValue = variable.init
 
         // 检查是否为函数（包括箭头函数）
-        if (isFunctionInitializer(initValue)) {
+        if (variable.literalStringInitializer !== undefined) {
+          context.data[name] = variable.literalStringInitializer
+        } else if (isFunctionInitializer(initValue)) {
           // 函数类型，直接使用原始字符串，运行时库会处理响应式变量
           context.methods[name] = createMethodFromFunctionInitializer(name, initValue)
         } else {

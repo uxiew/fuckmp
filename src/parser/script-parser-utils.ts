@@ -6,6 +6,7 @@ import type { CallExpression, FunctionDeclaration, ImportDeclaration, VariableDe
 import { VUE3_MACROS } from '@/types/index.js'
 import { isCallExpression, isIdentifier } from '@/utils/index.js'
 import { extractArgumentValue, generateCodeString } from './script-codegen-utils.js'
+import { readStaticScriptValue } from './script-static-value.js'
 import {
   extractDefineModelInfo,
   extractDefinePropsDestructureInfo,
@@ -125,10 +126,15 @@ export function createVariableInfoFromDeclarator(
 
   const name = declarator.id.name
   const macroInit = createMacroVariableInit(declarator.init, name, result, calleeName)
+  const initializer = declarator.init
+  const staticInitializer = initializer && isCallExpression(initializer)
+    ? calleeName === 'ref' || calleeName === 'reactive' ? readStaticScriptValue(initializer.arguments[0]) : undefined
+    : readStaticScriptValue(initializer)
   return {
     name,
     type: kind,
     init: macroInit.initValue,
+    ...(typeof staticInitializer === 'string' && { literalStringInitializer: staticInitializer }),
     isReactive: macroInit.isReactive,
     ...(macroInit.macroType && { macroType: macroInit.macroType })
   }

@@ -3,6 +3,7 @@
  */
 
 import { ObjectLiteralSerializer } from './object-serializer'
+import { LiteralOptionValue } from './object-serializer-utils.js'
 import {
   createComputedOptions,
   createLifecycleOptions,
@@ -83,7 +84,7 @@ export class MiniProgramOptionsGenerator {
       })
 
       if (context.reactiveVariables && context.reactiveVariables.size > 0) {
-        options._reactiveVariables = Array.from(context.reactiveVariables.values())
+        options._reactiveVariables = serializeReactiveVariables(context.reactiveVariables)
       }
     }
 
@@ -113,7 +114,9 @@ export class MiniProgramOptionsGenerator {
       data: this.generateDataFunction(context.data),
 
       // Vue 组件属性
-      properties: createPropertyOptions(context.props),
+      properties: Object.fromEntries(Object.entries<{ type: string; value: unknown }>(
+        createPropertyOptions(context.props)
+      ).map(([name, prop]) => [name, { ...prop, value: new LiteralOptionValue(prop.value) }])),
 
       // Vue 组件方法
       methods: {
@@ -135,7 +138,7 @@ export class MiniProgramOptionsGenerator {
     }
 
     if (context.reactiveVariables && context.reactiveVariables.size > 0) {
-      options._reactiveVariables = Array.from(context.reactiveVariables.values())
+      options._reactiveVariables = serializeReactiveVariables(context.reactiveVariables)
     }
 
     return this.serializer.stringifyWithFunctions(options)
@@ -149,7 +152,7 @@ export class MiniProgramOptionsGenerator {
       return function () { return {} }
     }
 
-    return this.serializer.stringifyObjectLiteral(filterDataInitializationFields(data), 2)
+    return new LiteralOptionValue(filterDataInitializationFields(data))
   }
 
   /**
@@ -170,6 +173,14 @@ export class MiniProgramOptionsGenerator {
     })
     return result
   }
+}
+
+function serializeReactiveVariables(variables: Map<string, { type: string; initialValue?: unknown }>) {
+  return Array.from(variables.values(), variable =>
+    variable.type === 'ref' || variable.type === 'reactive'
+      ? { ...variable, initialValue: new LiteralOptionValue(variable.initialValue) }
+      : variable
+  )
 }
 
 
