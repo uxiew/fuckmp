@@ -3,7 +3,9 @@
  */
 
 import type { CallExpression, ObjectPattern } from '@babel/types'
+import * as t from '@babel/types'
 import { extractArgumentValue } from './script-codegen-utils.js'
+import { getStaticPropertyKey, readStaticDefault, readStaticScriptValue } from './script-static-value.js'
 
 /**
  * 宏提取所需的最小解析上下文。
@@ -17,7 +19,7 @@ export interface ScriptMacroParseContext {
  */
 export function extractDefinePropsDestructureInfo(
   pattern: ObjectPattern,
-  result: ScriptMacroParseContext
+  _result: ScriptMacroParseContext
 ): Record<string, any> {
   const defaults: Record<string, any> = {}
   const aliases: Record<string, string> = {}
@@ -32,7 +34,8 @@ export function extractDefinePropsDestructureInfo(
     aliases[localName] = propName
 
     if (property.value.type === 'AssignmentPattern') {
-      defaults[propName] = extractDefaultValue(property.value.right, result)
+      const value = readStaticScriptValue(property.value.right)
+      if (value !== undefined) defaults[propName] = value
     }
   })
 
@@ -50,10 +53,10 @@ export function getArrayPatternFirstIdentifier(pattern: any): string {
 /**
  * 提取 withDefaults(defineProps(), defaults) 中的默认值。
  */
-export function extractWithDefaultsInfo(node: CallExpression, result: ScriptMacroParseContext): Record<string, any> {
+export function extractWithDefaultsInfo(node: CallExpression, _result: ScriptMacroParseContext): Record<string, any> {
   const defaultsNode = node.arguments[1]
   return {
-    defaults: defaultsNode ? extractDefaultsObject(defaultsNode, result) : {}
+    defaults: extractDefaultsObject(defaultsNode)
   }
 }
 
@@ -63,20 +66,27 @@ export function extractWithDefaultsInfo(node: CallExpression, result: ScriptMacr
 export function extractDefineModelInfo(
   node: CallExpression,
   variableName: string,
-  result: ScriptMacroParseContext
+  _result: ScriptMacroParseContext
 ): Record<string, any> {
   const firstArg = node.arguments[0]
   const secondArg = node.arguments[1]
   const hasNamedModel = firstArg?.type === 'StringLiteral'
   const optionsNode = hasNamedModel ? secondArg : firstArg
-  const options = optionsNode ? extractArgumentValue(optionsNode, result.variables) : {}
+  const options = t.isObjectExpression(optionsNode) ? optionsNode.properties : []
+  const getOption = (name: string) => options.find(option =>
+    t.isObjectProperty(option) ? getStaticPropertyKey(option) === name :
+      t.isObjectMethod(option) && !option.computed && t.isIdentifier(option.key, { name }))
+  const typeOption = getOption('type')
+  const defaultOption = getOption('default')
+  const requiredOption = getOption('required')
+  const modelDefault = readStaticDefault(t.isObjectProperty(defaultOption) ? defaultOption.value : defaultOption)
 
   return {
-    property: hasNamedModel ? (firstArg as any).value : 'modelValue',
+    property: hasNamedModel ? firstArg.value : 'modelValue',
     variable: variableName,
-    type: extractDefineModelType(node),
-    default: options && typeof options === 'object' && 'default' in options ? options.default : undefined,
-    required: options && typeof options === 'object' && 'required' in options ? options.required : false
+    type: inferDefineModelType(node, t.isObjectProperty(typeOption) ? typeOption.value : undefined, modelDefault),
+    default: modelDefault,
+    required: t.isObjectProperty(requiredOption) && t.isBooleanLiteral(requiredOption.value, { value: true })
   }
 }
 
@@ -118,58 +128,48 @@ function getDestructureLocalName(value: any): string {
 /**
  * 提取 withDefaults 的对象字面量默认值。
  */
-function extractDefaultsObject(node: any, result: ScriptMacroParseContext): Record<string, any> {
-  if (!node || node.type !== 'ObjectExpression') {
-    return {}
-  }
-
+function extractDefaultsObject(node: t.Node | undefined): Record<string, unknown> {
+  if (!t.isObjectExpression(node)) return {}
   const defaults: Record<string, any> = {}
-  node.properties.forEach((property: any) => {
-    if (property.type !== 'ObjectProperty') return
-
-    const key = property.key.type === 'Identifier' ? property.key.name : property.key.value
-    defaults[key] = extractDefaultValue(property.value, result)
+  node.properties.forEach(property => {
+    const key = t.isObjectProperty(property) ? getStaticPropertyKey(property) :
+      t.isObjectMethod(property) && !property.computed && t.isIdentifier(property.key) ? property.key.name : undefined
+    if (!key || key === '__proto__') return
+    const value = readStaticDefault(t.isObjectProperty(property) ? property.value : property)
+    if (value !== undefined) defaults[key] = value
   })
 
   return defaults
 }
 
 /**
- * 提取单个 prop 默认值；数组/对象 factory 会取其返回的静态值。
- */
-function extractDefaultValue(node: any, result: ScriptMacroParseContext): any {
-  if (!node) {
-    return undefined
-  }
-
-  if (node.type === 'ArrowFunctionExpression' || node.type === 'FunctionExpression') {
-    if (node.body?.type === 'BlockStatement') {
-      const returnStatement = node.body.body?.find((statement: any) => statement.type === 'ReturnStatement')
-      return returnStatement?.argument ? extractArgumentValue(returnStatement.argument, result.variables) : undefined
-    }
-    return extractArgumentValue(node.body, result.variables)
-  }
-
-  return extractArgumentValue(node, result.variables)
-}
-
-/**
  * 从 defineModel 泛型或默认值中推断小程序 property 类型。
  */
-function extractDefineModelType(node: CallExpression): string {
-  const typeParam = (node as any).typeParameters?.params?.[0]
+function inferDefineModelType(node: CallExpression, runtimeType: t.Node | undefined, value: unknown): string {
+  if (t.isIdentifier(runtimeType) && ['String', 'Number', 'Boolean', 'Array', 'Object'].includes(runtimeType.name)) {
+    return runtimeType.name
+  }
+  const typeParam = t.isTSTypeParameterInstantiation(node.typeParameters) ? node.typeParameters.params[0] : undefined
   switch (typeParam?.type) {
     case 'TSNumberKeyword':
       return 'Number'
     case 'TSBooleanKeyword':
       return 'Boolean'
     case 'TSArrayType':
+    case 'TSTupleType':
       return 'Array'
     case 'TSTypeLiteral':
-    case 'TSTypeReference':
       return 'Object'
+    case 'TSTypeReference':
+      return t.isIdentifier(typeParam.typeName) && ['Array', 'ReadonlyArray'].includes(typeParam.typeName.name)
+        ? 'Array'
+        : 'Object'
     case 'TSStringKeyword':
-    default:
       return 'String'
   }
+  if (Array.isArray(value)) return 'Array'
+  if (typeof value === 'number') return 'Number'
+  if (typeof value === 'boolean') return 'Boolean'
+  if (value && typeof value === 'object') return 'Object'
+  return 'String'
 }

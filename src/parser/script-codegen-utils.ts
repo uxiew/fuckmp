@@ -48,11 +48,14 @@ export function generateCodeString(node: any, variables?: ScriptCodegenVariables
       return 'null'
     case 'Identifier':
       return node.name
+    case 'ThisExpression':
+      return 'this'
     case 'ArrayExpression':
       return generateArrayExpressionCode(node, generateCodeString, variables)
     case 'ObjectExpression':
       return generateObjectExpressionCode(node, generateCodeString, variables)
     case 'ArrowFunctionExpression':
+    case 'FunctionDeclaration':
     case 'FunctionExpression':
       return generateFunctionCode(node, variables)
     case 'BinaryExpression':
@@ -94,7 +97,9 @@ export function extractArgumentValue(node: any, variables?: ScriptCodegenVariabl
     case 'NullLiteral':
       return null
     case 'Identifier':
-      return transformVueIdentifier(node.name)
+      return variables ? node.name : transformVueIdentifier(node.name)
+    case 'ThisExpression':
+      return 'this'
     case 'ArrayExpression':
       return node.elements.map((el: any) => el ? extractArgumentValue(el, variables) : null)
     case 'ObjectExpression':
@@ -134,7 +139,7 @@ export function extractArgumentValue(node: any, variables?: ScriptCodegenVariabl
 function generateFunctionCode(node: any, variables?: ScriptCodegenVariables): string {
   const params = generateFunctionParamsCode(node)
 
-  if (node.type === 'ArrowFunctionExpression') {
+  if (node.type === 'ArrowFunctionExpression' || node.type === 'FunctionDeclaration') {
     if (node.body.type === 'BlockStatement') {
       return `(${params}) => ${generateBlockStatementCode(node.body, statementCodegenContext, variables)}`
     }
@@ -148,7 +153,7 @@ function generateCallExpressionCode(node: any, variables?: ScriptCodegenVariable
   const callee = extractArgumentValue(node.callee, variables)
 
   // 对于Vue响应式API调用，直接返回参数内容
-  if (typeof callee === 'string' && ['ref', 'reactive', 'computed'].includes(callee)) {
+  if (!variables && typeof callee === 'string' && ['ref', 'reactive', 'computed'].includes(callee)) {
     if (node.arguments.length > 0) {
       const arg = node.arguments[0]
       // 对于 computed，如果参数是箭头函数，提取函数体
@@ -164,7 +169,7 @@ function generateCallExpressionCode(node: any, variables?: ScriptCodegenVariable
   }
 
   // 特殊处理 emit 函数调用
-  if (callee === 'this.triggerEvent' || callee === 'emit') {
+  if (callee === 'this.triggerEvent' || (callee === 'emit' && !variables)) {
     const args = node.arguments
       .map((arg: any) => generateCodeString(arg, variables))
       .join(', ')

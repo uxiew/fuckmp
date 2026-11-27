@@ -47,12 +47,19 @@ FuckMP 的目标是把 Vue3 SFC 编译为原生微信小程序工程，而不是
 | 响应式 props 解构 | `Component.properties.value` + 模板别名 / computed getter / 生命周期回调 / setup 方法访问静态还原 | 不注入 props runtime |
 | `defineModel` | `Component.properties` + `update:*` 事件；tuple 解构配合原生 input 修饰符 handler | 不注入 v-model runtime |
 | `defineEmits` | 运行时声明 / TypeScript call signature / named tuple / 本地类型 / 相对 import type 事件名提取 + `this.triggerEvent` | 不注入 event runtime |
+| 同文件静态 composable | 顶层 `const { count, increment } = useCounter(0)` 展开为独立的原生状态及方法 | 复用原有响应式薄桥，无 composable runtime |
 | 生命周期 | Page/Component 原生生命周期 | 不注入 lifecycle runtime |
 | 样式与 SCSS | `wxss` | 不注入 style runtime |
 | JS 方法调用（`.includes()` 等） | `helpers.wxs` + `wxsH.xxx()` WXS 调用 | 编译时转换为 WXS，不注入 JS runtime |
 | 插槽 (default / named) | 原生 `<slot>` + `multipleSlots` + `apply-shared` | 编译时自动配置 Component options |
 
 ## 明确降级或暂不宣称运行时支持
+
+### 静态 composable 边界
+
+只展开同一 SFC 内以 `useXxx` 命名的顶层同步函数声明。实参是静态标量，函数体只允许简单 `const` 声明和末尾返回局部绑定的对象。局部绑定支持以数字、布尔值或 `null` 初始化的 `ref`、无参箭头 `computed` 和同步无参箭头方法；内部只允许通过 `.value` 引用局部 `ref`，不支持捕获外部状态或保留运行时调用。每次静态调用拥有独立状态；导入或动态 composable 不在此契约内。
+
+`defineModel` 的脚本写回支持函数体内独立的 `.value` 赋值、自增和自减语句。逻辑赋值或依赖写入表达式返回值的用法会报错；不依赖 Vue model runtime。
 
 ### `defineExpose`
 

@@ -3,6 +3,7 @@
  */
 
 import type { MiniprogramProperty } from '@/types/index.js'
+import { readStaticDefault } from '@/parser/script-static-value.js'
 import { extractTypeScriptProps } from './define-props-type-utils.js'
 
 /** Props 定义类型。 */
@@ -39,13 +40,14 @@ export function extractPropsDefinition(node: any): PropsDefinition {
   if (node.type === 'ArrayExpression') {
     node.elements.forEach((element: any) => {
       if (element?.type === 'StringLiteral') {
-        props[element.value] = String
+        if (element.value !== '__proto__') props[element.value] = String
       }
     })
   } else if (node.type === 'ObjectExpression') {
     node.properties.forEach((property: any) => {
-      if (property.type === 'ObjectProperty') {
+      if (property.type === 'ObjectProperty' && (!property.computed || property.key.type === 'StringLiteral')) {
         const key = getPropertyKey(property.key)
+        if (key === '__proto__') return
         const value = extractPropertyValue(property.value)
         props[key] = value
       }
@@ -80,7 +82,8 @@ export function transformToMiniprogramProperties(
 
     if (typeof definition === 'object' && definition !== null) {
       const propDef = definition as MacroPropDefinition
-      const propType = Array.isArray(propDef.type) ? propDef.type[0] : propDef.type
+      const rawType = Array.isArray(definition) ? definition : propDef.type
+      const propType = Array.isArray(rawType) ? rawType[0] : rawType
       const finalType = propType || String
       properties[key] = {
         type: finalType,
@@ -145,18 +148,20 @@ function extractPropertyValue(valueNode: any): PropDefinitionValue {
       const definition: MacroPropDefinition = {}
 
       valueNode.properties.forEach((prop: any) => {
-        if (prop.type === 'ObjectProperty') {
+        if ((prop.type === 'ObjectProperty' || prop.type === 'ObjectMethod') &&
+          (!prop.computed || prop.key.type === 'StringLiteral')) {
           const key = getPropertyKey(prop.key)
-          const value = extractLiteralValue(prop.value)
-
-          if (key === 'type') {
-            definition.type = Array.isArray(value)
-              ? value.map(getConstructorFromName)
-              : getConstructorFromName(value)
-          } else if (key === 'default') {
-            definition.default = value
-          } else if (key === 'required') {
-            definition.required = value
+          if (key === 'default') {
+            const value = readStaticDefault(prop.type === 'ObjectMethod' ? prop : prop.value)
+            if (value !== undefined) definition.default = value
+          } else if (prop.type === 'ObjectProperty') {
+            if (key === 'type') {
+              definition.type = prop.value.type === 'ArrayExpression'
+                ? prop.value.elements.map((el: any) => el?.type === 'Identifier' ? getConstructorFromName(el.name) : null)
+                : getConstructorFromName(prop.value.name)
+            } else if (key === 'required') {
+              definition.required = prop.value.type === 'BooleanLiteral' && prop.value.value
+            }
           }
         }
       })
@@ -166,36 +171,6 @@ function extractPropertyValue(valueNode: any): PropDefinitionValue {
 
     default:
       return String
-  }
-}
-
-/** 提取字面量值。 */
-function extractLiteralValue(node: any): any {
-  switch (node.type) {
-    case 'StringLiteral':
-      return node.value
-    case 'NumericLiteral':
-      return node.value
-    case 'BooleanLiteral':
-      return node.value
-    case 'NullLiteral':
-      return null
-    case 'Identifier':
-      return node.name
-    case 'ArrayExpression':
-      return node.elements.map((el: any) => el ? extractLiteralValue(el) : null)
-    case 'ObjectExpression': {
-      const obj: Record<string, any> = {}
-      node.properties.forEach((prop: any) => {
-        if (prop.type === 'ObjectProperty') {
-          const key = getPropertyKey(prop.key)
-          obj[key] = extractLiteralValue(prop.value)
-        }
-      })
-      return obj
-    }
-    default:
-      return undefined
   }
 }
 

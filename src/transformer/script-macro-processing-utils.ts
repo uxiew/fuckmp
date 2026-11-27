@@ -60,7 +60,9 @@ export function createMacroHandlerNode(
   return {
     type: 'CallExpression',
     callee: { type: 'Identifier', name: macroName },
-    arguments: macroCall.arguments.map(arg => createLiteralNodeFromValue(arg)),
+    arguments: macroCall.runtimeArgument
+      ? [macroCall.runtimeArgument]
+      : macroCall.arguments.map(arg => createLiteralNodeFromValue(arg)),
     typeParameters: shouldResolveTypeParameters(macroName)
       ? resolveTypeReferenceParameters(macroCall.typeParameters, parseResult, context.filename)
       : macroCall.typeParameters

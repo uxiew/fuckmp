@@ -115,11 +115,11 @@ export class ScriptTransformer {
 
       // 处理变量声明
       this.processVariables(parseResult, context)
-      this.processLifecyclePropAliases(context)
+      if (!parseResult.nativeMacroReferencesLowered) this.processLifecyclePropAliases(context)
 
       // 处理函数声明
       this.processFunctions(parseResult, context)
-      this.processMethodPropAliases(context)
+      if (!parseResult.nativeMacroReferencesLowered) this.processMethodPropAliases(context)
 
       // 生成代码
       const result = this.generateCode(context)
@@ -223,6 +223,7 @@ export class ScriptTransformer {
   private processWithDefaultsVariable(variable: any, context: TransformContext): void {
     const defaults = variable.init?.defaults || {}
 
+    registerPropNamespace(context, variable.name)
     mergePropDefaults(defaults, context)
   }
 
