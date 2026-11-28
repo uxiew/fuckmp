@@ -31,7 +31,8 @@ export class VueTemplateTransformer {
         wxml: '',
         components: new Set(),
         eventHandlers: new Map(),
-        customEventHandlers: new Set()
+        customEventHandlers: new Set(),
+        datasetEventHandlers: new Set()
       }
 
       recordUnsupportedTemplateCapabilities(parseResult.source, context)
@@ -55,6 +56,7 @@ export class VueTemplateTransformer {
 
       // 从编译结果中提取 AST
       if (compiledTemplate.ast) {
+        context.templateWxsModules = collectWxsModules(compiledTemplate.ast)
         result.wxml = transformVueTemplateASTNode(compiledTemplate.ast, result, context)
       } else {
         // 如果没有 AST，回退到字符串处理
@@ -93,4 +95,16 @@ export class VueTemplateTransformer {
 
     return result
   }
+}
+
+function collectWxsModules(node: any, modules = new Set<string>()): Set<string> {
+  if (node.type === 1 && node.tag === 'wxs') {
+    const name = node.props?.find((prop: any) => prop.type === 6 && prop.name === 'module')?.value?.content
+    if (name) modules.add(name)
+  }
+  if (Array.isArray(node.children)) {
+    node.children.forEach((child: any) => collectWxsModules(child, modules))
+  }
+  node.branches?.forEach((branch: any) => collectWxsModules(branch, modules))
+  return modules
 }

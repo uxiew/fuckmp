@@ -8,12 +8,12 @@ import { logger, writeFile } from '@/utils/index.js'
 /**
  * 生成小程序应用级样式文件。
  */
-export async function generateAppStyles(outputDir: string): Promise<void> {
+export async function generateAppStyles(outputDir: string, wxss = ''): Promise<void> {
   try {
     logger.debug('生成应用样式文件')
 
     const appStyles = `/* Vue3 微信小程序编译器生成的应用样式文件 */
-/* 如需添加全局样式，请在此文件中编写 */
+${wxss}
 `
 
     const appStylesPath = path.join(outputDir, 'app.wxss')

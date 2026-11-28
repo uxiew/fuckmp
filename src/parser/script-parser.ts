@@ -4,8 +4,13 @@
 
 import { parseScript, traverseAST } from '@/utils/index.js'
 import { VUE3_MACROS } from '@/types/index.js'
-import type { File, ImportDeclaration, CallExpression, VariableDeclaration } from '@babel/types'
+import type { File, FunctionDeclaration, ImportDeclaration, CallExpression, VariableDeclaration } from '@babel/types'
 import { logger } from '@/utils/index.js'
+import type { NodePath } from '@babel/traverse'
+import { isCallExpression } from '@babel/types'
+import { getVueCallName, isSetupCall, isSetupDeclaration } from './script-binding-utils.js'
+import { lowerLocalComposables } from './script-composable-utils.js'
+import { lowerMacroReferences } from './script-native-macro-utils.js'
 import {
   createExportInfo,
   createFunctionInfo,
@@ -30,6 +35,8 @@ export interface ScriptParseResult {
   functions: Map<string, FunctionInfo>
   /** 导出信息 */
   exports: ExportInfo[]
+  nativeMacroReferencesLowered?: true
+  setupStatements?: Array<{ description: string; macroName?: string; line?: number }>
 }
 
 /**
@@ -55,6 +62,7 @@ export interface MacroCall {
   arguments: any[]
   location: string
   typeParameters?: any
+  runtimeArgument?: CallExpression['arguments'][number]
 }
 
 /**
@@ -64,6 +72,7 @@ export interface VariableInfo {
   name: string
   type: 'const' | 'let' | 'var'
   init?: any
+  literalStringInitializer?: string
   isReactive: boolean
   macroType?: string
 }
@@ -76,6 +85,7 @@ export interface FunctionInfo {
   params: string[]
   isAsync: boolean
   isArrow: boolean
+  body?: string
 }
 
 /**
@@ -100,6 +110,8 @@ export class ScriptParser {
 
       // 解析为 AST
       const ast = parseScript(content)
+      lowerLocalComposables(ast, filename)
+      lowerMacroReferences(ast, filename)
 
       // 初始化结果
       const result: ScriptParseResult = {
@@ -108,8 +120,10 @@ export class ScriptParser {
         macros: new Map(),
         variables: new Map(),
         functions: new Map(),
-        exports: []
+        exports: [],
+        nativeMacroReferencesLowered: true
       }
+      const setupStatements: NonNullable<ScriptParseResult['setupStatements']> = []
 
       // 遍历 AST 收集信息
       traverseAST(ast, {
@@ -117,13 +131,26 @@ export class ScriptParser {
           this.handleImportDeclaration(path.node, result)
         },
         CallExpression: (path) => {
-          this.handleCallExpression(path.node, result)
+          if (isSetupCall(path)) this.handleCallExpression(path, result)
+        },
+        Statement(path) {
+          if (!path.parentPath?.isProgram() || path.isDeclaration() || path.isEmptyStatement()) return
+          const expression = path.isExpressionStatement() ? path.node.expression : undefined
+          const call = isCallExpression(expression) ? expression : undefined
+          const macroName = call ? getVueCallName(call, path.scope) : null
+          const description = call?.callee.type === 'Identifier' ? `${call.callee.name}()` : path.node.type
+          const line = path.node.loc?.start.line
+          setupStatements.push({
+            description,
+            ...(macroName && { macroName }),
+            ...(line !== undefined && { line })
+          })
         },
         VariableDeclaration: (path) => {
-          this.handleVariableDeclaration(path.node, result)
+          if (isSetupDeclaration(path)) this.handleVariableDeclaration(path, result)
         },
         FunctionDeclaration: (path) => {
-          this.handleFunctionDeclaration(path.node, result)
+          if (isSetupDeclaration(path)) this.handleFunctionDeclaration(path.node, result)
         },
         ExportDefaultDeclaration: (path) => {
           this.handleExportDeclaration(path.node, result, 'default')
@@ -132,6 +159,7 @@ export class ScriptParser {
           this.handleExportDeclaration(path.node, result, 'named')
         }
       })
+      if (setupStatements.length) result.setupStatements = setupStatements
 
       logger.debug(`脚本解析完成: ${filename}`)
 
@@ -154,8 +182,9 @@ export class ScriptParser {
   /**
    * 处理调用表达式
    */
-  private handleCallExpression(node: CallExpression, result: ScriptParseResult): void {
-    const macroCall = createVueMacroCall(node, result.variables)
+  private handleCallExpression(path: NodePath<CallExpression>, result: ScriptParseResult): void {
+    const name = getVueCallName(path.node, path.scope)
+    const macroCall = createVueMacroCall(path.node, result.variables, name)
     if (!macroCall) return
 
     if (!result.macros.has(macroCall.name)) {
@@ -167,9 +196,11 @@ export class ScriptParser {
   /**
    * 处理变量声明
    */
-  private handleVariableDeclaration(node: VariableDeclaration, result: ScriptParseResult): void {
+  private handleVariableDeclaration(path: NodePath<VariableDeclaration>, result: ScriptParseResult): void {
+    const { node, scope } = path
     node.declarations.forEach(declarator => {
-      const variableInfo = createVariableInfoFromDeclarator(declarator, node.kind as 'const' | 'let' | 'var', result)
+      const name = isCallExpression(declarator.init) ? getVueCallName(declarator.init, scope) : null
+      const variableInfo = createVariableInfoFromDeclarator(declarator, node.kind as 'const' | 'let' | 'var', result, name)
       if (variableInfo) {
         result.variables.set(variableInfo.name, variableInfo)
       }
@@ -179,8 +210,8 @@ export class ScriptParser {
   /**
    * 处理函数声明
    */
-  private handleFunctionDeclaration(node: any, result: ScriptParseResult): void {
-    const functionInfo = createFunctionInfo(node)
+  private handleFunctionDeclaration(node: FunctionDeclaration, result: ScriptParseResult): void {
+    const functionInfo = createFunctionInfo(node, result.variables)
     if (functionInfo) {
       result.functions.set(functionInfo.name, functionInfo)
     }
@@ -200,7 +231,7 @@ export class ScriptParser {
     const macroName = VUE3_MACROS[feature]
     return result.macros.has(macroName) ||
       Array.from(result.imports.values()).some(imp =>
-        imp.isVue && imp.specifiers.some(spec => spec.local === macroName)
+        imp.isVue && imp.specifiers.some(spec => spec.imported === macroName)
       )
   }
 

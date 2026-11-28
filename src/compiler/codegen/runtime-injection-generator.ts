@@ -105,7 +105,7 @@ function createPage(pageConfig) {
           if (varInfo.type === 'ref') {
             this[varInfo.name] = ref(varInfo.initialValue, this, varInfo.name);
           } else if (varInfo.type === 'reactive') {
-            this[varInfo.name] = reactive(varInfo.initialValue, this, varInfo.name);
+            this[varInfo.name] = reactive(this.data?.[varInfo.name] ?? varInfo.initialValue, this, varInfo.name);
           } else if (varInfo.type === 'computed') {
             this[varInfo.name] = computed(varInfo.initialValue, this, varInfo.name);
           }
@@ -131,16 +131,17 @@ function createPage(pageConfig) {
 function createComponent(componentConfig) {
   // 处理组件的响应式变量
   if (componentConfig._reactiveVariables) {
-    const originalAttached = componentConfig.attached || function() {};
+    const lifetimes = componentConfig.lifetimes || (componentConfig.lifetimes = {});
+    const originalAttached = lifetimes.attached || componentConfig.attached || function() {};
 
-    componentConfig.attached = function() {
+    lifetimes.attached = function() {
       // 创建响应式变量
       if (componentConfig._reactiveVariables) {
         componentConfig._reactiveVariables.forEach(varInfo => {
           if (varInfo.type === 'ref') {
             this[varInfo.name] = ref(varInfo.initialValue, this, varInfo.name);
           } else if (varInfo.type === 'reactive') {
-            this[varInfo.name] = reactive(varInfo.initialValue, this, varInfo.name);
+            this[varInfo.name] = reactive(this.data?.[varInfo.name] ?? varInfo.initialValue, this, varInfo.name);
           } else if (varInfo.type === 'computed') {
             this[varInfo.name] = computed(varInfo.initialValue, this, varInfo.name);
           }

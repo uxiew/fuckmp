@@ -38,6 +38,7 @@ describe('compiler utility functions', () => {
     expect(createCompileResult()).toEqual({
       success: [],
       errors: [],
+      warnings: [],
       stats: {
         total: 0,
         success: 0,
@@ -50,11 +51,13 @@ describe('compiler utility functions', () => {
       {
         success: ['a.vue'],
         errors: [],
+        warnings: [{ file: 'a.vue', message: 'degraded' }],
         stats: { total: 1, success: 1, failed: 0, duration: 10 }
       },
       {
         success: [],
         errors: [{ file: 'b.vue', message: 'boom' }],
+        warnings: [],
         stats: { total: 1, success: 0, failed: 1, duration: 20 }
       }
     ])
@@ -62,6 +65,7 @@ describe('compiler utility functions', () => {
     expect(merged).toEqual({
       success: ['a.vue'],
       errors: [{ file: 'b.vue', message: 'boom' }],
+      warnings: [{ file: 'a.vue', message: 'degraded' }],
       stats: { total: 2, success: 1, failed: 1, duration: 30 }
     })
   })

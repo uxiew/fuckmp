@@ -67,24 +67,13 @@ export function addScopeAttributes(wxml: string, scopeId: string): string {
   // slot 和 block 是微信小程序的模板控制标签，不应添加 scoped 属性
   const excludedTags = new Set(['slot', 'block', 'template', 'wxs', 'import', 'include'])
 
-  return wxml.replace(/<(\w[\w-]*)([^>]*?)(\s*\/?)>/g, (match, tag, attrs, selfClosing) => {
-    if (attrs.includes('data-v-')) {
+  return wxml.replace(/<!--[\s\S]*?-->|<wxs\b(?:[^"'<>]|"[^"]*"|'[^']*')*?(?<!\/)>[\s\S]*?<\/wxs\s*>|{{(?:[^'"}]|"[^"]*"|'[^']*'|}(?!}))*}}|<(\w[\w-]*)((?:[^"'<>]|"[^"]*"|'[^']*')*?)\s*(\/?)>/g, (match, tag, attrs, selfClosing) => {
+    if (!tag || excludedTags.has(tag)) return match
+    const tokens = attrs.match(/"[^"]*"|'[^']*'|[^\s"'=]+|=/g) ?? []
+    if (tokens.some((token: string, index: number) => token.startsWith('data-v-') && tokens[index - 1] !== '=')) {
       return match
     }
-
-    // 跳过微信小程序模板控制标签
-    if (excludedTags.has(tag)) {
-      return match
-    }
-
-    // 修复：只有当 selfClosing 包含 '/' 时才是真正的自闭合标签
-    const isSelfClosing = selfClosing.includes('/')
-
-    if (isSelfClosing) {
-      return `<${tag}${attrs} data-v-${scopeId} />`
-    } else {
-      return `<${tag}${attrs} data-v-${scopeId}>`
-    }
+    return `<${tag}${attrs} data-v-${scopeId}${selfClosing ? ' /' : ''}>`
   })
 }
 
@@ -189,12 +178,19 @@ function endsWith(str, suffix) {
   return str.indexOf(suffix) === idx
 }
 
+function range(count) {
+  var values = []
+  for (var i = 1; i <= count; i++) values.push(i)
+  return values
+}
+
 module.exports = {
   includes: includes,
   indexOf: indexOf,
   toString: toString,
   startsWith: startsWith,
-  endsWith: endsWith
+  endsWith: endsWith,
+  range: range
 }
 `
 }

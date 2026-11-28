@@ -293,7 +293,7 @@ const count = defineModel<number>('count')
 
 **编译器自动处理**：
 
-- `Component` 配置中注入 `options: { multipleSlots: true }`（当组件包含具名插槽时）
+- 含 slot 的组件在生成的 JS 中向 `Component()` 传入 `options: { multipleSlots: true }`，该选项不写入组件 JSON
 - 组件 JSON 中设置 `styleIsolation: "apply-shared"`（确保父页面样式能穿透到 slot 内容）
 - `<slot>` 和 `<block>` 标签不添加 `data-v-` scoped 属性
 

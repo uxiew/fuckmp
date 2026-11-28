@@ -27,7 +27,14 @@ export const definePropsHandler: MacroHandler = (node: any, context: TransformCo
     const propsDefinition = resolvePropsDefinition(node, context)
     const miniprogramProperties = transformToMiniprogramProperties(propsDefinition)
 
-    context.props = propsDefinition
+    context.props = Object.fromEntries(Object.entries(miniprogramProperties).map(([key, { type, value }]) => {
+      const definition = propsDefinition[key]
+      return [key, {
+        type,
+        default: value,
+        required: Boolean(definition && typeof definition === 'object' && !Array.isArray(definition) && definition.required)
+      }]
+    }))
 
     logger.debug(`defineProps 处理完成: ${Object.keys(propsDefinition).length} 个属性`)
 

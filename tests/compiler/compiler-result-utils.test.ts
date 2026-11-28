@@ -11,6 +11,7 @@ describe('compiler result utils', () => {
     expect(createCompileResult()).toEqual({
       success: [],
       errors: [],
+      warnings: [],
       stats: {
         total: 0,
         success: 0,
@@ -23,6 +24,7 @@ describe('compiler result utils', () => {
   it('创建输入目录缺失结果', () => {
     expect(createMissingInputResult('/project/src', 25)).toEqual({
       success: [],
+      warnings: [],
       errors: [
         {
           file: '/project/src',

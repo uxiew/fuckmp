@@ -40,6 +40,7 @@ export interface TemplateTransformResult {
   eventHandlers: Map<string, string>
   /** 绑定在自定义组件上的直传事件处理方法，payload 来自微信原生 event.detail */
   customEventHandlers?: Set<string>
+  datasetEventHandlers?: Set<string>
 }
 
 /**

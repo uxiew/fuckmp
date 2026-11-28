@@ -43,12 +43,6 @@ export function createDefaultUserConfig(): UserConfig {
         backgroundTextStyle: 'light',
         enablePullDownRefresh: false,
         onReachBottomDistance: 50
-      },
-      tabBar: {
-        color: '#7A7E83',
-        selectedColor: '#3cc51f',
-        backgroundColor: '#ffffff',
-        borderStyle: 'black'
       }
     },
     project: {

@@ -191,6 +191,14 @@ export class RuntimeInjector {
     try {
       // 1. 分析特性使用情况
       const featureUsage = this.analyzeFeatureUsage(sourceFiles)
+      for (const record of [appConfig, ...pages.values(), ...components.values()]) {
+        for (const variable of record?.context?.reactiveVariables?.values() ?? []) {
+          const { type } = variable
+          if (type === 'ref' || type === 'reactive' || type === 'computed') {
+            featureUsage.reactivity[type as 'ref' | 'reactive' | 'computed'] = true
+          }
+        }
+      }
 
       // 2. 创建运行时打包器
       const { RuntimeBundler } = await import('./runtime-bundler')

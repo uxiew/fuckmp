@@ -26,6 +26,13 @@ describe('shared generator utils', () => {
     expect(addScopeAttributes('<view data-v-old></view>', 'abc123')).toBe('<view data-v-old></view>')
   })
 
+  it('不会改写属性值、注释、插值或内联 WXS 中的标签文本', () => {
+    const content = '<!-- <view /> -->{{ "<view />" }}<wxs module="util">var tag = "<view />"</wxs>'
+    const attrs = " title='data-v-fake <view />' wx:if=\"{{reserved > 0}}\""
+    expect(addScopeAttributes(content + "<text" + attrs + ">已预订</text>", 'abc123'))
+      .toBe(content + "<text" + attrs + " data-v-abc123>已预订</text>")
+  })
+
   it('生成稳定 scope id', () => {
     expect(generateScopeId('src/pages/index.vue')).toBe(generateScopeId('src/pages/index.vue'))
     expect(generateScopeId('src/pages/index.vue')).not.toBe(generateScopeId('src/pages/about.vue'))

@@ -14,7 +14,7 @@ import {
 describe('config-generator utils', () => {
   it('根据用户 app 配置构造 app.json', () => {
     const appConfig = buildAppConfig(
-      ['pages/index/index', 'pages/profile', 'admin/dashboard'],
+      ['pages/index/index', 'pages/profile', 'pages/settings', 'admin/dashboard'],
       {
         window: {
           navigationBarTitleText: '自定义标题'
@@ -30,7 +30,10 @@ describe('config-generator utils', () => {
             {
               pagePath: 'pages/settings',
               text: '设置'
-            }
+            },
+            { pagePath: 'admin/dashboard', text: '分包' },
+            { pagePath: 'pages/missing', text: '缺失' },
+            { pagePath: 'pages/profile', text: '重复' }
           ]
         }
       } as any,
@@ -65,7 +68,7 @@ describe('config-generator utils', () => {
   it('选择 tabBar 页面并生成分包配置', () => {
     const pages = ['pages/index/index', 'pages/about', 'package-a/detail', 'package-a/list']
 
-    expect(selectTabBarPages(pages, undefined)).toEqual(['pages/index/index'])
+    expect(selectTabBarPages(pages, undefined)).toEqual([])
     expect(selectTabBarPages(pages, {
       tabBar: {
         list: [
@@ -80,6 +83,14 @@ describe('config-generator utils', () => {
         pages: ['detail', 'list']
       }
     ])
+  })
+
+  it('省略仅指定样式或过滤后不足两个页面的 tabBar', () => {
+    const pages = ['pages/index/index', 'pages/profile']
+    expect(buildAppConfig(pages, { tabBar: { color: '#111111' } }, {})).not.toHaveProperty('tabBar')
+    expect(buildAppConfig(pages, {
+      tabBar: { list: [{ pagePath: 'pages/profile' }, { pagePath: 'missing/page' }] }
+    }, {})).not.toHaveProperty('tabBar')
   })
 
   it('构造页面与组件配置', () => {

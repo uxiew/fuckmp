@@ -14,12 +14,13 @@ import {
 } from './compiler-output-utils.js'
 import {
   compileFilesWithResult,
+  createCompileError,
   createCompileResult,
   createMissingInputMessage,
   createMissingInputResult
 } from './compiler-result-utils.js'
 import { parseAndTransformSfcSections } from './compiler-transform-pipeline.js'
-import { refreshProjectOutputFiles } from './compiler-project-output-utils.js'
+import { refreshProjectOutputFiles, RuntimeInjectionError } from './compiler-project-output-utils.js'
 import { removeFileFromCompilationState, resetCompilationState } from './compiler-state-utils.js'
 import { generateTargetCode } from './compiler-generate-utils.js'
 import {
@@ -96,7 +97,7 @@ export class Vue3MiniprogramCompiler {
   /**
    * 编译单个文件
    */
-  async compileFile(filePath: string): Promise<void> {
+  async compileFile(filePath: string, warnings?: CompileResult['warnings']): Promise<void> {
     try {
       logger.info(`编译文件: ${filePath}`)
 
@@ -123,22 +124,37 @@ export class Vue3MiniprogramCompiler {
 
       // 解析和转换各个部分
       const results = await this.parseAndTransform(parseResult, context)
+      const scriptStart = (parseResult.descriptor.scriptSetup ?? parseResult.descriptor.script)?.loc.start.line ?? 1
+      const diagnostics: NonNullable<TransformContext['scriptWarnings']> = [
+        ...(context.templateUnsupported?.capabilities ?? []).map((capability: string) => ({ message: `模板降级: ${capability}` })),
+        ...(context.watcherEffects?.apis ?? []).map((api: string) => ({ message: `watch/watchEffect 降级: ${api}` })),
+        ...(context.scriptWarnings ?? []).map(({ message, line }) =>
+          line === undefined ? { message } : { message, line: scriptStart + line - 1 })
+      ]
+      diagnostics.forEach(diagnostic => {
+        warnings?.push({ file: filePath, ...diagnostic })
+        logger.warn(`${filePath}${diagnostic.line === undefined ? '' : `:${diagnostic.line}`}: ${diagnostic.message}`)
+      })
 
       // 生成代码
-      const generateResult = await this.generateCode(results, context)
+      const isApp = isAppComponent(filePath)
+      const generateResult = isApp ? { json: {} } : await this.generateCode(results, context)
 
       this.appConfig = collectCompiledRuntimeRecord({
         filePath,
         context,
         generateResult,
         template: results.template,
+        ...(isApp && {
+          appStyles: results.styles.map(style => style?.wxss).filter(Boolean).join('\n\n')
+        }),
         currentAppConfig: this.appConfig,
         compiledPages: this.compiledPages,
         compiledComponents: this.compiledComponents
       })
 
       // 写入文件（应用入口文件由运行时注入器处理）
-      if (!isAppComponent(filePath)) {
+      if (!isApp) {
         const options = this.configManager.getOptions()
         await writeGeneratedOutputFiles({
           inputPath: filePath,
@@ -188,9 +204,17 @@ export class Vue3MiniprogramCompiler {
       await ensureDir(options.output)
 
       // 编译每个文件
-      await compileFilesWithResult(vueFiles, result, filePath => this.compileFile(filePath))
+      await compileFilesWithResult(vueFiles, result, filePath => this.compileFile(filePath, result.warnings))
 
-      await this.refreshProjectOutputs()
+      try {
+        await this.refreshProjectOutputs()
+      } catch (error) {
+        if (!(error instanceof RuntimeInjectionError)) throw error
+        result.errors.push(createCompileError(options.output, error))
+        result.stats.duration = Date.now() - startTime
+        logger.error('项目输出生成失败', error)
+        return result
+      }
 
       result.stats.duration = Date.now() - startTime
 

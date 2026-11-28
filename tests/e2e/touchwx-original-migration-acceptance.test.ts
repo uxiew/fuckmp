@@ -4,43 +4,55 @@
 
 import { parse as babelParse } from '@babel/parser'
 import { parse as parseSfc } from '@vue/compiler-sfc'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { dirname, join, resolve } from 'path'
 import { promises as fs } from 'fs'
+import { tmpdir } from 'node:os'
 import { Vue3MiniprogramCompiler } from '@/compiler/compiler.js'
 import { migrateTouchWxOriginalProject } from '../../scripts/migrate-touchwx-original.js'
 
 describe('TouchWX _original 优先迁移验收', () => {
-  const originalRoot = '/Users/bing/Workspace/touchwx/_original'
-  const exampleRoot = join(process.cwd(), 'examples/touchwx-original-migrated')
-  const outputRoot = join(process.cwd(), 'test-output/touchwx-original-migrated')
+  const snapshotRoot = join(process.cwd(), 'examples/touchwx-original-migrated')
+  let workRoot: string
+  let outputRoot: string
 
   beforeEach(async () => {
-    await fs.rm(exampleRoot, { recursive: true, force: true })
-    await fs.rm(outputRoot, { recursive: true, force: true })
+    workRoot = await fs.mkdtemp(join(tmpdir(), 'fuckmp-touchwx-original-'))
+    outputRoot = join(workRoot, 'output')
   })
 
-  it('应该先从 _original 生成 Vue3 SFC 并完成小程序编译', async () => {
-    const summary = await migrateTouchWxOriginalProject(originalRoot, exampleRoot)
+  afterEach(async () => {
+    if (workRoot) {
+      await fs.rm(workRoot, { recursive: true, force: true })
+    }
+  })
 
-    expect(summary.originalRoot).toBe(originalRoot)
-    expect(summary.components.filter(item => !item.source.startsWith('generated missing referenced component'))).toHaveLength(41)
-    expect(summary.components).toHaveLength(43)
-    expect(summary.pages).toHaveLength(4)
-    expect(summary.components.map(item => item.output)).toEqual(expect.arrayContaining([
-      'components/ui-accordion.vue',
-      'components/ui-count-down-index1.vue',
-      'components/ui-count-up-index1.vue',
-      'components/original-scaffold-package.vue',
-      'components/ui-icon.vue',
-      'components/wxc-example-menu.vue'
-    ]))
-    expect(summary.pages.map(item => item.output)).toEqual(expect.arrayContaining([
-      'pages/home/index.vue',
-      'pages/original-fixtures/scaffold-example.vue',
-      'pages/original-fixtures/scaffold-page.vue',
-      'pages/original-fixtures/component-home.vue'
-    ]))
+  it('应该编译 _original 的迁移快照或显式提供的原始工程', async () => {
+    const originalRoot = process.env.TOUCHWX_ORIGINAL_ROOT
+    let exampleRoot = snapshotRoot
+    if (originalRoot) {
+      exampleRoot = join(workRoot, 'source')
+      const summary = await migrateTouchWxOriginalProject(originalRoot, exampleRoot)
+
+      expect(summary.originalRoot).toBe(originalRoot)
+      expect(summary.components.filter(item => !item.source.startsWith('generated missing referenced component'))).toHaveLength(41)
+      expect(summary.components).toHaveLength(43)
+      expect(summary.pages).toHaveLength(4)
+      expect(summary.components.map(item => item.output)).toEqual(expect.arrayContaining([
+        'components/ui-accordion.vue',
+        'components/ui-count-down-index1.vue',
+        'components/ui-count-up-index1.vue',
+        'components/original-scaffold-package.vue',
+        'components/ui-icon.vue',
+        'components/wxc-example-menu.vue'
+      ]))
+      expect(summary.pages.map(item => item.output)).toEqual(expect.arrayContaining([
+        'pages/home/index.vue',
+        'pages/original-fixtures/scaffold-example.vue',
+        'pages/original-fixtures/scaffold-page.vue',
+        'pages/original-fixtures/component-home.vue'
+      ]))
+    }
 
     const sourceFiles = await walkVueFiles(exampleRoot)
     expect(sourceFiles).toHaveLength(48)
@@ -97,7 +109,9 @@ describe('TouchWX _original 优先迁移验收', () => {
 
     const accordionJson = JSON.parse(await readOutputFile('components/ui-accordion.json'))
     expect(accordionJson.component).toBe(true)
-    expect(accordionJson.options).toEqual({ multipleSlots: true })
+    expect(await readOutputFile('components/ui-accordion.js')).toMatch(/options:\s*\{\s*multipleSlots:\s*true\s*\}/)
+    expect(accordionJson.styleIsolation).toBe('apply-shared')
+    expect(accordionJson.options).toBeUndefined()
 
     const accordionWxml = await readOutputFile('components/ui-accordion.wxml')
     expect(accordionWxml).toContain('<slot name="header"')

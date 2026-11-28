@@ -55,6 +55,19 @@ describe('TemplateTransformer', () => {
     return result.wxml
   }
 
+  it('保留显式关闭 Vue AST 时的旧 AST 与字符串入口', async () => {
+    const legacy = new TemplateTransformer({ useASTParser: false })
+    const parseResult = await parser.parseTemplate('<div>source</div>', context.filename)
+    const ast = { type: 1, tag: 'view', children: [{ type: 2, content: 'legacy AST' }] }
+
+    expect((await transformer.transformTemplate({ ...parseResult, ast }, context)).wxml)
+      .toBe('<view>source</view>')
+    expect((await legacy.transformTemplate({ ...parseResult, ast }, context)).wxml)
+      .toBe('<view>legacy AST</view>')
+    expect((await legacy.transformTemplate({ ...parseResult, ast: undefined }, context)).wxml)
+      .toBe('<view>source</view>')
+  })
+
   describe('事件绑定转换', () => {
     it('应该统一使用 bind:event 形式转换基础和自定义事件', async () => {
       const input = `<view>

@@ -3,7 +3,7 @@
  */
 
 const UNSUPPORTED_TEMPLATE_REASON =
-  'Vue scoped/dynamic slots and built-in transition/cache components require Vue runtime semantics that native mini program output does not provide.'
+  'Some Vue template constructs have no equivalent in native WXML.'
 
 /**
  * 从模板源码中识别仍不宣称支持的 Vue 模板能力，并记录到转换上下文。
@@ -18,10 +18,14 @@ export function recordUnsupportedTemplateCapabilities(
     return
   }
 
-  context.templateUnsupported = mergeUnsupportedTemplateDegradeRecord(
-    context.templateUnsupported,
-    createUnsupportedTemplateDegradeRecord(capabilities)
-  )
+  recordUnsupportedTemplateFeatures(context, ...capabilities)
+}
+
+export function recordUnsupportedTemplateFeatures(
+  context: { templateUnsupported?: Record<string, any> },
+  ...capabilities: string[]
+): void {
+  context.templateUnsupported = createUnsupportedTemplateDegradeRecord(capabilities, context.templateUnsupported)
 }
 
 /**
@@ -100,12 +104,7 @@ export function generateUnsupportedTemplateDegradeComment(record: Record<string,
     )
   }
 
-  if (comments.length === 0) {
-    return ''
-  }
-
-  return `${comments.join('\n')}
-// unsupported template capabilities: ${capabilities.join(', ')}
+  return `${comments.length > 0 ? comments.join('\n') + '\n' : ''}// unsupported template capabilities: ${capabilities.join(', ')}
 
 `
 }

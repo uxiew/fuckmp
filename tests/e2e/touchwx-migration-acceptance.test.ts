@@ -106,7 +106,9 @@ describe('TouchWX 迁移示例验收', () => {
 
     const uiRowJson = JSON.parse(await readOutputFile('components/ui-row.json'))
     expect(uiRowJson.component).toBe(true)
-    expect(uiRowJson.options).toEqual({ multipleSlots: true })
+    expect(await readOutputFile('components/ui-row.js')).toMatch(/options:\s*\{\s*multipleSlots:\s*true\s*\}/)
+    expect(uiRowJson.styleIsolation).toBe('apply-shared')
+    expect(uiRowJson.options).toBeUndefined()
 
     await expectUsingComponentTargetsToExist()
     await expectGeneratedFilesToBeDevToolsParsable()
@@ -163,6 +165,13 @@ describe('TouchWX 迁移示例验收', () => {
       expect(wxml, file).not.toContain('{{{')
       expect(wxml, file).not.toContain('}}}')
       expect(wxml, file).not.toContain('style="{{{')
+      if (/<slot\s+[^>]*\bname=/.test(wxml)) {
+        const json = JSON.parse(await fs.readFile(file.replace(/\.wxml$/, '.json'), 'utf8'))
+        if (json.component === true) {
+          const js = await fs.readFile(file.replace(/\.wxml$/, '.js'), 'utf8')
+          expect(js, file).toMatch(/options:\s*\{\s*multipleSlots:\s*true\s*\}/)
+        }
+      }
     }
 
     const accordionWxml = await readOutputFile('pages/componentDemo/accordion.wxml')

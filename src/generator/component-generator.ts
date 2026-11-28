@@ -22,7 +22,7 @@ export class ComponentGenerator {
    * 生成组件代码
    */
   async generateComponent(
-    scriptResult: ScriptTransformResult,
+    scriptResult: ScriptTransformResult | undefined,
     templateResult: TemplateTransformResult,
     styleResults: StyleTransformResult | StyleTransformResult[],
     context: TransformContext
@@ -31,8 +31,8 @@ export class ComponentGenerator {
       logger.debug(`生成组件代码: ${context.filename}`)
 
       const result: GenerateResult = {
-        js: this.generateJS(scriptResult, templateResult, context),
-        json: this.generateJSON(scriptResult, templateResult, context),
+        js: this.generateJS(scriptResult?.context ?? context, templateResult, context),
+        json: this.generateJSON(templateResult, context),
         wxml: this.generateWXML(templateResult, context),
         wxss: this.generateWXSS(styleResults, context)
       }
@@ -49,9 +49,7 @@ export class ComponentGenerator {
   /**
    * 生成 JavaScript 代码
    */
-  private generateJS(scriptResult: ScriptTransformResult, templateResult: TemplateTransformResult, context: TransformContext): string {
-    // 使用脚本转换结果中的上下文数据
-    const transformContext = scriptResult.context
+  private generateJS(transformContext: TransformContext, templateResult: TemplateTransformResult, context: TransformContext): string {
     const { props, emits, data, methods, computed, lifecycle } = transformContext
 
     logger.debug(`生成组件 JS，数据统计:`, {
@@ -94,7 +92,6 @@ ${generateComponentMethods({ methods, computed, emits, context: transformContext
    * 生成 JSON 配置
    */
   private generateJSON(
-    scriptResult: ScriptTransformResult,
     templateResult: TemplateTransformResult,
     context: TransformContext
   ): Record<string, any> {

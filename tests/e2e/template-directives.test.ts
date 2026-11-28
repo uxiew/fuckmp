@@ -26,6 +26,47 @@ describe('Vue 模板指令转换测试', () => {
     testFiles = []
   })
 
+  it('输出静态事件、可解析的字面量参数和原生 rich-text，并标注不等价的指令', async () => {
+    const path = await createTestFile('components/NativeTemplateContract.vue', `<template>
+  <view>
+    <view v-html="markup" :['id']="nodeId" :[attribute]="nodeId" />
+    <view @['click']="open()" />
+    <view @click.stop="open" />
+    <view @click.capture="open" />
+    <view @click.capture.stop="open" />
+    <view @click.prevent.self.once.passive="open" @[event]="open" />
+    <view @keyup.enter="open" v-bind="attributes" v-on="listeners" />
+    <view @tap="open(format(nodeId))" />
+  </view>
+</template>
+<script setup>
+const markup = '<b>Hi</b>'
+const nodeId = 'native'
+const open = () => {}
+</script>`)
+    testFiles.push('components/NativeTemplateContract.vue')
+
+    await compiler.compileFile(path)
+    await compiler.refreshProjectOutputs()
+
+    const wxml = await readTestFile('output/components/NativeTemplateContract.wxml')
+    const js = await readTestFile('output/components/NativeTemplateContract.js')
+    expect(wxml).toContain('<view id="{{nodeId}}"><rich-text nodes="{{markup}}"></rich-text></view>')
+    expect(wxml).toContain('<view bind:tap="open"></view>')
+    expect(wxml).toContain('<view catch:tap="open"></view>')
+    expect(wxml).toContain('<view capture-bind:tap="open"></view>')
+    expect(wxml).toContain('<view capture-catch:tap="open"></view>')
+    expect(wxml).not.toMatch(/attribute=|bind:event|bind:keyup|="open\(\)"/)
+    expect(wxml.match(/(?:bind|catch):tap="open"/g)).toHaveLength(4)
+    for (const capability of [
+      'dynamic v-bind argument', 'dynamic v-on argument',
+      'v-on.prevent', 'v-on.self', 'v-on.once', 'v-on.passive', 'v-on.enter',
+      'v-bind object spread', 'v-on object spread', 'complex v-on handler'
+    ]) {
+      expect(js).toContain(capability)
+    }
+  })
+
   describe('条件渲染指令', () => {
     it('应该正确转换 v-if、v-else-if、v-else 指令', async () => {
       const vueContent = `<template>
@@ -172,22 +213,73 @@ const userInfo = reactive({
       expect(wxmlContent).toContain('wx:for-item="user"')
       expect(wxmlContent).toContain('wx:for-index="index"')
       
-      // 对象遍历转换
-      expect(wxmlContent).toContain('wx:for="{{userInfo}}"')
-      expect(wxmlContent).toContain('wx:for-item="value"')
-      expect(wxmlContent).toContain('wx:for-index="key"')
+      // 对象枚举无法直接用 WXML 循环表示。
+      expect(wxmlContent).not.toContain('wx:for="{{userInfo}}"')
+      const js = await readTestFile('output/components/ListRender.js')
+      expect(js).toContain('v-for object enumeration')
       
       // 数字遍历转换
-      expect(wxmlContent).toContain('wx:for="{{5}}"')
+      expect(wxmlContent).toContain('wx:for="{{wxsH.range(5)}}"')
+      expect(wxmlContent).toContain('<wxs src="../helpers.wxs" module="wxsH" />')
+      expect(wxmlContent).toContain('wx:key="*this"')
       expect(wxmlContent).toContain('wx:for-item="n"')
       
       // 验证插值表达式
       expect(wxmlContent).toContain('{{item.name}}')
       expect(wxmlContent).toContain('{{index + 1}}')
       expect(wxmlContent).toContain('{{user.name}}')
-      expect(wxmlContent).toContain('{{value}}')
-      expect(wxmlContent).toContain('{{key}}')
+      expect(wxmlContent).not.toContain('{{value}}')
+      expect(wxmlContent).not.toContain('{{key}}')
+      await compiler.refreshProjectOutputs()
+      expect(await readTestFile('output/helpers.wxs')).toContain('range: range')
     })
+  })
+
+  it('写出嵌套列表的原生 key、复合样式和受限表达式', async () => {
+    const path = await createTestFile('components/NativeBindings.vue', `<template>
+  <view>
+    <view v-for="(row, rowIndex) in rows" :key="row.id">
+      <view v-for="child in row.children" :key="child.meta.id">
+        {{ rowIndex }}: {{ child.name }}
+      </view>
+    </view>
+    <view :class="['base', { active: visible, offline: !visible }]"
+      :style="[{ fontWeight: visible ? 600 : 400 }, ['padding: 4rpx', { color }]]">
+      {{ visible ? label : 'offline' }}
+      {{ formatLabel(label) }}
+      {{ missing?.name }}
+      {{ helper.label(label) }}
+    </view>
+    <wxs module="helper">module.exports = { label: function (value) { return value } }</wxs>
+  </view>
+</template>
+<script setup>
+const rows = []
+const visible = true
+const label = 'native'
+const color = '#000'
+</script>`)
+    testFiles.push('components/NativeBindings.vue')
+
+    await compiler.compileFile(path)
+    await compiler.refreshProjectOutputs()
+
+    const wxml = await readTestFile('output/components/NativeBindings.wxml')
+    const js = await readTestFile('output/components/NativeBindings.js')
+    expect(wxml).toContain('wx:for="{{rows}}" wx:for-item="row" wx:for-index="rowIndex" wx:key="id"')
+    expect(wxml).toMatch(/wx:for="\{\{row\.children\}\}" wx:for-item="child" wx:for-index="__fmpIndex\d+"/)
+    expect(wxml).not.toContain('wx:key="child.meta.id"')
+    expect(wxml).toContain('{{rowIndex}}')
+    expect(wxml).toContain("'base' || ''")
+    expect(wxml).toContain("visible ? 'active' : ''")
+    expect(wxml).toContain("!visible ? 'offline' : ''")
+    expect(wxml).toContain('style="font-weight: {{visible ? 600 : 400}}; padding: 4rpx; color: {{color}};"')
+    expect(wxml).toContain("{{visible ? label : 'offline'}}")
+    expect(wxml).toContain('{{helper.label(label)}}')
+    expect(wxml.match(/\{\{null\}\}/g)).toHaveLength(2)
+    expect(wxml).not.toMatch(/formatLabel\(|missing\?\./)
+    expect(js).toContain('non-native v-for key')
+    expect(js).toContain('non-native WXML expression')
   })
 
   describe('双向绑定指令', () => {

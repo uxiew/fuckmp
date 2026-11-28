@@ -12,6 +12,13 @@ import {
 } from './codegen/code-generator-utils'
 import { MiniProgramOptionsGenerator } from './codegen/mini-program-options-generator'
 import { logger } from '@/utils/logger'
+import { generateUnsupportedTemplateDegradeComment } from '@/utils/unsupported-template-utils.js'
+import { generateWatcherDegradeComment } from '@/utils/watcher-degrade-utils.js'
+import type { TransformContext } from '@/types/index.js'
+
+function generateScriptDegradeComments(warnings: TransformContext['scriptWarnings'] = []): string {
+  return warnings.map(({ message }) => `// ${message}\n`).join('')
+}
 
 /**
  * 代码生成选项
@@ -97,7 +104,7 @@ export class CodeGenerator {
 const { initVue3Runtime, createApp } = require('./runtime-injection.js');
 
 // 应用选项
-const appOptions = ${appOptions};
+${generateScriptDegradeComments(context?.scriptWarnings)}${generateWatcherDegradeComment(context?.watcherEffects, '应用')}const appOptions = ${appOptions};
 
 // 应用实例
 App({
@@ -160,7 +167,7 @@ App({
 const { createPage } = require('${getRelativeRuntimePath(pagePath)}');
 
 // 页面选项
-const pageOptions = ${pageOptions};
+${generateUnsupportedTemplateDegradeComment(context?.templateUnsupported, '页面')}${generateScriptDegradeComments(context?.scriptWarnings)}${generateWatcherDegradeComment(context?.watcherEffects, '页面')}const pageOptions = ${pageOptions};
 
 // 创建页面
 Page(createPage(pageOptions));
@@ -191,7 +198,7 @@ Page(createPage(pageOptions));
 const { createComponent } = require('${getRelativeRuntimePath(componentPath)}');
 
 // 组件选项
-const componentOptions = ${componentOptions};
+${generateUnsupportedTemplateDegradeComment(context?.templateUnsupported, '组件')}${generateScriptDegradeComments(context?.scriptWarnings)}${generateWatcherDegradeComment(context?.watcherEffects, '组件')}const componentOptions = ${componentOptions};
 
 // 创建组件
 Component(createComponent(componentOptions));

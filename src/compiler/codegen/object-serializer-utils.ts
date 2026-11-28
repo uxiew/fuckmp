@@ -4,6 +4,10 @@
 
 const MINI_PROGRAM_TYPE_CONSTRUCTORS = ['String', 'Number', 'Boolean', 'Object', 'Array'] as const
 
+export class LiteralOptionValue {
+  constructor(readonly value: unknown) {}
+}
+
 /**
  * 对象序列化占位符递增状态。
  */
@@ -37,7 +41,11 @@ export function deepCloneWithSerializerPlaceholders(
 
   const cloned: any = {}
   for (const [key, value] of Object.entries(obj)) {
-    if (typeof value === 'function') {
+    if (value instanceof LiteralOptionValue) {
+      const placeholder = createSerializerPlaceholder('DATA', placeholderState)
+      placeholders.set(placeholder, stringifyObjectLiteral(value.value, 2, true))
+      cloned[key] = placeholder
+    } else if (typeof value === 'function') {
       const placeholder = createSerializerPlaceholder('FUNCTION', placeholderState)
       placeholders.set(placeholder, value.toString())
       cloned[key] = placeholder
@@ -83,20 +91,20 @@ export function isSerializerFunctionString(str: string): boolean {
 /**
  * 将对象序列化为 JavaScript 对象字面量格式（不给属性名加引号）。
  */
-export function stringifyObjectLiteral(obj: any, indent: number = 0): string {
+export function stringifyObjectLiteral(obj: any, indent: number = 0, literal = false): string {
   if (obj === null) return 'null'
   if (obj === undefined) return 'undefined'
   if (typeof obj === 'boolean') return obj.toString()
-  if (typeof obj === 'number') return obj.toString()
+  if (typeof obj === 'number') return Object.is(obj, -0) ? '-0' : obj.toString()
   if (typeof obj === 'string') {
-    if (isSerializerExpressionString(obj)) {
+    if (!literal && isSerializerExpressionString(obj)) {
       return obj
     }
     return JSON.stringify(obj)
   }
 
   if (Array.isArray(obj)) {
-    const items = obj.map(item => stringifyObjectLiteral(item, indent + 2))
+    const items = obj.map(item => stringifyObjectLiteral(item, indent + 2, literal))
     return `[${items.join(', ')}]`
   }
 
@@ -104,8 +112,10 @@ export function stringifyObjectLiteral(obj: any, indent: number = 0): string {
     const spaces = ' '.repeat(indent)
     const nextSpaces = ' '.repeat(indent + 2)
     const entries = Object.entries(obj).map(([key, value]) => {
-      const valueStr = stringifyObjectLiteral(value, indent + 2)
-      return `${nextSpaces}${key}: ${valueStr}`
+      const valueStr = stringifyObjectLiteral(value, indent + 2, literal)
+      const keyStr = literal && key === '__proto__' ? '["__proto__"]'
+        : literal && !/^[$a-zA-Z_][$\w]*$/.test(key) ? JSON.stringify(key) : key
+      return `${nextSpaces}${keyStr}: ${valueStr}`
     })
 
     if (entries.length === 0) {
@@ -193,7 +203,8 @@ export function convertArrowFunctionToRegular(functionStr: string): string {
  */
 export interface EventHandlerConversionOptions {
   /** 单参数 handler 的 payload 来源。dataset 用于原生事件参数，detail 用于组件自定义事件。 */
-  singleParamSource?: 'dataset' | 'detail'
+  singleParamSource?: 'dataset' | 'detail' | 'event'
+  datasetCall?: boolean
 }
 
 export function convertEventHandlerFunction(
@@ -204,6 +215,32 @@ export function convertEventHandlerFunction(
   if (!functionStr || typeof functionStr !== 'string') {
     return functionStr
   }
+
+  if (options.datasetCall) {
+    const original = convertArrowFunctionToRegular(functionStr)
+    return `function(event) {
+    const dataset = event && event.currentTarget && event.currentTarget.dataset;
+    const types = dataset && dataset.fmpArgs;
+    const handler = (${original});
+    if (typeof types !== 'string' || !types.length) {
+      ${options.singleParamSource === 'detail'
+        ? 'if (event && event.type) return handler.call(this, event.detail);'
+        : ''}
+      return handler.apply(this, arguments);
+    }
+    const args = Array.from(types, (type, index) => {
+      const value = dataset['arg' + index];
+      if (type === 'n') return Number(value);
+      if (type === 'b') return value === true || value === 'true';
+      if (type === 'l') return null;
+      if (type === 'u') return undefined;
+      return value;
+    });
+    return handler.apply(this, args);
+  }`
+  }
+
+  if (options.singleParamSource === 'event') return functionStr
 
   if (!isSerializerEventHandlerName(functionName)) {
     return functionStr

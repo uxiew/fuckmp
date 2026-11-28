@@ -115,11 +115,11 @@ export class ScriptTransformer {
 
       // 处理变量声明
       this.processVariables(parseResult, context)
-      this.processLifecyclePropAliases(context)
+      if (!parseResult.nativeMacroReferencesLowered) this.processLifecyclePropAliases(context)
 
       // 处理函数声明
       this.processFunctions(parseResult, context)
-      this.processMethodPropAliases(context)
+      if (!parseResult.nativeMacroReferencesLowered) this.processMethodPropAliases(context)
 
       // 生成代码
       const result = this.generateCode(context)
@@ -144,9 +144,17 @@ export class ScriptTransformer {
    * 处理宏调用
    */
   private processMacros(parseResult: ScriptParseResult, context: TransformContext): void {
-    processScriptMacros(parseResult, context, this.macroHandlers, (macroName, error) => {
+    const handledMacros = processScriptMacros(parseResult, context, this.macroHandlers, (macroName, error) => {
       logger.error(`宏处理失败: ${macroName}`, error as Error)
     })
+    if (parseResult.setupStatements?.length) {
+      context.scriptWarnings = parseResult.setupStatements.flatMap(({ description, macroName, line }) =>
+        macroName && handledMacros.has(macroName) ? [] : [{
+          message: `脚本降级: 已省略不支持的顶层语句 ${description}`,
+          ...(line !== undefined && { line })
+        }]
+      )
+    }
   }
 
   /**
@@ -192,7 +200,7 @@ export class ScriptTransformer {
           })
         } else {
           // ref/reactive 变量 - 确保保持原始数据类型
-          const initialValue = parseScriptInitValue(variable.init)
+          const initialValue = variable.literalStringInitializer ?? parseScriptInitValue(variable.init)
           context.data[name] = initialValue
           // 保存响应式变量信息
           context.reactiveVariables!.set(name, {
@@ -206,7 +214,9 @@ export class ScriptTransformer {
         const initValue = variable.init
 
         // 检查是否为函数（包括箭头函数）
-        if (isFunctionInitializer(initValue)) {
+        if (variable.literalStringInitializer !== undefined) {
+          context.data[name] = variable.literalStringInitializer
+        } else if (isFunctionInitializer(initValue)) {
           // 函数类型，直接使用原始字符串，运行时库会处理响应式变量
           context.methods[name] = createMethodFromFunctionInitializer(name, initValue)
         } else {
@@ -223,6 +233,7 @@ export class ScriptTransformer {
   private processWithDefaultsVariable(variable: any, context: TransformContext): void {
     const defaults = variable.init?.defaults || {}
 
+    registerPropNamespace(context, variable.name)
     mergePropDefaults(defaults, context)
   }
 

@@ -11,6 +11,7 @@ export function createCompileResult(): CompileResult {
   return {
     success: [],
     errors: [],
+    warnings: [],
     stats: {
       total: 0,
       success: 0,

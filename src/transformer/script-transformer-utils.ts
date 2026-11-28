@@ -118,7 +118,7 @@ export function createMethodFromFunctionInitializer(name: string, initValue: str
  */
 export function transformComputedGetter(
   getter: string,
-  parseResult: Pick<ScriptParseResult, 'variables'>,
+  parseResult: Pick<ScriptParseResult, 'variables' | 'nativeMacroReferencesLowered'>,
   context: TransformContext
 ): string {
   if (!getter || typeof getter !== 'string') {
@@ -142,7 +142,9 @@ export function transformComputedGetter(
     transformedGetter = transformedGetter.replace(bareAccessRegex, `this.data.${varName}`)
   })
 
-  return applyPropAccessMappingsToScript(transformedGetter, context)
+  return parseResult.nativeMacroReferencesLowered
+    ? transformedGetter
+    : applyPropAccessMappingsToScript(transformedGetter, context)
 }
 
 /**
@@ -160,7 +162,7 @@ export function mergePropDefaults(defaults: Record<string, any>, context: Transf
     }
 
     context.props[propName] = {
-      type: inferConstructorFromValue(defaultValue),
+      type: typeof existingProp === 'function' ? existingProp : inferConstructorFromValue(defaultValue),
       default: defaultValue,
       required: false
     }

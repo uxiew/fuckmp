@@ -85,6 +85,9 @@ export function generateComputedRuntimeMethods(computed: Record<string, any> = {
 
   methods._updateComputed = computedKeys.length > 0
     ? `function() {
+    for (const key of ${JSON.stringify(computedKeys)}) {
+      if (this[key]?._isComputed) this[key]._dirty = true;
+    }
     this.setData({
 ${computedKeys.map(key => `      ${key}: this._computed_${key}()`).join(',\n')}
     })

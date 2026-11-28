@@ -40,6 +40,10 @@ export function mergeScriptTransformContext(
     target.watcherEffects = scriptContext.watcherEffects
   }
 
+  if (scriptContext.scriptWarnings) {
+    target.scriptWarnings = scriptContext.scriptWarnings
+  }
+
   if (scriptContext.templateRefs) {
     target.templateRefs = scriptContext.templateRefs
   }

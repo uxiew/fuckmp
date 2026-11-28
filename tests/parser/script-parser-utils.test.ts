@@ -101,6 +101,7 @@ describe('script parser utils', () => {
       name: 'message',
       type: 'const',
       init: 'hello',
+      literalStringInitializer: 'hello',
       isReactive: false
     })
   })
